@@ -1504,7 +1504,7 @@ export function NewsShortsBuilder() {
         setError("ElevenLabs voices are still loading. Wait for the account list before building.");
         return;
       }
-      if (voiceProviderStatus !== "ok") {
+      if (voiceProviderStatus !== "ok" && voiceProviderStatus !== "fallback") {
         setError("ElevenLabs account voices are unavailable, so the build was not started. Nothing was generated.");
         return;
       }

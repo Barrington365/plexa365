@@ -3,6 +3,7 @@ import {
   ACCOUNT_VOICE_TYPES,
   groupLabelForAccountVoice,
   includeSamVoice,
+  PREMADE_FALLBACK_VOICES,
   reduceAccountVoicePages,
   type AccountVoicePage,
 } from "@/app/lib/elevenlabs-voice-catalog";
@@ -79,7 +80,10 @@ async function fetchAccountVoicePages(key: string): Promise<AccountVoicePage[]> 
         pages.push({ voiceType, status: res.status, voices: [], hasMore: false });
         return pages;
       }
-      if (!res.ok) break;
+      if (!res.ok) {
+        pages.push({ voiceType, status: res.status, voices: [], hasMore: false });
+        break;
+      }
       const data = (await res.json()) as VoiceListPage;
       const voices = Array.isArray(data.voices) ? data.voices : [];
       const hasMore = data.has_more === true && Boolean(data.next_page_token);
@@ -103,7 +107,9 @@ async function fetchAccountVoicePages(key: string): Promise<AccountVoicePage[]> 
     pages.push({ voiceType: "legacy", status: legacy.status, voices: [], hasMore: false });
     return pages;
   }
-  if (legacy.ok) {
+  if (!legacy.ok) {
+    pages.push({ voiceType: "legacy", status: legacy.status, voices: [], hasMore: false });
+  } else {
     const data = (await legacy.json()) as VoiceListPage;
     pages.push({
       voiceType: "legacy",
@@ -143,16 +149,23 @@ export async function GET() {
     const pages = await fetchAccountVoicePages(key);
     const account = reduceAccountVoicePages(pages);
     if (account.status === "auth_failed") return unavailableResponse("auth_failed");
-    const listed = includeSamVoice(account.voices).map((voice) => ({
+    const accountListed = includeSamVoice(account.voices);
+    const usingFallback = account.voices.length === 0;
+    const listed = (usingFallback ? includeSamVoice(PREMADE_FALLBACK_VOICES) : accountListed).map((voice) => ({
       ...voice,
       groupLabel: "groupLabel" in voice && voice.groupLabel ? voice.groupLabel : groupLabelForAccountVoice(voice, null),
     }));
-    if (listed.length === 0) return unavailableResponse("empty");
+    const requestStatuses = pages.map((page) => ({
+      voiceType: page.voiceType ?? "all",
+      status: page.status,
+      count: page.voices.length,
+    }));
     const diagnostics = {
       ...buildDiagnostics(listed),
       accountVoiceCount: account.voices.length,
       truncated: account.truncated,
       voiceTypes: account.voiceTypes,
+      requestStatuses,
     };
     return NextResponse.json({
       voices: listed.map((voice) => ({
@@ -166,10 +179,11 @@ export async function GET() {
         accountVoiceType: "accountVoiceType" in voice ? voice.accountVoiceType : undefined,
       })),
       diagnostics,
-      source: "elevenlabs",
-      status: "ok",
-      catalogueNote:
-        "Account voices include cloned, workspace, and saved voices. Premade Sam stays on the list when the account response omits him. The rest of the public library is not listed.",
+      source: usingFallback ? "fallback" : "elevenlabs",
+      status: usingFallback ? "fallback" : "ok",
+      catalogueNote: usingFallback
+        ? "The connected account voice request did not return a catalogue. This is the premade fallback, including Sam. It is not every voice available to the account."
+        : "These are the voices the connected account returned. Premade Sam stays listed when that response omits him. The rest of the public library is not listed.",
     });
   } catch {
     return unavailableResponse("network_error");

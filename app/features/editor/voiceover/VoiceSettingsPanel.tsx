@@ -257,7 +257,9 @@ export function VoiceSettingsPanel({
             ? "ElevenLabs key is saved but not authorised. Re-save a valid key in Admin."
             : voiceProviderStatus === "missing_key"
               ? "No ElevenLabs key found in Admin settings."
-              : "Using fallback voice list right now."}
+              : voiceProviderStatus === "fallback"
+                ? "The account voice request did not return a catalogue. This premade list, including Sam, is a fallback and is not every voice on the account."
+                : "Using fallback voice list right now."}
         </p>
       )}
 

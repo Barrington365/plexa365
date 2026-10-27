@@ -129,6 +129,32 @@ export function filterListedVoices<T extends ListedVoice>(
   });
 }
 
+/** Premade IDs used when the account voice request returns nothing. This is not the account catalogue. */
+export const PREMADE_FALLBACK_VOICES: ElevenLabsCatalogVoice[] = [
+  { voice_id: "9BWtsMINqrJLrRacOk9x", name: "Aria", category: "premade", is_default: true, labels: { gender: "female", accent: "American" } },
+  { voice_id: "CwhRBWXzGAHq8TQ4Fs17", name: "Roger", category: "premade", is_default: true, labels: { gender: "male", accent: "American" } },
+  { voice_id: "EXAVITQu4vr4xnSDxMaL", name: "Sarah", category: "premade", is_default: true, labels: { gender: "female", accent: "American" } },
+  { voice_id: "FGY2WhTYpPnrIDTdsKH5", name: "Laura", category: "premade", is_default: true, labels: { gender: "female", accent: "American" } },
+  { voice_id: "IKne3meq5aSn9XLyUdCD", name: "Charlie", category: "premade", is_default: true, labels: { gender: "male", accent: "Australian" } },
+  { voice_id: "JBFqnCBsd6RMkjVDRZzb", name: "George", category: "premade", is_default: true, labels: { gender: "male", accent: "British" } },
+  { voice_id: "N2lVS1w4EtoT3dr4eOWO", name: "Callum", category: "premade", is_default: true, labels: { gender: "male", accent: "American" } },
+  { voice_id: "SAz9YHcvj6GT2YYXdXww", name: "River", category: "premade", is_default: true, labels: { gender: "neutral", accent: "American" } },
+  SAM_ELEVENLABS_VOICE,
+  { voice_id: "TX3LPaxmHKxFdv7VOQHJ", name: "Liam", category: "premade", is_default: true, labels: { gender: "male", accent: "American" } },
+  { voice_id: "XB0fDUnXU5powFXDhCwa", name: "Charlotte", category: "premade", is_default: true, labels: { gender: "female", accent: "Swedish" } },
+  { voice_id: "Xb7hH8MSUJpSbSDYk0k2", name: "Alice", category: "premade", is_default: true, labels: { gender: "female", accent: "British" } },
+  { voice_id: "XrExE9yKIg1WjnnlVkGX", name: "Matilda", category: "premade", is_default: true, labels: { gender: "female", accent: "American" } },
+  { voice_id: "bIHbv24MWmeRgasZH58o", name: "Will", category: "premade", is_default: true, labels: { gender: "male", accent: "American" } },
+  { voice_id: "cgSgspJ2msm6clMCkdW9", name: "Jessica", category: "premade", is_default: true, labels: { gender: "female", accent: "American" } },
+  { voice_id: "cjVigY5qzO86Huf0OWal", name: "Eric", category: "premade", is_default: true, labels: { gender: "male", accent: "American" } },
+  { voice_id: "iP95p4xoKVk53GoZ742B", name: "Chris", category: "premade", is_default: true, labels: { gender: "male", accent: "American" } },
+  { voice_id: "nPczCjzI2devNBz1zQrb", name: "Brian", category: "premade", is_default: true, labels: { gender: "male", accent: "American" } },
+  { voice_id: "onwK4e9ZLuTAKqWW03F9", name: "Daniel", category: "premade", is_default: true, labels: { gender: "male", accent: "British" } },
+  { voice_id: "pFZP5JQG7iQjIQuC4Bku", name: "Lily", category: "premade", is_default: true, labels: { gender: "female", accent: "British" } },
+  { voice_id: "pqHfZKP75CvOlQylNhV4", name: "Bill", category: "premade", is_default: true, labels: { gender: "male", accent: "American" } },
+  { voice_id: "21m00Tcm4TlvDq8ikWAM", name: "Rachel (legacy)", category: "premade", is_default: true, labels: { gender: "female", accent: "American" } },
+];
+
 export function includeSamVoice<T extends ElevenLabsCatalogVoice>(voices: T[]): T[] {
   const hasSam = voices.some((voice) => {
     const name = voice.name.trim().toLowerCase();
