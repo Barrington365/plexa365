@@ -26,7 +26,7 @@ export type NewsShortFontBundle = {
 };
 
 /** Files shipped in repo under assets/fonts/news-shorts/ (OFL — google/fonts). */
-export const NEWS_SHORT_BUNDLED_FONT_FILES = ["RobotoCondensed-VF.ttf", "BebasNeue-Regular.ttf"] as const;
+export const NEWS_SHORT_BUNDLED_FONT_FILES = ["RobotoCondensed-Regular.ttf", "RobotoCondensed-Bold.ttf", "BebasNeue-Regular.ttf"] as const;
 
 /** Resolve bundle metadata for ASS + slides. Safe to import from client components. */
 export function resolveNewsShortFontBundle(preset: NewsShortHeadlineFontId | undefined): NewsShortFontBundle {

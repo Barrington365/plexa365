@@ -269,7 +269,8 @@ export function runFfmpeg(args: string[], options?: { timeoutMs?: number }): Pro
     p.on("close", (code) => {
       if (timer) clearTimeout(timer);
       if (code === 0 && /fontselect: failed to find|failed to load font|no usable font/i.test(err)) {
-        reject(new Error("Caption rendering failed: FFmpeg could not load a usable font. The video is not ready."));
+        const detail = err.split("\n").filter(l => /fontselect: failed to find/i.test(l)).slice(-2).join(" ").slice(0,400);
+        reject(new Error(`Caption rendering failed: FFmpeg could not load a usable font. ${detail}`));
       } else if (code === 0) resolve();
       else reject(new Error(`ffmpeg exited ${code}: ${err.slice(-1200)}`));
     });

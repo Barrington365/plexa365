@@ -49,3 +49,23 @@ export function requireNewsShortFontsDir(): string {
   }
   return BUNDLED_DIR;
 }
+
+/** Fail before paid narration when this host cannot draw the bundled caption font. */
+export async function assertCaptionRenderer(): Promise<void> {
+  const { spawnSync } = await import("child_process");
+  const { ffmpegBinary } = await import("@/app/features/video/ffmpeg-utils");
+  const { buildNewsShortAss } = await import("@/app/features/content/news-short-ass");
+  const { tmpdir } = await import("os");
+  const dir = fs.mkdtempSync(path.join(tmpdir(), "caption-check-"));
+  try {
+    const file = path.join(dir, "check.ass");
+    fs.writeFileSync(file, buildNewsShortAss([{startSec:0,endSec:1,headline:"CAPTION CHECK",subline:"",highlightWords:[]}], {fontSize:54,panelColor:"#000000",highlightColor:"#ffffff",textBoxWidthPct:86,playResX:1920,playResY:1080}));
+    const filter = subtitlesFilterWithOptionalFontsdir(file, requireNewsShortFontsDir());
+    const result = spawnSync(ffmpegBinary(), ["-f","lavfi","-i","color=black:s=1920x1080:d=0.1","-vf",filter,"-frames:v","1","-f","rawvideo","-pix_fmt","gray","pipe:1"], {timeout:15000,maxBuffer:4*1024*1024});
+    const bright = result.stdout?.reduce((n:number,b:number) => n + (b>100 ? 1 : 0),0) ?? 0;
+    if (result.status !== 0 || bright < 500) {
+      const detail = result.stderr?.toString().split("\n").filter(l => /fontselect|font provider|Error opening memory font/.test(l)).slice(-3).join(" ").slice(0,500);
+      throw new Error(`Caption renderer check failed before narration. ${detail || "No visible caption pixels."}`);
+    }
+  } finally { fs.rmSync(dir, {recursive:true,force:true}); }
+}

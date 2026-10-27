@@ -1,3 +1,4 @@
+import { assertCaptionRenderer } from "@/app/lib/news-short-fonts-server";
 import fs from "fs/promises";
 import path from "path";
 import { renderSceneToPng, withSharedPuppeteerBrowser } from "@/app/features/render/scene-renderer";
@@ -242,6 +243,8 @@ export async function executeNewsShortsBuild(body: NewsShortsBuildBody) {
     );
     const useVideoAudio =
       body.useVideoAudio === true && Boolean(dualCompositeActive ? bgvMotion : motion.rel);
+
+    if (body.burnSubtitles !== false) await assertCaptionRenderer();
 
     let narrationCues: import("@/app/features/content/subtitle-generator").SubtitleCue[] | undefined;
     let audioPath: string | undefined;

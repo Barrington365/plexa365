@@ -5,7 +5,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import ffmpeg from "ffmpeg-static";
 import { buildNewsShortAss } from "@/app/features/content/news-short-ass";
-import { requireNewsShortFontsDir, subtitlesFilterWithOptionalFontsdir } from "./news-short-fonts-server";
+import { assertCaptionRenderer, requireNewsShortFontsDir, subtitlesFilterWithOptionalFontsdir } from "./news-short-fonts-server";
 
 const blobs = vi.hoisted(() => new Map<string, { data: ArrayBuffer; metadata: Record<string, string> }>());
 vi.mock("./netlify-blob-json", () => ({ shouldUseNetlifyBlobStore: () => true }));
@@ -16,6 +16,7 @@ vi.mock("@netlify/blobs", () => ({ getStore: () => ({
 import { normaliseBuildSidecarRel, writeVideoBlobAsset, readVideoBlobAsset } from "./video-blob-assets";
 
 describe("durable captions", () => {
+  it("validates caption pixels before narration", async () => { await expect(assertCaptionRenderer()).resolves.toBeUndefined(); });
   it("round trips SRT, ASS and engine JSON independently of worker disk", async () => {
     for (const rel of ["subtitles/test.srt", "subtitles/test-short.ass", "video/test-short-engine.json"]) {
       await writeVideoBlobAsset(rel, Buffer.from("caption evidence"));
