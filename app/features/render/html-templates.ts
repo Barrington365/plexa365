@@ -1,4 +1,5 @@
 import { BRAND_HORSE_RACING_MARK, BRAND_MARK } from "@/app/lib/brand";
+import { newsShortBrandLogoSvg, NEWS_SHORT_BRAND_LOGO_CSS } from "@/app/lib/news-short-brand-logo";
 import { decodeHtmlEntities } from "@/app/lib/html-entities";
 import {
   computeF1ResultsLayout,
@@ -2258,6 +2259,9 @@ function wrapF1Grid(pageTitle: string, inner: string, w: number, h: number, data
 }
 
 function renderNewsShortSlide(templateId: string, data: Data, w: number, h: number): string {
+  const sourceHost = String(data.sourceName ?? "").toLowerCase().replace(/^www\./, "");
+  const brandId = String(data.brandTemplateId ?? (sourceHost === "football365.com" ? "football365" : sourceHost === "teamtalk.com" ? "teamtalk" : ""));
+  const brandLogo = newsShortBrandLogoSvg(brandId);
   const hfRaw = typeof data.headlineFont === "string" ? data.headlineFont.trim() : "";
   const headlineFontPick: NewsShortHeadlineFontId = hfRaw === "bebas-neue" ? "bebas-neue" : "roboto-condensed";
   const fontBundle = resolveNewsShortFontBundle(headlineFontPick);
@@ -2415,6 +2419,8 @@ function renderNewsShortSlide(templateId: string, data: Data, w: number, h: numb
       background: ${newsShortMotionFullFrameGradient(dimStrength)};
     }
     .ns-top-line { position: absolute; top: 0; left: 0; right: 0; height: 10px; background: linear-gradient(90deg, ${topAccentFrom}, ${topAccentTo}); z-index: 3; }
+    .ns-brand-logo { ${NEWS_SHORT_BRAND_LOGO_CSS} }
+    .ns-brand-logo svg { display:block; width:100%; height:auto; }
     .ns-quote-mark { position: absolute; top: ${Math.round(h * 0.09)}px; left: 50%; transform: translateX(-50%); z-index: 4; color: rgba(255,255,255,0.42); font-size: ${Math.round(fontSize * 0.95)}px; font-weight: 900; line-height: 1; }
     .ns-footer-bar { --ns-footer-h: ${NEWS_SHORT_FOOTER_SAFE_PX}px; }
     .ns-panel-wrap {
@@ -2472,6 +2478,7 @@ function renderNewsShortSlide(templateId: string, data: Data, w: number, h: numb
       ${motionDimLayer}
       ${overlayLayer}
       <div class="ns-top-line"></div>
+      ${brandLogo ? `<div class="ns-brand-logo">${brandLogo}</div>` : ""}
       <div class="ns-quote-mark">“</div>
       <div class="ns-panel-wrap ns-footer-bar">
         <div class="ns-panel">

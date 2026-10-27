@@ -59,6 +59,7 @@ export function newsShortSceneDataForSlide(
   const dims = videoDimensionsForCreativeFormat(fmt);
   const layoutPreset = coerceLayoutPresetForFormat(fmt, template.creativeLayoutPreset);
   const data: Record<string, unknown> = {
+    brandTemplateId: template.brandTemplateId,
     width: dims.width,
     height: dims.height,
     headline: slide.headline,

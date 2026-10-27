@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { Panel } from "@/app/components/Panel";
+import { newsShortBrandLogoSvg, NEWS_SHORT_BRAND_LOGO_CSS } from "@/app/lib/news-short-brand-logo";
 import { VoiceoverControls } from "@/app/features/editor/voiceover/VoiceoverControls";
 import { VoiceSettingsPanel } from "@/app/features/editor/voiceover/VoiceSettingsPanel";
 import { AiPromptPanel } from "@/app/features/editor/voiceover/AiPromptPanel";
@@ -418,6 +419,7 @@ function PreviewSlide({
   const panelText = resolvedPanelTextColorForNewsShort({ style, brandTemplateId }) ?? "#ffffff";
   const topFrom = style.topAccentFrom ?? "#7dd300";
   const topTo = style.topAccentTo ?? "#d0ff3a";
+  const brandLogo = newsShortBrandLogoSvg(brandTemplateId ?? "");
 
   const aspectClass = creativeVideoFormat === "landscape_video" ? "aspect-video" : "aspect-[9/16]";
   return (
@@ -475,6 +477,8 @@ function PreviewSlide({
           “
         </div>
       ) : null}
+
+      {brandLogo ? <div dangerouslySetInnerHTML={{ __html: `<div style="${NEWS_SHORT_BRAND_LOGO_CSS}">${brandLogo.replace("<svg", '<svg style="display:block;width:100%;height:auto"')}</div>` }} /> : null}
 
       <div className="absolute inset-x-0 bottom-0 z-[5] flex flex-col">
         <div
@@ -1741,6 +1745,7 @@ export function NewsShortsBuilder() {
               : newsShortContentKicker(slide.label),
         highlightWords: slide.highlightWords,
         heroImage: heroImageForScene,
+        brandTemplateId: selectedBrandTemplateId,
         sourceName: (() => {
           try {
             return new URL(template.sourceUrl || "").hostname.replace(/^www\./, "");
