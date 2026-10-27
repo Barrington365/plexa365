@@ -29,6 +29,8 @@ import {
   sceneSubtitleLineForBurn,
   splitScriptIntoSceneCaptions,
 } from "@/app/lib/script-scene-captions";
+import { collectByteRangeBody } from "@/app/lib/media-range-download";
+import { captionPreferenceFromDraft, captionStatusLabel } from "@/app/features/news-shorts/caption-preference";
 import {
   type BackingMusicConfig,
   NEWS_SHORT_DEFAULT_STYLE,
@@ -103,6 +105,7 @@ import {
   videoDimensionsForCreativeFormat,
 } from "@/app/features/news-shorts/creative-video-format";
 import { studioApiPath, withAppPathPrefix } from "@/app/lib/app-base-path";
+import { requestRenderedScenes } from "@/app/lib/request-render-scenes";
 import { parseApiJson, pollVideoBuildJob } from "@/app/lib/parse-api-json";
 import { resolvedPanelTextColorForNewsShort } from "@/app/lib/news-shorts-slide-render-data";
 
@@ -175,6 +178,12 @@ type RenderBuildResponse = {
   /** Vertical short-form engine export (layers, scenes, audio) — same as sidecar JSON on disk */
   engine?: ShortFormEngineExport;
   engineRel?: string;
+  sceneDurationsSec?: number[];
+  narrationDurationSec?: number;
+  captionsBurned?: boolean;
+  voiceTrackProvider?: string;
+  voiceFallbackReason?: string;
+  elevenlabsVoiceId?: string;
 };
 
 type RenderOnlyResponse = {
@@ -630,6 +639,7 @@ export function NewsShortsBuilder() {
   const [loading, setLoading] = useState(false);
   const [parseDone, setParseDone] = useState(false);
   const [error, setError] = useState("");
+  const [mp4DownloadBusy, setMp4DownloadBusy] = useState(false);
   const [template, setTemplate] = useState<NewsShortTemplateData>(INITIAL_NEWS_SHORT_TEMPLATE);
   const [ffmpegPlan, setFfmpegPlan] = useState<unknown>(null);
   const [articleRewriteBusy, setArticleRewriteBusy] = useState(false);
@@ -688,6 +698,7 @@ export function NewsShortsBuilder() {
   const [addEmphasis, setAddEmphasis] = useState(true);
   const [voicePreset, setVoicePreset] = useState<VoicePreset>("Male - Broadcast");
   const [voiceGender, setVoiceGender] = useState<VoiceGender>("male");
+  const [voiceProviderPreference, setVoiceProviderPreference] = useState<"auto" | "elevenlabs" | "openai">("auto");
   const [voiceSpeed, setVoiceSpeed] = useState(1.3);
   const [voiceSettingsMsg, setVoiceSettingsMsg] = useState("");
   const [voiceSettingsSavedAt, setVoiceSettingsSavedAt] = useState<number | null>(null);
@@ -752,7 +763,11 @@ export function NewsShortsBuilder() {
     unlabelledDefaults: number;
     unlabelledVoiceNames: string[];
     myVoicesCount?: number;
+    accountVoiceCount?: number;
+    truncated?: boolean;
+    voiceTypes?: string[];
   } | null>(null);
+  const [voiceCatalogueNote, setVoiceCatalogueNote] = useState<string | null>(null);
   const [voiceProviderStatus, setVoiceProviderStatus] = useState<string | null>(null);
   const [improveBusy, setImproveBusy] = useState(false);
   const [voiceVersions, setVoiceVersions] = useState<{ versionA?: string; versionB?: string; versionC?: string }>({});
@@ -950,6 +965,29 @@ export function NewsShortsBuilder() {
     return /\.mp4$/i.test(raw) ? raw : `${raw}.mp4`;
   }, [seoTemplate.file_name]);
 
+  const downloadBuiltMp4 = async () => {
+    if (!buildResult?.videoRel || mp4DownloadBusy) return;
+    setMp4DownloadBusy(true);
+    setError("");
+    try {
+      const url = withAppPathPrefix(`/api/file?rel=${encodeURIComponent(buildResult.videoRel)}&download=1`);
+      const bytes = await collectByteRangeBody(url);
+      const fileBytes = new ArrayBuffer(bytes.byteLength);
+      new Uint8Array(fileBytes).set(bytes);
+      const blob = new Blob([fileBytes], { type: "video/mp4" });
+      const href = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = href;
+      link.download = seoFriendlyMp4Filename || "video.mp4";
+      link.click();
+      URL.revokeObjectURL(href);
+    } catch (downloadError) {
+      setError(downloadError instanceof Error ? downloadError.message : "Download failed.");
+    } finally {
+      setMp4DownloadBusy(false);
+    }
+  };
+
   /** Same rules as the build API (`resolveMotionBackdropRel`) — trims paths so whitespace-only rels don’t enable the UI. */
   const motionBackdrop = useMemo(
     () => resolveMotionBackdropRel({ videoRecordingRel, backgroundVideoRel }),
@@ -1096,6 +1134,7 @@ export function NewsShortsBuilder() {
             description?: string;
             category?: string;
             groupLabel?: string;
+            accountVoiceType?: string;
             labels?: Record<string, string>;
           }>;
           diagnostics?: {
@@ -1104,8 +1143,12 @@ export function NewsShortsBuilder() {
             unlabelledDefaults: number;
             unlabelledVoiceNames: string[];
             myVoicesCount?: number;
+            accountVoiceCount?: number;
+            truncated?: boolean;
+            voiceTypes?: string[];
           };
           status?: string;
+          catalogueNote?: string;
         };
         const voices: ElevenlabsVoiceOption[] = (data.voices ?? []).map((v) => ({
           voiceId: v.voice_id,
@@ -1113,13 +1156,16 @@ export function NewsShortsBuilder() {
           description: v.description,
           category: v.category,
           groupLabel: v.groupLabel,
+          accountVoiceType: v.accountVoiceType,
           labels: v.labels,
         }));
         setElevenlabsVoices(voices);
         setVoiceDiagnostics(data.diagnostics ?? null);
         setVoiceProviderStatus(data.status ?? null);
+        setVoiceCatalogueNote(data.catalogueNote ?? null);
         setElevenlabsVoiceId((cur) => {
           if (cur && voices.some((v) => v.voiceId === cur)) return cur;
+          if (cur && cur !== DEFAULT_NEWS_SHORTS_ELEVENLABS_VOICE_ID) return cur;
           const george =
             voices.find((v) => v.voiceId === DEFAULT_NEWS_SHORTS_ELEVENLABS_VOICE_ID) ||
             voices.find((v) => /^george\b/i.test(v.name.trim())) ||
@@ -1422,25 +1468,16 @@ export function NewsShortsBuilder() {
     setBuildResult(null);
     try {
       const scenes = buildScenesPayload();
-      const res = await fetch("/api/render-scenes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contentId,
-          scenes,
-          backgroundImageRel: hasMotionBackdrop ? undefined : backgroundImageRel || undefined,
-          backgroundVideoFrameRel: hasMotionBackdrop ? undefined : backgroundVideoFrameRel || undefined,
-          backgroundVideoRel: dualBackdropCamera
-            ? (backgroundVideoRel || "").trim() || undefined
-            : motionBackdrop.rel || undefined,
-          editorSubtitleOverlayOnly: Boolean(burnSubtitles && burnSubtitlesReplaceSlideText),
-        }),
+      const json = await requestRenderedScenes(studioApiPath("/api/render-scenes"), {
+        contentId,
+        scenes,
+        backgroundImageRel: hasMotionBackdrop ? undefined : backgroundImageRel || undefined,
+        backgroundVideoFrameRel: hasMotionBackdrop ? undefined : backgroundVideoFrameRel || undefined,
+        backgroundVideoRel: dualBackdropCamera
+          ? (backgroundVideoRel || "").trim() || undefined
+          : motionBackdrop.rel || undefined,
+        editorSubtitleOverlayOnly: Boolean(burnSubtitles && burnSubtitlesReplaceSlideText),
       });
-      const json = (await res.json()) as RenderScenesApiResponse | { error?: string };
-      if (!res.ok || !("images" in json)) {
-        const message = "error" in json && json.error ? json.error : "Failed to render slides.";
-        throw new Error(message);
-      }
       const canonicalId = json.contentId?.trim() || contentId;
       if (json.contentId?.trim()) {
         setContentId(json.contentId.trim());
@@ -1461,6 +1498,27 @@ export function NewsShortsBuilder() {
   };
 
   const buildMp4 = async () => {
+    const usesNarrationFile = Boolean(voiceRecordingRel) || useVideoAudio;
+    if (!usesNarrationFile) {
+      if (voicesLoading || voiceProviderStatus == null) {
+        setError("ElevenLabs voices are still loading. Wait for the account list before building.");
+        return;
+      }
+      if (voiceProviderStatus !== "ok") {
+        setError("ElevenLabs account voices are unavailable, so the build was not started. Nothing was generated.");
+        return;
+      }
+      if (
+        voiceProviderPreference !== "openai" &&
+        elevenlabsVoiceId &&
+        !elevenlabsVoices.some((voice) => voice.voiceId === elevenlabsVoiceId)
+      ) {
+        setError(
+          `Selected voice ${elevenlabsVoiceId} is not on this ElevenLabs account. Choose a voice from the account list. Nothing was generated.`,
+        );
+        return;
+      }
+    }
     setBuildBusy(true);
     setBuildPhase("starting");
     setError("");
@@ -1473,6 +1531,7 @@ export function NewsShortsBuilder() {
       additionalKeywords: csvToWords(manualKeywords),
       voiceGender,
       voiceSpeed,
+      voiceProviderPreference,
       elevenlabsVoiceId: elevenlabsVoiceId || undefined,
       voiceRecordingRel: voiceRecordingRel || undefined,
       seoInput: { ...seoInput, tone: seoTone },
@@ -1543,6 +1602,18 @@ export function NewsShortsBuilder() {
       }
 
       setBuildResult(built);
+      if (built.sceneDurationsSec && built.sceneDurationsSec.length > 0) {
+        setTemplate((prev) => {
+          if (built.sceneDurationsSec?.length !== prev.slides.length) return prev;
+          return {
+            ...prev,
+            slides: prev.slides.map((slide, index) => ({
+              ...slide,
+              durationSec: built.sceneDurationsSec?.[index] ?? slide.durationSec,
+            })),
+          };
+        });
+      }
       if (built.seo) setSeoTemplate(built.seo);
       setContentId(built.contentId);
       setRenderResult({
@@ -1835,6 +1906,10 @@ export function NewsShortsBuilder() {
       seoTone,
       burnSubtitles,
       burnSubtitlesReplaceSlideText,
+      elevenlabsVoiceId,
+      voiceSpeed,
+      voiceGender,
+      voiceProviderPreference,
       backgroundImageRel,
       backgroundVideoRel,
       backgroundVideoFrameRel,
@@ -1878,6 +1953,10 @@ export function NewsShortsBuilder() {
         seoTone?: SocialVideoTone;
         burnSubtitles?: boolean;
         burnSubtitlesReplaceSlideText?: boolean;
+        elevenlabsVoiceId?: string;
+        voiceSpeed?: number;
+        voiceGender?: VoiceGender;
+        voiceProviderPreference?: "auto" | "elevenlabs" | "openai";
         backgroundImageRel?: string;
         backgroundVideoRel?: string;
         backgroundVideoFrameRel?: string;
@@ -1931,8 +2010,23 @@ export function NewsShortsBuilder() {
       } else {
         setSeoTone("analysis");
       }
-      setBurnSubtitles(Boolean(draft.burnSubtitles));
-      setBurnSubtitlesReplaceSlideText(Boolean(draft.burnSubtitlesReplaceSlideText));
+      const captions = captionPreferenceFromDraft(draft);
+      setBurnSubtitles(captions.burnSubtitles);
+      setBurnSubtitlesReplaceSlideText(captions.burnSubtitlesReplaceSlideText);
+      if (typeof draft.elevenlabsVoiceId === "string" && draft.elevenlabsVoiceId.trim()) {
+        setElevenlabsVoiceId(draft.elevenlabsVoiceId.trim());
+      }
+      if (typeof draft.voiceSpeed === "number" && Number.isFinite(draft.voiceSpeed)) {
+        setVoiceSpeed(Math.min(2, Math.max(0.5, draft.voiceSpeed)));
+      }
+      if (draft.voiceGender === "male" || draft.voiceGender === "female") setVoiceGender(draft.voiceGender);
+      if (
+        draft.voiceProviderPreference === "auto" ||
+        draft.voiceProviderPreference === "elevenlabs" ||
+        draft.voiceProviderPreference === "openai"
+      ) {
+        setVoiceProviderPreference(draft.voiceProviderPreference);
+      }
       const draftBgImageRel = (draft.backgroundImageRel || "").trim();
       const draftBgVideoRel = (draft.backgroundVideoRel || "").trim();
       const draftBgFrameRel = (draft.backgroundVideoFrameRel || "").trim();
@@ -2137,9 +2231,10 @@ export function NewsShortsBuilder() {
     );
     const nextSlides = template.slides.map((slide, idx) => {
       const nextDur = durationSec[idx] ?? 0.2;
-      return {
+        return {
         ...slide,
         subline: captions[idx] ?? "",
+        captionText: captions[idx] ?? "",
         durationSec: Number.isFinite(nextDur) ? nextDur : 0.2,
       };
     });
@@ -2256,9 +2351,31 @@ export function NewsShortsBuilder() {
   };
 
   const saveVoiceSettings = () => {
+    let draft: Record<string, unknown> = {};
+    const raw = localStorage.getItem("news-shorts-template-draft");
+    if (raw) {
+      try {
+        draft = JSON.parse(raw) as Record<string, unknown>;
+      } catch {
+        setVoiceSettingsMsg("Could not save the voice into the existing draft.");
+        return;
+      }
+    }
+    draft.elevenlabsVoiceId = elevenlabsVoiceId;
+    draft.voiceSpeed = voiceSpeed;
+    draft.voiceGender = voiceGender;
+    draft.voiceProviderPreference = voiceProviderPreference;
+    draft.burnSubtitles = burnSubtitles;
+    draft.burnSubtitlesReplaceSlideText = burnSubtitlesReplaceSlideText;
+    localStorage.setItem("news-shorts-template-draft", JSON.stringify(draft));
     setVoiceSettingsSavedAt(Date.now());
-    setVoiceSettingsMsg("Voice settings saved for this draft.");
-    setTimeout(() => setVoiceSettingsMsg(""), 3000);
+    const selected = elevenlabsVoices.find((voice) => voice.voiceId === elevenlabsVoiceId);
+    setVoiceSettingsMsg(
+      selected
+        ? `Saved ${selected.name} (${elevenlabsVoiceId}). ${captionStatusLabel(burnSubtitles, burnSubtitlesReplaceSlideText).short}.`
+        : `Saved voice ${elevenlabsVoiceId}. It is not on the loaded account list. ${captionStatusLabel(burnSubtitles, burnSubtitlesReplaceSlideText).short}.`,
+    );
+    setTimeout(() => setVoiceSettingsMsg(""), 6000);
   };
 
   useEffect(() => {
@@ -4145,8 +4262,10 @@ export function NewsShortsBuilder() {
                 </button>
                 <VoiceSettingsPanel
                   voicePreset={voicePreset}
+                  voiceProviderPreference={voiceProviderPreference}
                   voiceGender={voiceGender}
                   voiceSpeed={voiceSpeed}
+                  catalogueNote={voiceCatalogueNote}
                   previewBusy={voicePreviewBusy}
                   canPreview={canPreviewVoice}
                   elevenlabsVoices={elevenlabsVoices}
@@ -4156,6 +4275,7 @@ export function NewsShortsBuilder() {
                   voiceProviderStatus={voiceProviderStatus}
                   saveMessage={voiceSettingsMsg}
                   onPresetChange={setVoicePreset}
+                  onVoiceProviderPreferenceChange={setVoiceProviderPreference}
                   onVoiceGenderChange={setVoiceGender}
                   onVoiceSpeedChange={setVoiceSpeed}
                   onElevenlabsVoiceChange={setElevenlabsVoiceId}
@@ -5556,6 +5676,12 @@ export function NewsShortsBuilder() {
               </p>
             </div>
             {subtitlesSyncMsg ? <p className="mt-2 text-[10px] text-[#22c55e]">{subtitlesSyncMsg}</p> : null}
+            <p className="mt-3 text-[11px] font-semibold text-slate-200">
+              {captionStatusLabel(burnSubtitles, burnSubtitles && burnSubtitlesReplaceSlideText).short}
+              <span className="mt-1 block font-normal text-slate-500">
+                {captionStatusLabel(burnSubtitles, burnSubtitles && burnSubtitlesReplaceSlideText).detail}
+              </span>
+            </p>
             <label className="mt-3 flex items-center gap-2 text-sm text-slate-300">
               <input
                 type="checkbox"
@@ -5607,9 +5733,12 @@ export function NewsShortsBuilder() {
                     {previewLabelForSlide(s, i)}
                   </span>
                   {burnSubtitles && burnSubtitlesReplaceSlideText ? (
-                    <p className="min-w-0 flex-1 rounded border border-[#1f2d26]/80 bg-[#0a0e0c]/80 px-2 py-1 text-[11px] leading-snug text-slate-300">
-                      {decodeHtmlEntities(captionLineForTimingRow(s, i))}
-                    </p>
+                    <input
+                      className="min-w-0 flex-1 rounded border border-[#1f2d26] bg-[#0a0e0c] px-2 py-1 text-xs text-slate-200"
+                      value={s.captionText ?? decodeHtmlEntities(captionLineForTimingRow(s, i))}
+                      onChange={(e) => updateSlide(i, { captionText: e.target.value })}
+                      aria-label={`Caption for ${previewLabelForSlide(s, i)}`}
+                    />
                   ) : (
                     <input
                       className="min-w-0 flex-1 rounded border border-[#1f2d26] bg-[#0a0e0c] px-2 py-1 text-xs"
@@ -5954,19 +6083,22 @@ export function NewsShortsBuilder() {
               {buildResult?.videoRel ? (
                 <>
                   <video
-                    src={`/api/file?rel=${encodeURIComponent(buildResult.videoRel)}`}
+                    src={withAppPathPrefix(`/api/file?rel=${encodeURIComponent(buildResult.videoRel)}`)}
                     controls
                     playsInline
+                    preload="metadata"
                     className={`${previewAspectShell} rounded-md border border-[#1f2d26] bg-black object-contain`}
+                    onError={() => setError("The MP4 could not be played. Try Download MP4, or build again if the file is missing.")}
                   />
                   <div className="mt-2 flex flex-wrap items-center gap-3 text-xs">
-                    <a
-                      className="font-semibold text-[#86efac] underline underline-offset-2 hover:text-[#bbf7d0]"
-                      href={withAppPathPrefix(`/api/file?rel=${encodeURIComponent(buildResult.videoRel)}&download=1`)}
-                      download={seoFriendlyMp4Filename}
+                    <button
+                      type="button"
+                      className="font-semibold text-[#86efac] underline underline-offset-2 hover:text-[#bbf7d0] disabled:opacity-60"
+                      onClick={() => void downloadBuiltMp4()}
+                      disabled={mp4DownloadBusy}
                     >
-                      Download MP4
-                    </a>
+                      {mp4DownloadBusy ? "Downloading MP4…" : "Download MP4"}
+                    </button>
                     {seoFriendlyMp4Filename ? (
                       <span className="font-mono text-[11px] text-slate-500">
                         Save as: {seoFriendlyMp4Filename}

@@ -150,6 +150,37 @@ export async function materializeVideoAssetToDisk(rel: string): Promise<string |
   return abs;
 }
 
+function blobUploadedAtMs(blob: unknown): number {
+  if (!blob || typeof blob !== "object") return 0;
+  const uploadedAt = (blob as { uploadedAt?: unknown }).uploadedAt;
+  if (typeof uploadedAt === "string") {
+    const parsed = Date.parse(uploadedAt);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  if (uploadedAt instanceof Date) return uploadedAt.getTime();
+  return 0;
+}
+
+/** MP4s saved for /api/file. The Library must list these; the Lambda disk does not keep them. */
+export async function listPersistedVideoOutputRels(): Promise<{ rel: string; mtimeMs: number }[]> {
+  if (!shouldUseNetlifyBlobStore()) return [];
+  try {
+    const store = getStore(BLOB_STORE_NAME);
+    const out: { rel: string; mtimeMs: number }[] = [];
+    for await (const page of store.list({ prefix: VIDEO_OUTPUT_PREFIX, paginate: true })) {
+      for (const blob of page.blobs) {
+        const rel = normaliseVideoOutputRel(blob.key);
+        if (!rel) continue;
+        out.push({ rel, mtimeMs: blobUploadedAtMs(blob) });
+      }
+    }
+    return out;
+  } catch (error) {
+    warnBlobIssue("list failed", VIDEO_OUTPUT_PREFIX, error);
+    return [];
+  }
+}
+
 export async function getVideoBlobAssetDiagnostics(): Promise<{
   enabled: boolean;
   store: string;

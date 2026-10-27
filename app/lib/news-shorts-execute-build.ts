@@ -244,19 +244,25 @@ export async function executeNewsShortsBuild(body: NewsShortsBuildBody) {
       body.useVideoAudio === true && Boolean(dualCompositeActive ? bgvMotion : motion.rel);
 
     let audioPath: string | undefined;
+    let voiceTrackProvider: string | undefined;
+    let voiceFallbackReason: string | undefined;
+    const requestedVoiceId = body.elevenlabsVoiceId?.trim() || undefined;
     if (!useVideoAudio) {
       if (recRel) {
         const norm = assertVoiceRecordingRel(recRel, contentId);
         audioPath = path.join(outputDir(), ...norm.split("/"));
         await fs.access(audioPath);
+        voiceTrackProvider = "recording";
       } else {
         const audio = await resolveVoiceTrackWithFallback(script, contentId, {
           gender,
           speed,
-          voiceId: body.elevenlabsVoiceId?.trim() || undefined,
+          voiceId: requestedVoiceId,
           providerPreference: normalizeVoiceProviderPreference(body.voiceProviderPreference),
         });
         audioPath = audio.audioPath;
+        voiceTrackProvider = audio.provider;
+        voiceFallbackReason = audio.fallbackReason;
       }
     }
 
@@ -323,8 +329,10 @@ export async function executeNewsShortsBuild(body: NewsShortsBuildBody) {
         const slide = template.slides[idx]!;
         const hideMeta = idx === 0 || idx === 2;
         const scriptChunk = voiceChunks ? (voiceChunks[idx] ?? "").trim() : "";
-        const voiceLine =
-          voiceScript && voiceChunks
+        const captionOverride = (slide.captionText ?? "").trim();
+        const voiceLine = captionOverride
+          ? captionOverride
+          : voiceScript && voiceChunks
             ? sceneSubtitleLineForBurn(scriptChunk, slide.headline, slide.subline ?? "").trim()
             : "";
         const useVoiceLine = Boolean(voiceLine);
@@ -405,6 +413,12 @@ export async function executeNewsShortsBuild(body: NewsShortsBuildBody) {
       audioPath,
       videoPath: build.videoPath,
       videoRel,
+      sceneDurationsSec: build.sceneDurationsSec,
+      narrationDurationSec: build.narrationDurationSec,
+      captionsBurned: build.captionsBurned,
+      voiceTrackProvider,
+      voiceFallbackReason,
+      elevenlabsVoiceId: requestedVoiceId,
       srtPath: build.srtPath,
       ...(build.assPath
         ? { assPath: path.relative(outputDir(), build.assPath).split(path.sep).join("/") }

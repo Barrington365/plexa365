@@ -1,230 +1,118 @@
 import { NextResponse } from "next/server";
-import { renderSceneToPng, withSharedPuppeteerBrowser } from "@/app/features/render/scene-renderer";
-import { coalesceGlobalBackgroundImageRel } from "@/app/lib/background-image-rel";
+import { normalizeContentIdForFilename } from "@/app/lib/editor-upload";
+import { isNetlifyHostedLambdaRuntime } from "@/app/lib/netlify-hosted-runtime";
 import {
-  assertCrossContentBackdropRel,
-  normalizeContentIdForFilename,
-  resolveEditorBackdropDataUrl,
-} from "@/app/lib/editor-upload";
-import { outputDir } from "@/app/lib/paths";
-import { shouldUseNetlifyBlobStore } from "@/app/lib/netlify-blob-json";
-import type { SceneSpec } from "@/types";
-import fs from "fs/promises";
-import path from "path";
-import { writeLibraryBlobAsset } from "@/app/lib/library-blob-assets";
+  createRenderSceneJob,
+  failRenderSceneJob,
+  resolveStaleRenderSceneJob,
+} from "@/app/lib/render-scene-jobs";
 import {
-  resolveF1TemplateDataForRender,
-  resolvePublicImageDataUrl,
-} from "@/app/lib/f1-driver-images";
+  executeRenderScenes,
+  RenderScenesRequestError,
+  type RenderScenesBody,
+} from "@/app/lib/render-scenes-execute";
 
-type Body = {
-  contentId: string;
-  scenes: SceneSpec[];
-  /** Output dimensions for scene PNG render (defaults to 1080x1920). */
-  width?: number;
-  height?: number;
-  /** From editor upload — full-bleed backdrop (preferred over video frame) */
-  backgroundImageRel?: string | null;
-  /** Optional per-scene background images */
-  backgroundImageRelBySceneId?: Record<string, string> | null;
-  /** PNG frame grab from uploaded video (ignored when backgroundVideoRel is set) */
-  backgroundVideoFrameRel?: string | null;
-  /** Motion background — scenes render with alpha; FFmpeg composites under template */
-  backgroundVideoRel?: string | null;
-  /** When motion backdrop is active — uniform black wash (0–0.85, default ~0.3) */
-  motionBackdropOpaqueOpacity?: number;
-  /** When motion backdrop is active — readability gradient strength (0.25–1.6, default ~0.45) */
-  motionBackdropDimStrength?: number;
-  /** Client compositor PNG (data URL) — drawn between backdrop dim and template (all scenes if no per-scene map) */
-  editorCompositorImageUrl?: string | null;
-  /** Per-scene compositor PNGs — overrides `editorCompositorImageUrl` for matching `sceneId` */
-  editorCompositorBySceneId?: Record<string, string> | null;
-  /** Retina export for editor save (2 recommended). Default 1 for video pipeline. */
-  pixelRatio?: number;
-  /** News Shorts: hide headline/subline on PNGs when burning styled ASS in FFmpeg. */
-  editorSubtitleOverlayOnly?: boolean;
-};
+function siteOrigin(req: Request): string {
+  const fromEnv = process.env.DEPLOY_PRIME_URL?.trim() || process.env.URL?.trim();
+  if (fromEnv) {
+    try {
+      return new URL(fromEnv).origin;
+    } catch {
+      /* fall through */
+    }
+  }
+  return new URL(req.url).origin;
+}
+
+function internalAuthHeader(): Record<string, string> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const secret = process.env.CRON_SECRET?.trim();
+  if (secret) headers.Authorization = `Bearer ${secret}`;
+  return headers;
+}
+
+async function invokeRenderBackground(origin: string, jobId: string, body: RenderScenesBody): Promise<void> {
+  const url = `${origin}/.netlify/functions/render-scenes-background`;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 20_000);
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: internalAuthHeader(),
+      redirect: "manual",
+      signal: controller.signal,
+      body: JSON.stringify({ jobId, body }),
+    });
+    if (res.status >= 300 && res.status < 400) {
+      await failRenderSceneJob(
+        jobId,
+        `Scene render invoke was redirected (${res.status}). The worker was not reached.`,
+      );
+      return;
+    }
+    if (res.status === 404 || res.status === 502 || res.status === 503) {
+      await failRenderSceneJob(
+        jobId,
+        "Scene render worker is not deployed. Redeploy Planet Sport Studio, then try Render scenes again.",
+      );
+      return;
+    }
+    if (!res.ok && res.status !== 202) {
+      const text = await res.text().catch(() => "");
+      const html = /^\s*</.test(text);
+      await failRenderSceneJob(
+        jobId,
+        html
+          ? `Scene render worker returned HTML (HTTP ${res.status}) instead of accepting the job.`
+          : text.slice(0, 500) || `Scene render invoke failed (${res.status}).`,
+      );
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Scene render invoke failed";
+    await failRenderSceneJob(jobId, `Scene render worker did not accept the job. ${message}`);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+export async function GET(req: Request) {
+  const jobId = new URL(req.url).searchParams.get("jobId")?.trim();
+  if (!jobId) return NextResponse.json({ error: "jobId required" }, { status: 400 });
+  const job = await resolveStaleRenderSceneJob(jobId);
+  if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
+  return NextResponse.json(job);
+}
 
 export async function POST(req: Request) {
+  let body: RenderScenesBody;
   try {
-    const body = (await req.json()) as Body;
-    if (!body?.contentId || !body?.scenes?.length) {
-      return NextResponse.json({ error: "contentId and scenes required" }, { status: 400 });
+    body = (await req.json()) as RenderScenesBody;
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
+  }
+  if (!body?.contentId || !Array.isArray(body.scenes) || body.scenes.length === 0) {
+    return NextResponse.json({ error: "contentId and scenes required" }, { status: 400 });
+  }
+
+  if (isNetlifyHostedLambdaRuntime()) {
+    const contentId = normalizeContentIdForFilename(String(body.contentId).trim());
+    const jobId = `render-${contentId}-${Date.now()}`;
+    try {
+      await createRenderSceneJob(jobId, contentId);
+      await invokeRenderBackground(siteOrigin(req), jobId, body);
+      return NextResponse.json({ async: true, jobId, status: "pending", contentId }, { status: 202 });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not start scene render";
+      return NextResponse.json({ error: message }, { status: 500 });
     }
+  }
 
-    const canonicalContentId = normalizeContentIdForFilename(String(body.contentId).trim());
-
-    const videoRel = body.backgroundVideoRel?.trim();
-    const motionBackdropExtra: Record<string, unknown> =
-      videoRel &&
-      (body.motionBackdropOpaqueOpacity !== undefined || body.motionBackdropDimStrength !== undefined)
-        ? {
-            ...(body.motionBackdropOpaqueOpacity !== undefined
-              ? { motionBackdropOpaqueOpacity: body.motionBackdropOpaqueOpacity }
-              : {}),
-            ...(body.motionBackdropDimStrength !== undefined
-              ? { motionBackdropDimStrength: body.motionBackdropDimStrength }
-              : {}),
-          }
-        : {};
-    let backdropFields: Record<string, unknown> = {};
-    const backdropBySceneDataUrl: Record<string, string> = {};
-
-    if (videoRel) {
-      try {
-        assertCrossContentBackdropRel(videoRel);
-      } catch {
-        return NextResponse.json({ error: "Invalid background video path" }, { status: 400 });
-      }
-      backdropFields = { editorTransparentBackground: true };
-    } else {
-      let backdropDataUrl: string | undefined;
-      try {
-        const coalescedRel = coalesceGlobalBackgroundImageRel(
-          body.backgroundImageRel,
-          body.backgroundImageRelBySceneId,
-        );
-        backdropDataUrl = await resolveEditorBackdropDataUrl(
-          canonicalContentId,
-          coalescedRel,
-          body.backgroundVideoFrameRel,
-        );
-      } catch {
-        return NextResponse.json({ error: "Invalid background asset path" }, { status: 400 });
-      }
-      if (backdropDataUrl) {
-        backdropFields = { editorBackgroundImageUrl: backdropDataUrl };
-      }
-      const byScene = body.backgroundImageRelBySceneId;
-      if (byScene && typeof byScene === "object") {
-        for (const [sceneId, rel] of Object.entries(byScene)) {
-          if (!sceneId || typeof rel !== "string") continue;
-          const u = await resolveEditorBackdropDataUrl(canonicalContentId, rel, null);
-          if (u) backdropBySceneDataUrl[sceneId] = u;
-        }
-      }
-    }
-
-    const legacyComp = body.editorCompositorImageUrl?.trim();
-    const byScene = body.editorCompositorBySceneId;
-    const hasPerScene =
-      byScene &&
-      typeof byScene === "object" &&
-      Object.keys(byScene).some((k) => typeof byScene[k] === "string" && byScene[k]!.startsWith("data:image/"));
-
-    const pixelRatio =
-      typeof body.pixelRatio === "number" && body.pixelRatio >= 1 ? Math.min(3, body.pixelRatio) : 1;
-
-    return await withSharedPuppeteerBrowser(async (browser) => {
-    const outDir = outputDir();
-    const outputs: {
-      sceneId: string;
-      path: string;
-      rel: string;
-      underlayPath?: string;
-      underlayRel?: string;
-      diskRel?: string;
-      diskUnderlayRel?: string;
-    }[] = [];
-    for (const s of body.scenes) {
-      const sceneComp =
-        hasPerScene && typeof byScene![s.id] === "string" && byScene![s.id]!.startsWith("data:image/")
-          ? byScene![s.id]!.trim()
-          : typeof legacyComp === "string" && legacyComp.startsWith("data:image/")
-            ? legacyComp
-            : undefined;
-      const sceneBg = backdropBySceneDataUrl[s.id];
-      const sceneBackdropUnderlay = {
-        ...backdropFields,
-        ...(sceneBg ? { editorBackgroundImageUrl: sceneBg } : {}),
-      };
-      const sceneBackdrop = {
-        ...sceneBackdropUnderlay,
-        ...(sceneComp !== undefined ? { editorCompositorImageUrl: sceneComp } : {}),
-      };
-
-      let sceneData: Record<string, unknown> = { ...s.data };
-      if (s.templateId.startsWith("f1-grid") || s.templateId.startsWith("f1-results")) {
-        sceneData = await resolveF1TemplateDataForRender(sceneData);
-      }
-      const resolvedPlayerImageUrl = await resolvePublicImageDataUrl(sceneData.playerImageUrl);
-      const resolvedLeftClubLogoUrl = await resolvePublicImageDataUrl(sceneData.leftClubLogoUrl);
-      const resolvedRightClubLogoUrl = await resolvePublicImageDataUrl(sceneData.rightClubLogoUrl);
-      const resolvedHeroImageUrl = await resolvePublicImageDataUrl(sceneData.heroImage);
-      const merged = {
-        ...sceneData,
-        ...(typeof body.width === "number" ? { width: body.width } : {}),
-        ...(typeof body.height === "number" ? { height: body.height } : {}),
-        ...motionBackdropExtra,
-        ...(resolvedPlayerImageUrl ? { playerImageUrl: resolvedPlayerImageUrl } : {}),
-        ...(resolvedLeftClubLogoUrl ? { leftClubLogoUrl: resolvedLeftClubLogoUrl } : {}),
-        ...(resolvedRightClubLogoUrl ? { rightClubLogoUrl: resolvedRightClubLogoUrl } : {}),
-        ...(resolvedHeroImageUrl ? { heroImage: resolvedHeroImageUrl } : {}),
-      };
-
-      const imagePath = await renderSceneToPng(
-        {
-          contentId: canonicalContentId,
-          sceneId: s.id,
-          templateId: s.templateId,
-          data: {
-            ...merged,
-            ...sceneBackdrop,
-            ...(body.editorSubtitleOverlayOnly ? { editorSubtitleOverlayOnly: true } : {}),
-          },
-        },
-        { browser, deviceScaleFactor: pixelRatio },
-      );
-
-      let underlayPath: string;
-      if (sceneComp !== undefined) {
-        underlayPath = await renderSceneToPng(
-          {
-            contentId: canonicalContentId,
-            sceneId: s.id,
-            templateId: s.templateId,
-            data: {
-              ...merged,
-              ...sceneBackdropUnderlay,
-              ...(body.editorSubtitleOverlayOnly ? { editorSubtitleOverlayOnly: true } : {}),
-            },
-            fileSuffix: "underlay",
-          },
-          { browser, deviceScaleFactor: pixelRatio },
-        );
-      } else {
-        underlayPath = imagePath;
-      }
-
-      const diskRel = path.relative(outDir, imagePath).split(path.sep).join("/");
-      const diskUnderlayRel = path.relative(outDir, underlayPath).split(path.sep).join("/");
-      const safeSceneId = normalizeContentIdForFilename(String(s.id || "scene"));
-      const rel = `images/library/${canonicalContentId}/render-${safeSceneId}.png`;
-      const underlayRel = sceneComp !== undefined
-        ? `images/library/${canonicalContentId}/render-${safeSceneId}-underlay.png`
-        : rel;
-
-      async function publishRenderedPng(sourceAbs: string, publishRel: string) {
-        const destAbs = path.join(outDir, ...publishRel.split("/"));
-        await fs.mkdir(path.dirname(destAbs), { recursive: true });
-        await fs.copyFile(sourceAbs, destAbs);
-        if (shouldUseNetlifyBlobStore()) {
-          await writeLibraryBlobAsset(publishRel, await fs.readFile(destAbs), "image/png");
-        }
-      }
-
-      await publishRenderedPng(imagePath, rel);
-      if (underlayPath !== imagePath) {
-        await publishRenderedPng(underlayPath, underlayRel);
-      }
-
-      outputs.push({ sceneId: s.id, path: imagePath, rel, underlayPath, underlayRel, diskRel, diskUnderlayRel });
-    }
-
-    return NextResponse.json({ contentId: canonicalContentId, images: outputs });
-    });
-  } catch (e) {
-    const message = e instanceof Error ? e.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
+  try {
+    const result = await executeRenderScenes(body);
+    return NextResponse.json(result);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    const status = error instanceof RenderScenesRequestError ? error.status : 500;
+    return NextResponse.json({ error: message }, { status });
   }
 }

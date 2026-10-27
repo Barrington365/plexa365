@@ -85,6 +85,11 @@ export async function resolveVoiceTrackWithFallback(
         provider: "elevenlabs",
       };
     } catch (error) {
+      if (options?.voiceId?.trim()) {
+        throw new Error(
+          `Selected ElevenLabs voice ${options.voiceId.trim()} is unavailable. ${fallbackReason(error)} Nothing else was generated.`,
+        );
+      }
       if (hasOpenAi) {
         return {
           audioPath: await new OpenAiTtsAudioProvider().resolveVoiceTrack(script, contentId, options),
@@ -94,6 +99,12 @@ export async function resolveVoiceTrackWithFallback(
       }
       throw error;
     }
+  }
+
+  if (options?.voiceId?.trim()) {
+    throw new Error(
+      `Selected ElevenLabs voice ${options.voiceId.trim()} cannot be used because the account is not connected. Nothing was generated.`,
+    );
   }
 
   if (hasOpenAi) {

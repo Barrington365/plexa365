@@ -30,6 +30,7 @@ export type ElevenlabsVoiceOption = {
   description?: string;
   category?: string;
   groupLabel?: string;
+  accountVoiceType?: string;
   labels?: Record<string, string>;
 };
 

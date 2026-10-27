@@ -1,13 +1,12 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
-import fs from "fs/promises";
 import { Panel } from "@/app/components/Panel";
 import { HubPipelineActions } from "@/app/components/HubPipelineActions";
 import type { TemplateFormatKey } from "@/app/components/TemplateNewButton";
 import { BRAND_SUITE } from "@/app/lib/brand";
 import type { ManifestEntry } from "@/app/lib/asset-manifest";
-import { assetsManifestPath } from "@/app/lib/paths";
+import { readStoredManifest } from "@/app/lib/asset-manifest-store";
 import { NEWS_SHORTS_BRAND_TEMPLATES } from "@/app/features/news-shorts/news-shorts-brand-templates";
 import { sport365HubPipelines, type HubPipeline } from "@/app/lib/templates-hub/sport365-pipelines";
 
@@ -245,13 +244,7 @@ function latestVideoByFormat(manifest: ManifestEntry[]): Record<string, string> 
 }
 
 export default async function LandscapePage() {
-  let manifest: ManifestEntry[] = [];
-  try {
-    const raw = await fs.readFile(assetsManifestPath(), "utf-8");
-    manifest = JSON.parse(raw) as ManifestEntry[];
-  } catch {
-    manifest = [];
-  }
+  const manifest = await readStoredManifest();
   const libraryVideoByFormat = latestVideoByFormat(manifest);
 
   return (

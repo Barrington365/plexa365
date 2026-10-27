@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { R365Button } from "@/app/components/R365Button";
+import { filterListedVoices } from "@/app/lib/elevenlabs-voice-catalog";
 import type { VoiceGender } from "@/types";
 import { VOICE_PRESET_OPTIONS, type ElevenlabsVoiceOption, type VoicePreset, type VoiceProviderPreference } from "./types";
 
@@ -21,8 +22,11 @@ type Props = {
     unlabelledDefaults: number;
     unlabelledVoiceNames: string[];
     myVoicesCount?: number;
+    accountVoiceCount?: number;
+    truncated?: boolean;
   } | null;
   voiceProviderStatus?: string | null;
+  catalogueNote?: string | null;
   saveMessage?: string | null;
   onPresetChange: (v: VoicePreset) => void;
   onVoiceProviderPreferenceChange?: (v: VoiceProviderPreference) => void;
@@ -47,6 +51,7 @@ export function VoiceSettingsPanel({
   voicesLoading,
   voiceDiagnostics,
   voiceProviderStatus,
+  catalogueNote,
   saveMessage,
   onPresetChange,
   onVoiceProviderPreferenceChange,
@@ -59,6 +64,7 @@ export function VoiceSettingsPanel({
   onSave,
 }: Props) {
   const [useCaseFilter, setUseCaseFilter] = useState("All");
+  const [voiceSearch, setVoiceSearch] = useState("");
   const useCaseOptions = useMemo(() => {
     const values = new Set<string>();
     for (const v of elevenlabsVoices) {
@@ -69,10 +75,12 @@ export function VoiceSettingsPanel({
   }, [elevenlabsVoices]);
   const filteredVoices = useMemo(
     () =>
-      useCaseFilter === "All"
-        ? elevenlabsVoices
-        : elevenlabsVoices.filter((v) => v.labels?.use_case?.trim() === useCaseFilter),
-    [elevenlabsVoices, useCaseFilter],
+      filterListedVoices(elevenlabsVoices, {
+        search: voiceSearch,
+        useCase: useCaseFilter,
+        selectedId: elevenlabsVoiceId,
+      }),
+    [elevenlabsVoices, voiceSearch, useCaseFilter, elevenlabsVoiceId],
   );
   const grouped = filteredVoices.reduce<Record<string, ElevenlabsVoiceOption[]>>((acc, voice) => {
     const group = voice.groupLabel?.trim() || "Other";
@@ -141,6 +149,13 @@ export function VoiceSettingsPanel({
       </label>
       <label className={`block text-[10px] font-bold uppercase tracking-[0.14em] text-[color:var(--text-muted)] ${voiceProviderPreference === "openai" ? "opacity-60" : ""}`}>
         ElevenLabs voice
+        <input
+          type="search"
+          value={voiceSearch}
+          onChange={(e) => setVoiceSearch(e.target.value)}
+          placeholder="Search voices, including Sam"
+          className="mt-2 w-full rounded-xl border border-[color:var(--border)] bg-[color:var(--surface-muted)] px-3 py-2 text-sm font-semibold normal-case tracking-normal text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent)]"
+        />
         <div className="mt-2 flex flex-wrap gap-1.5">
           {useCaseOptions.map((option) => (
             <button
@@ -222,6 +237,12 @@ export function VoiceSettingsPanel({
             ) : null}{" "}
             · With labels: <span className="font-bold text-[color:var(--text-primary)]">{voiceDiagnostics.labelledDefaults}</span>
           </p>
+          {catalogueNote ? <p className="mt-2 leading-relaxed">{catalogueNote}</p> : null}
+          {voiceDiagnostics.truncated ? (
+            <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1.5 text-amber-800">
+              The account voice list was truncated. Search may be missing later pages.
+            </p>
+          ) : null}
           {voiceDiagnostics.unlabelledDefaults > 0 && (
             <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1.5 text-amber-800">
               Missing labels on {voiceDiagnostics.unlabelledDefaults} voice(s):{" "}

@@ -30,6 +30,8 @@ export type NewsShortSlide = {
   subline: string;
   imageUrl?: string;
   highlightWords: string[];
+  /** Edited on-video caption. When set, the burn uses this line instead of the script split. */
+  captionText?: string;
   durationSec: number;
   animationStyle: NewsShortAnimationStyle;
   backgroundAnimation: NewsShortBackgroundAnimation;

@@ -66,6 +66,7 @@ import type { CompositorLayer } from "@/app/lib/compositor-types";
 import { compositorLayersToDataUrl, stripLegacyFastResultsBoardOverlayLayers } from "@/app/lib/compositor-canvas";
 import { sceneDisplayLabel } from "@/app/lib/scene-display-labels";
 import { parseApiJson, pollVideoBuildJob } from "@/app/lib/parse-api-json";
+import { requestRenderedScenes } from "@/app/lib/request-render-scenes";
 import { sanitizeVideoBuildError } from "@/app/lib/video-build-jobs";
 import { BRAND_SHORT_SINGULAR, BRAND_SHORTS } from "@/app/lib/brand";
 import {
@@ -1911,18 +1912,8 @@ export function EditorWorkspace({
         if (Object.keys(sceneCompositorBySceneId).length > 0) {
           payload.editorCompositorBySceneId = sceneCompositorBySceneId;
         }
-        const payloadJson = JSON.stringify(payload);
-        const res = await fetch(studioApiPath("/api/render-scenes"), {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: payloadJson,
-        });
-        const data = await parseApiJson<{
-          error?: string;
-          images?: { sceneId: string; path: string; rel?: string; underlayPath?: string; underlayRel?: string }[];
-        }>(res);
-        if (!res.ok) throw new Error(data.error || "Render failed");
-        renderedImages.push(...(data.images ?? []));
+        const data = await requestRenderedScenes(studioApiPath("/api/render-scenes"), payload);
+        renderedImages.push(...data.images);
       }
       const imgs = renderedImages.map((im) => ({
         ...im,
@@ -2369,10 +2360,7 @@ export function EditorWorkspace({
             durationSec: cur.durationSec,
           };
         });
-        const res = await fetch(studioApiPath("/api/render-scenes"), {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+        const data = await requestRenderedScenes(studioApiPath("/api/render-scenes"), {
             contentId,
             scenes: scenesForRender,
             width: VIDEO_BUILD_DIMENSIONS[effectiveVideoBuildMode].width,
@@ -2387,14 +2375,8 @@ export function EditorWorkspace({
                   motionBackdropDimStrength,
                 }
               : {}),
-          }),
-        });
-        const data = await parseApiJson<{
-          error?: string;
-          images?: { sceneId: string; path: string; rel?: string; underlayPath?: string; underlayRel?: string }[];
-        }>(res);
-        if (!res.ok) throw new Error(data.error || "Render failed");
-        imagesForBuild = (data.images ?? []).map((im) => ({
+          });
+        imagesForBuild = data.images.map((im) => ({
           ...im,
           rel: im.rel ?? toOutputRel(im.path),
           underlayRel: im.underlayRel ?? (im.underlayPath ? toOutputRel(im.underlayPath) : undefined),
@@ -2826,10 +2808,7 @@ export function EditorWorkspace({
       let savedFromLivePreview = false;
       const exportScene = editorLivePreviewScene;
       if (exportScene) {
-        const res = await fetch(studioApiPath("/api/render-scenes"), {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+        const data = await requestRenderedScenes(studioApiPath("/api/render-scenes"), {
             contentId: `${contentId}-live-preview`,
             scenes: [exportScene],
             width: VIDEO_BUILD_DIMENSIONS[effectiveVideoBuildMode].width,
@@ -2837,14 +2816,8 @@ export function EditorWorkspace({
             pixelRatio: PREVIEW_EXPORT_PIXEL_RATIO,
             backgroundImageRel: backgroundImageRel ?? (backgroundVideoRel ? backgroundVideoFrameRel : null),
             backgroundImageRelBySceneId,
-          }),
-        });
-        const data = await parseApiJson<{
-          error?: string;
-          images?: { sceneId: string; path: string; rel?: string; underlayPath?: string }[];
-        }>(res);
-        if (!res.ok) throw new Error(data.error || "Could not render live preview image.");
-        const first = data.images?.[0];
+          });
+        const first = data.images[0];
         relForDownload = first?.rel ?? (first?.path ? toOutputRel(first.path) : undefined);
         if (!relForDownload) throw new Error("Could not render live preview image.");
         savedFromLivePreview = true;
@@ -2930,10 +2903,7 @@ export function EditorWorkspace({
       let sourceRel = previewRel;
       const sceneId = previewSceneId ?? editorLivePreviewScene?.id ?? images[0]?.sceneId ?? "scene";
       if (editorLivePreviewScene) {
-        const res = await fetch(studioApiPath("/api/render-scenes"), {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+        const data = await requestRenderedScenes(studioApiPath("/api/render-scenes"), {
             contentId: `${contentId}-library-preview`,
             scenes: [editorLivePreviewScene],
             width: VIDEO_BUILD_DIMENSIONS[effectiveVideoBuildMode].width,
@@ -2941,14 +2911,8 @@ export function EditorWorkspace({
             pixelRatio: PREVIEW_EXPORT_PIXEL_RATIO,
             backgroundImageRel: backgroundImageRel ?? (backgroundVideoRel ? backgroundVideoFrameRel : null),
             backgroundImageRelBySceneId,
-          }),
-        });
-        const data = await parseApiJson<{
-          error?: string;
-          images?: { sceneId: string; path: string; rel?: string }[];
-        }>(res);
-        if (!res.ok) throw new Error(data.error || "Could not render preview for library.");
-        const first = data.images?.[0];
+          });
+        const first = data.images[0];
         sourceRel = first?.rel ?? (first?.path ? toOutputRel(first.path) : undefined);
         if (!sourceRel) throw new Error("Could not render preview for library.");
       }

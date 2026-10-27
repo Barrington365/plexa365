@@ -1,36 +1,15 @@
 import { NextResponse } from "next/server";
 import fs from "fs/promises";
 import path from "path";
-import { assetsManifestPath, outputDir, outputVideoDir, outputImagesDir } from "@/app/lib/paths";
+import { loadLibraryVideoCatalog } from "@/app/lib/library-video-catalog-load";
+import { outputDir, outputImagesDir } from "@/app/lib/paths";
 import { scanBackdropVideoRels } from "@/app/lib/scan-backdrop-videos";
 
 export async function GET() {
   try {
-    let manifest: unknown[] = [];
-    try {
-      const raw = await fs.readFile(assetsManifestPath(), "utf-8");
-      manifest = JSON.parse(raw) as unknown[];
-      manifest.sort((a, b) => {
-        const ac = typeof a === "object" && a && "createdAt" in a ? Date.parse(String(a.createdAt)) : 0;
-        const bc = typeof b === "object" && b && "createdAt" in b ? Date.parse(String(b.createdAt)) : 0;
-        return bc - ac;
-      });
-    } catch {
-      manifest = [];
-    }
-
-    const videos: { rel: string; mtimeMs: number }[] = [];
-    try {
-      const dir = outputVideoDir();
-      const files = await fs.readdir(dir);
-      for (const f of files) {
-        if (!f.endsWith(".mp4")) continue;
-        const st = await fs.stat(path.join(dir, f));
-        videos.push({ rel: path.join("video", f), mtimeMs: st.mtimeMs });
-      }
-    } catch {
-      /* empty */
-    }
+    const catalog = await loadLibraryVideoCatalog();
+    const manifest = catalog.manifest;
+    const videos = catalog.videos;
 
     const backdropVideos = await scanBackdropVideoRels();
 

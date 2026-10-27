@@ -3,11 +3,10 @@ import { Suspense } from "react";
 import path from "path";
 import fs from "fs/promises";
 import { LibraryClient } from "@/app/library/LibraryClient";
-import type { ManifestEntry } from "@/app/lib/asset-manifest";
+import { loadLibraryVideoCatalog } from "@/app/lib/library-video-catalog-load";
 import { scanBackdropVideoRels } from "@/app/lib/scan-backdrop-videos";
 import { scanLibraryBackgroundImageRels } from "@/app/lib/scan-library-background-images";
 import { scanVoiceRecordingRels } from "@/app/lib/scan-voice-recordings";
-import { assetsManifestPath, outputVideoDir } from "@/app/lib/paths";
 import { BRAND_SHORTS, BRAND_SUITE, BRAND_TAGLINE } from "@/app/lib/brand";
 import { readLibraryMetadataIndex } from "@/app/lib/library-metadata";
 import { readAudioStudioStore } from "@/app/lib/audio-studio-store";
@@ -44,30 +43,9 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function LibraryPage() {
-  let manifest: ManifestEntry[] = [];
-  try {
-    const raw = await fs.readFile(assetsManifestPath(), "utf-8");
-    manifest = JSON.parse(raw) as ManifestEntry[];
-    manifest.sort((a, b) => Date.parse(b.createdAt || "") - Date.parse(a.createdAt || ""));
-  } catch {
-    manifest = [];
-  }
-
-  const videos: { rel: string; mtimeMs: number }[] = [];
-  try {
-    const dir = outputVideoDir();
-    const files = await fs.readdir(dir);
-    for (const f of files) {
-      if (!f.endsWith(".mp4")) continue;
-      const st = await fs.stat(path.join(dir, f));
-      videos.push({ rel: path.join("video", f), mtimeMs: st.mtimeMs });
-    }
-  } catch {
-    /* empty */
-  }
-  const videoRels = videos
-    .sort((a, b) => b.mtimeMs - a.mtimeMs || a.rel.localeCompare(b.rel))
-    .map((item) => item.rel);
+  const catalog = await loadLibraryVideoCatalog();
+  const manifest = catalog.manifest;
+  const videoRels = catalog.videos.map((item) => item.rel);
 
   const backdropVideos = await scanBackdropVideoRels();
   const libraryBackgroundImages = await scanLibraryBackgroundImageRels();

@@ -38,6 +38,12 @@ import {
 } from "@/app/library/LibraryListBulkControls";
 import { studioApiPath } from "@/app/lib/app-base-path";
 
+function formatManifestSavedAt(createdAt: string): string {
+  const ms = Date.parse(createdAt);
+  if (!Number.isFinite(ms)) return "saved time unknown";
+  return `${new Date(ms).toLocaleString("en-GB", { timeZone: "UTC" })} UTC`;
+}
+
 const BRAND_RULES: Array<{ id: string; label: string; patterns: RegExp[] }> = [
   { id: "football365", label: "Football365", patterns: [/football365/i] },
   { id: "racing365", label: "Racing365", patterns: [/racing365/i] },
@@ -1208,7 +1214,7 @@ export function LibraryClient({
                                 <h3 className="text-sm font-semibold leading-snug text-[color:var(--text-primary)]">{libraryDisplayTitle(m)}</h3>
                                 <p className="mt-0.5 font-mono text-[11px] text-[#eab308]">{m.id}</p>
                                 <p className="text-[11px] text-[color:var(--text-muted)]">
-                                  {m.format} · {new Date(m.createdAt).toLocaleString("en-GB", { timeZone: "UTC" })} UTC
+                                  {m.format} · {formatManifestSavedAt(m.createdAt)}
                                 </p>
                                 {m.editedVideo ? (
                                   <p className="mt-1 text-[10px] font-bold uppercase text-[#eab308]">Edited cut available</p>

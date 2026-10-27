@@ -52,6 +52,37 @@ export function distributeDurationsForChunks(
   return d;
 }
 
+/**
+ * Keep the existing scene count and fit those captions to the probed narration.
+ * The last caption absorbs rounding so the cues finish with the audio.
+ */
+export function alignSceneDurationsToAudio(chunks: string[], audioSec: number): number[] {
+  if (chunks.length === 0) {
+    throw new Error("Add at least one scene before matching the narration.");
+  }
+  if (!Number.isFinite(audioSec) || audioSec < 0.2) {
+    throw new Error("Narration is too short to time the captions.");
+  }
+  const rough = distributeDurationsForChunks(chunks, audioSec, 0.2);
+  if (rough.length !== chunks.length) {
+    throw new Error("Matching the narration changed the scene count.");
+  }
+  const head = rough.slice(0, -1);
+  const headSum = head.reduce((sum, value) => sum + value, 0);
+  const last = Math.round((audioSec - headSum) * 1000) / 1000;
+  if (!(last >= 0.2)) {
+    throw new Error(
+      `Narration is ${audioSec.toFixed(1)}s, which is too short for ${chunks.length} captioned scenes without dropping a line.`,
+    );
+  }
+  const durations = [...head, last];
+  const sum = durations.reduce((total, value) => total + value, 0);
+  if (Math.abs(sum - audioSec) > 0.02) {
+    throw new Error("Caption timings could not be matched to the narration.");
+  }
+  return durations;
+}
+
 /** Captions + per-scene durations aligned to estimated template voiceover time. */
 export function computeSyncFromScript(
   script: string,

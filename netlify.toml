@@ -43,6 +43,9 @@
   included_files = ["node_modules/ffmpeg-static/ffmpeg"]
   timeout = 900
 
+[functions."render-scenes-background"]
+  timeout = 900
+
 [functions."language-rewrite-background"]
   timeout = 900
 

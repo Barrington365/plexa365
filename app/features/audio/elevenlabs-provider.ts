@@ -31,7 +31,13 @@ export class ElevenLabsAudioProvider implements AudioProvider {
           : storedFemale);
     const model =
       await getStoredVoiceOptionAsync("ELEVENLABS_MODEL", "elevenlabsModel") || "eleven_multilingual_v2";
-    const text = script.trim().slice(0, 2500);
+    const text = script.trim();
+    const maxChars = 10_000;
+    if (text.length > maxChars) {
+      throw new Error(
+        `Narration is ${text.length} characters. This ElevenLabs model accepts ${maxChars}. Shorten the script before generating. Nothing was generated.`,
+      );
+    }
 
     const url = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`;
     const res = await fetch(url, {

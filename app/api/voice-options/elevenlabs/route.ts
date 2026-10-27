@@ -1,5 +1,11 @@
 import { NextResponse } from "next/server";
-import { includeSamVoice, SAM_ELEVENLABS_VOICE } from "@/app/lib/elevenlabs-voice-catalog";
+import {
+  ACCOUNT_VOICE_TYPES,
+  groupLabelForAccountVoice,
+  includeSamVoice,
+  reduceAccountVoicePages,
+  type AccountVoicePage,
+} from "@/app/lib/elevenlabs-voice-catalog";
 import { getServerSecretAsync } from "@/app/lib/server-secrets";
 
 type ElevenLabsVoice = {
@@ -27,13 +33,6 @@ function isMyVoice(v: ElevenLabsVoice): boolean {
   );
 }
 
-function toVoiceResponse(v: ElevenLabsVoice) {
-  return {
-    ...v,
-    groupLabel: groupLabelForVoice(v),
-  };
-}
-
 function buildDiagnostics(voices: ElevenLabsVoice[]) {
   const labelled = voices.filter(isLabelled);
   const unlabelled = voices.filter((v) => !isLabelled(v));
@@ -47,139 +46,132 @@ function buildDiagnostics(voices: ElevenLabsVoice[]) {
   };
 }
 
-function groupLabelForVoice(v: ElevenLabsVoice): string {
-  if (isMyVoice(v)) return "My voices";
-  const gender = String(v.labels?.gender ?? "").toLowerCase().trim();
-  if (gender === "female") return "Female";
-  if (gender === "male") return "Male";
-  if (v.category === "premade" || v.is_default) return "Unspecified";
-  return "Other";
-}
-
-const FALLBACK_DEFAULTS: ElevenLabsVoice[] = [
-  { voice_id: "9BWtsMINqrJLrRacOk9x", name: "Aria", category: "premade", is_default: true, labels: { gender: "female", accent: "American" } },
-  { voice_id: "CwhRBWXzGAHq8TQ4Fs17", name: "Roger", category: "premade", is_default: true, labels: { gender: "male", accent: "American" } },
-  { voice_id: "EXAVITQu4vr4xnSDxMaL", name: "Sarah", category: "premade", is_default: true, labels: { gender: "female", accent: "American" } },
-  { voice_id: "FGY2WhTYpPnrIDTdsKH5", name: "Laura", category: "premade", is_default: true, labels: { gender: "female", accent: "American" } },
-  { voice_id: "IKne3meq5aSn9XLyUdCD", name: "Charlie", category: "premade", is_default: true, labels: { gender: "male", accent: "Australian" } },
-  { voice_id: "JBFqnCBsd6RMkjVDRZzb", name: "George", category: "premade", is_default: true, labels: { gender: "male", accent: "British" } },
-  { voice_id: "N2lVS1w4EtoT3dr4eOWO", name: "Callum", category: "premade", is_default: true, labels: { gender: "male", accent: "American" } },
-  { voice_id: "SAz9YHcvj6GT2YYXdXww", name: "River", category: "premade", is_default: true, labels: { gender: "neutral", accent: "American" } },
-  SAM_ELEVENLABS_VOICE,
-  { voice_id: "TX3LPaxmHKxFdv7VOQHJ", name: "Liam", category: "premade", is_default: true, labels: { gender: "male", accent: "American" } },
-  { voice_id: "XB0fDUnXU5powFXDhCwa", name: "Charlotte", category: "premade", is_default: true, labels: { gender: "female", accent: "Swedish" } },
-  { voice_id: "Xb7hH8MSUJpSbSDYk0k2", name: "Alice", category: "premade", is_default: true, labels: { gender: "female", accent: "British" } },
-  { voice_id: "XrExE9yKIg1WjnnlVkGX", name: "Matilda", category: "premade", is_default: true, labels: { gender: "female", accent: "American" } },
-  { voice_id: "bIHbv24MWmeRgasZH58o", name: "Will", category: "premade", is_default: true, labels: { gender: "male", accent: "American" } },
-  { voice_id: "cgSgspJ2msm6clMCkdW9", name: "Jessica", category: "premade", is_default: true, labels: { gender: "female", accent: "American" } },
-  { voice_id: "cjVigY5qzO86Huf0OWal", name: "Eric", category: "premade", is_default: true, labels: { gender: "male", accent: "American" } },
-  { voice_id: "iP95p4xoKVk53GoZ742B", name: "Chris", category: "premade", is_default: true, labels: { gender: "male", accent: "American" } },
-  { voice_id: "nPczCjzI2devNBz1zQrb", name: "Brian", category: "premade", is_default: true, labels: { gender: "male", accent: "American" } },
-  { voice_id: "onwK4e9ZLuTAKqWW03F9", name: "Daniel", category: "premade", is_default: true, labels: { gender: "male", accent: "British" } },
-  { voice_id: "pFZP5JQG7iQjIQuC4Bku", name: "Lily", category: "premade", is_default: true, labels: { gender: "female", accent: "British" } },
-  { voice_id: "pqHfZKP75CvOlQylNhV4", name: "Bill", category: "premade", is_default: true, labels: { gender: "male", accent: "American" } },
-  { voice_id: "21m00Tcm4TlvDq8ikWAM", name: "Rachel (legacy)", category: "premade", is_default: true, labels: { gender: "female", accent: "American" } },
-];
-
 type VoiceListPage = {
   voices?: ElevenLabsVoice[];
   has_more?: boolean;
   next_page_token?: string | null;
 };
 
-async function fetchVoicePage(url: string, key: string): Promise<VoiceListPage> {
-  const res = await fetch(url, {
+const VOICE_PAGE_LIMIT = 20;
+
+function voiceListUrl(voiceType: string | null, pageToken: string | null): string {
+  const url = new URL("https://api.elevenlabs.io/v2/voices");
+  url.searchParams.set("page_size", "100");
+  url.searchParams.set("sort", "name");
+  url.searchParams.set("sort_direction", "asc");
+  url.searchParams.set("include_total_count", "false");
+  if (voiceType) url.searchParams.set("voice_type", voiceType);
+  if (pageToken) url.searchParams.set("next_page_token", pageToken);
+  return url.toString();
+}
+
+async function fetchAccountVoicePages(key: string): Promise<AccountVoicePage[]> {
+  const pages: AccountVoicePage[] = [];
+  const types: Array<string | null> = [null, ...ACCOUNT_VOICE_TYPES];
+  for (const voiceType of types) {
+    let pageToken: string | null = null;
+    for (let page = 0; page < VOICE_PAGE_LIMIT; page += 1) {
+      const res = await fetch(voiceListUrl(voiceType, pageToken), {
+        headers: { "xi-api-key": key },
+        cache: "no-store",
+      });
+      if (res.status === 401 || res.status === 403) {
+        pages.push({ voiceType, status: res.status, voices: [], hasMore: false });
+        return pages;
+      }
+      if (!res.ok) break;
+      const data = (await res.json()) as VoiceListPage;
+      const voices = Array.isArray(data.voices) ? data.voices : [];
+      const hasMore = data.has_more === true && Boolean(data.next_page_token);
+      pages.push({
+        voiceType,
+        status: res.status,
+        voices,
+        hasMore,
+        truncated: hasMore && page === VOICE_PAGE_LIMIT - 1,
+      });
+      if (!hasMore) break;
+      pageToken = data.next_page_token ?? null;
+    }
+  }
+
+  const legacy = await fetch("https://api.elevenlabs.io/v1/voices?show_legacy=true", {
     headers: { "xi-api-key": key },
     cache: "no-store",
   });
-  if (!res.ok) return { voices: [] };
-  const data = (await res.json()) as VoiceListPage;
-  return {
-    voices: Array.isArray(data.voices) ? data.voices : [],
-    has_more: data.has_more === true,
-    next_page_token: data.next_page_token ?? null,
-  };
+  if (legacy.status === 401 || legacy.status === 403) {
+    pages.push({ voiceType: "legacy", status: legacy.status, voices: [], hasMore: false });
+    return pages;
+  }
+  if (legacy.ok) {
+    const data = (await legacy.json()) as VoiceListPage;
+    pages.push({
+      voiceType: "legacy",
+      status: legacy.status,
+      voices: Array.isArray(data.voices) ? data.voices : [],
+      hasMore: false,
+    });
+  }
+  return pages;
 }
 
-function addVoices(seen: Set<string>, voices: ElevenLabsVoice[], batch: ElevenLabsVoice[] | undefined) {
-  for (const voice of batch ?? []) {
-    const id = String(voice.voice_id ?? "").trim();
-    if (!id || seen.has(id)) continue;
-    seen.add(id);
-    voices.push(voice);
-  }
-}
-
-async function fetchAvailableVoices(key: string): Promise<ElevenLabsVoice[]> {
-  const seen = new Set<string>();
-  const voices: ElevenLabsVoice[] = [];
-
-  let pageToken: string | null = null;
-  for (let page = 0; page < 8; page += 1) {
-    const url = new URL("https://api.elevenlabs.io/v2/voices");
-    url.searchParams.set("page_size", "100");
-    url.searchParams.set("sort", "name");
-    url.searchParams.set("sort_direction", "asc");
-    url.searchParams.set("include_total_count", "false");
-    if (pageToken) url.searchParams.set("next_page_token", pageToken);
-    const pageData = await fetchVoicePage(url.toString(), key);
-    addVoices(seen, voices, pageData.voices);
-    if (!pageData.has_more || !pageData.next_page_token) break;
-    pageToken = pageData.next_page_token;
-  }
-
-  const samSearch = new URL("https://api.elevenlabs.io/v2/voices");
-  samSearch.searchParams.set("search", "Sam");
-  samSearch.searchParams.set("page_size", "100");
-  samSearch.searchParams.set("include_total_count", "false");
-  const samPage = await fetchVoicePage(samSearch.toString(), key);
-  addVoices(seen, voices, samPage.voices);
-
-  const legacy = await fetchVoicePage("https://api.elevenlabs.io/v1/voices?show_legacy=true", key);
-  addVoices(seen, voices, legacy.voices);
-
-  return voices;
+function unavailableResponse(status: "missing_key" | "network_error" | "auth_failed" | "empty") {
+  return NextResponse.json({
+    voices: [],
+    diagnostics: {
+      totalDefaults: 0,
+      labelledDefaults: 0,
+      unlabelledDefaults: 0,
+      unlabelledVoiceNames: [],
+      myVoicesCount: 0,
+      accountVoiceCount: 0,
+      truncated: false,
+      voiceTypes: [],
+    },
+    source: "unavailable",
+    status,
+    catalogueNote:
+      "Only voices returned for this ElevenLabs account are listed. Voices in the public library stay off this list until they are added to the account.",
+  });
 }
 
 export async function GET() {
   const key = await getServerSecretAsync("ELEVENLABS_API_KEY");
-  if (!key) {
-    const diagnostics = buildDiagnostics(FALLBACK_DEFAULTS);
-    return NextResponse.json({
-      voices: FALLBACK_DEFAULTS.map(toVoiceResponse),
-      diagnostics,
-      source: "fallback",
-      status: "missing_key",
-    });
-  }
+  if (!key) return unavailableResponse("missing_key");
 
   try {
-    const raw = await fetchAvailableVoices(key);
-    /** Every voice the API key can use — premade library plus your cloned / generated / professional voices. */
-    const all = raw.filter((v) => String(v.voice_id ?? "").trim() && String(v.name ?? "").trim());
-    const sortForUi = (voices: ElevenLabsVoice[]) =>
-      [...voices].sort((a, b) => {
-        const ma = isMyVoice(a);
-        const mb = isMyVoice(b);
-        if (ma !== mb) return ma ? -1 : 1;
-        return a.name.localeCompare(b.name);
-      });
-
-    const sourceVoices = all.length > 0 ? sortForUi(includeSamVoice(all)) : FALLBACK_DEFAULTS;
-    const diagnostics = buildDiagnostics(sourceVoices);
+    const pages = await fetchAccountVoicePages(key);
+    const account = reduceAccountVoicePages(pages);
+    if (account.status === "auth_failed") return unavailableResponse("auth_failed");
+    const listed = includeSamVoice(account.voices).map((voice) => ({
+      ...voice,
+      groupLabel: "groupLabel" in voice && voice.groupLabel ? voice.groupLabel : groupLabelForAccountVoice(voice, null),
+    }));
+    if (listed.length === 0) return unavailableResponse("empty");
+    const diagnostics = {
+      ...buildDiagnostics(listed),
+      accountVoiceCount: account.voices.length,
+      truncated: account.truncated,
+      voiceTypes: account.voiceTypes,
+    };
     return NextResponse.json({
-      voices: sourceVoices.map(toVoiceResponse),
+      voices: listed.map((voice) => ({
+        voice_id: voice.voice_id,
+        name: voice.name,
+        description: voice.description,
+        category: voice.category,
+        labels: voice.labels,
+        is_default: voice.is_default,
+        groupLabel: voice.groupLabel,
+        accountVoiceType: "accountVoiceType" in voice ? voice.accountVoiceType : undefined,
+      })),
       diagnostics,
-      source: all.length > 0 ? "elevenlabs" : "fallback",
+      source: "elevenlabs",
       status: "ok",
+      catalogueNote:
+        "Account voices include cloned, workspace, and saved voices. Premade Sam stays on the list when the account response omits him. The rest of the public library is not listed.",
     });
   } catch {
-    const diagnostics = buildDiagnostics(FALLBACK_DEFAULTS);
-    return NextResponse.json({
-      voices: FALLBACK_DEFAULTS.map(toVoiceResponse),
-      diagnostics,
-      source: "fallback",
-      status: "network_error",
-    });
+    return unavailableResponse("network_error");
   }
 }

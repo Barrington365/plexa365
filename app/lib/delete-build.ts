@@ -1,10 +1,10 @@
 import fs from "fs/promises";
 import path from "path";
 import type { ManifestEntry } from "@/app/lib/asset-manifest";
+import { readStoredManifest, writeStoredManifest } from "@/app/lib/asset-manifest-store";
 import { deleteVoiceRecordingsForContentId } from "@/app/lib/editor-upload";
 import { deleteVideoBlobAsset } from "@/app/lib/video-blob-assets";
 import {
-  assetsManifestPath,
   editorUploadDir,
   libraryBackgroundImagesDir,
   outputDir,
@@ -47,14 +47,10 @@ export async function deleteBuild(opts: DeleteBuildOptions): Promise<{ deleted: 
     throw new Error("Invalid content id");
   }
 
-  const manifestPath = assetsManifestPath();
   let removeFilesForContentId = !createdAt;
 
   try {
-    const raw = await fs.readFile(manifestPath, "utf-8");
-    const parsed = JSON.parse(raw) as unknown;
-    const list = Array.isArray(parsed) ? (parsed as ManifestEntry[]) : [];
-
+    const list = await readStoredManifest();
     let next: ManifestEntry[];
     if (createdAt?.trim()) {
       const ts = createdAt.trim();
@@ -65,7 +61,7 @@ export async function deleteBuild(opts: DeleteBuildOptions): Promise<{ deleted: 
     }
 
     if (next.length !== list.length) {
-      await fs.writeFile(manifestPath, JSON.stringify(next, null, 2), "utf-8");
+      await writeStoredManifest(next);
       deleted.push("manifest");
     }
   } catch {
@@ -124,20 +120,10 @@ export async function deleteBuild(opts: DeleteBuildOptions): Promise<{ deleted: 
   return { deleted };
 }
 
-async function readManifestEntries(): Promise<ManifestEntry[]> {
-  try {
-    const raw = await fs.readFile(assetsManifestPath(), "utf-8");
-    const parsed = JSON.parse(raw) as unknown;
-    return Array.isArray(parsed) ? (parsed as ManifestEntry[]) : [];
-  } catch {
-    return [];
-  }
-}
-
 export async function cleanOrphanVideoFiles(): Promise<string[]> {
   const deleted: string[] = [];
   const keep = new Set<string>();
-  const manifest = await readManifestEntries();
+  const manifest = await readStoredManifest();
 
   for (const row of manifest) {
     const main = String(row.video ?? "").trim().replace(/^\/+/, "");

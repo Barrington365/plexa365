@@ -5,7 +5,9 @@ import type { ManifestEntry } from "@/app/lib/asset-manifest";
 import { readAudioStudioBlobAsset } from "@/app/lib/audio-studio-store";
 import { readLibraryBlobAsset } from "@/app/lib/library-blob-assets";
 import { readVideoBlobAsset } from "@/app/lib/video-blob-assets";
-import { assetsManifestPath, outputDir } from "@/app/lib/paths";
+import { planVideoByteRange, videoByteRangeHeaders } from "@/app/lib/http-byte-range";
+import { readStoredManifest } from "@/app/lib/asset-manifest-store";
+import { outputDir } from "@/app/lib/paths";
 
 const PREVIEW_CACHE_CONTROL = "no-store, max-age=0, must-revalidate";
 
@@ -22,20 +24,14 @@ function normRel(r: string): string {
 }
 
 async function manifestEntryForRel(rel: string): Promise<ManifestEntry | undefined> {
-  try {
-    const raw = await fs.readFile(assetsManifestPath(), "utf-8");
-    const list = JSON.parse(raw) as unknown;
-    if (!Array.isArray(list)) return undefined;
-    const n = normRel(rel);
-    return (list as ManifestEntry[]).find(
-      (e) =>
-        normRel(e.video) === n ||
-        normRel(e.subtitles) === n ||
-        (e.editedVideo && normRel(e.editedVideo) === n),
-    );
-  } catch {
-    return undefined;
-  }
+  const list = await readStoredManifest();
+  const n = normRel(rel);
+  return list.find(
+    (entry) =>
+      normRel(entry.video) === n ||
+      normRel(entry.subtitles) === n ||
+      (entry.editedVideo && normRel(entry.editedVideo) === n),
+  );
 }
 
 /** Suggested filename for Save / Download (matches manifest SEO slug). */
@@ -67,6 +63,41 @@ function dispositionFilenameForRel(
   return basenameFull;
 }
 
+function videoBytesResponse(
+  req: Request,
+  bytes: Uint8Array,
+  contentType: string,
+  filename: string,
+  baseHeaders: Record<string, string>,
+) {
+  const download = new URL(req.url).searchParams.get("download") === "1";
+  const plan = planVideoByteRange(req.headers.get("range"), bytes.byteLength);
+  if (!plan.ok) {
+    return new NextResponse(null, {
+      status: 416,
+      headers: {
+        "Content-Range": `bytes */${plan.total}`,
+        "Accept-Ranges": "bytes",
+      },
+    });
+  }
+  const headers = {
+    ...baseHeaders,
+    ...videoByteRangeHeaders(plan, contentType, filename, download),
+  };
+  const slice = bytes.subarray(plan.start, plan.end + 1);
+  const body = new Uint8Array(slice.byteLength);
+  body.set(slice);
+  return new NextResponse(body, { status: plan.status, headers });
+}
+
+function isVideoRel(rel: string): boolean {
+  return (
+    (rel.startsWith("video/") && rel.toLowerCase().endsWith(".mp4")) ||
+    (rel.startsWith("uploads/") && /\.(mp4|webm|mov)$/i.test(rel))
+  );
+}
+
 /** Serves files under /output only (for previews). Query: rel=images/foo/bar.png&download=1 */
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -96,27 +127,16 @@ export async function GET(req: Request) {
     }
   }
 
-  if (
-    (rel.startsWith("video/") && rel.toLowerCase().endsWith(".mp4")) ||
-    (rel.startsWith("uploads/") && /\.(mp4|webm|mov)$/i.test(rel))
-  ) {
+  if (isVideoRel(rel)) {
     const videoBlob = await readVideoBlobAsset(rel);
     if (videoBlob) {
-      const headers: Record<string, string> = {
-        "Content-Type": videoBlob.contentType,
-        "Cache-Control": PREVIEW_CACHE_CONTROL,
-        "X-Asset-Rel": videoBlob.rel,
-      };
       const ext = path.extname(videoBlob.rel).toLowerCase();
       const entry = await manifestEntryForRel(rel);
       const filename = dispositionFilenameForRel(rel, path.basename(videoBlob.rel), ext, entry).replace(/"/g, "");
-      const dispType = searchParams.get("download") === "1" ? "attachment" : "inline";
-      headers["Content-Disposition"] = `${dispType}; filename="${filename}"`;
-      const body = videoBlob.bytes.buffer.slice(
-        videoBlob.bytes.byteOffset,
-        videoBlob.bytes.byteOffset + videoBlob.bytes.byteLength,
-      ) as ArrayBuffer;
-      return new NextResponse(body, { headers });
+      return videoBytesResponse(req, videoBlob.bytes, videoBlob.contentType, filename, {
+        "Cache-Control": PREVIEW_CACHE_CONTROL,
+        "X-Asset-Rel": videoBlob.rel,
+      });
     }
   }
 
@@ -161,6 +181,16 @@ export async function GET(req: Request) {
     };
 
     const download = searchParams.get("download") === "1";
+    const videoOnDisk =
+      ext === ".mp4" || ext === ".mov" || (ext === ".webm" && !rel.split(path.sep).join("/").startsWith("audio/"));
+    if (videoOnDisk) {
+      const entry = await manifestEntryForRel(rel);
+      const filename = dispositionFilenameForRel(rel, path.basename(full), ext, entry).replace(/"/g, "");
+      return videoBytesResponse(req, buf, type, filename, {
+        "Cache-Control": PREVIEW_CACHE_CONTROL,
+        "X-Asset-Rel": rel,
+      });
+    }
     if (ext === ".mp4" || ext === ".srt") {
       const entry = await manifestEntryForRel(rel);
       const filename = dispositionFilenameForRel(rel, path.basename(full), ext, entry)

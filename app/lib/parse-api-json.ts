@@ -23,6 +23,12 @@ function extractJsonText(text: string): string {
 export async function parseApiJson<T>(res: Response): Promise<T> {
   const text = await res.text();
   const trimmed = text.trim();
+  if (trimmed.startsWith("<")) {
+    const title = /<title>([^<]{0,120})/i.exec(trimmed)?.[1]?.trim();
+    throw new Error(
+      `The host returned HTML instead of JSON (HTTP ${res.status}${title ? `: ${title}` : ""}). The request did not finish as JSON.`,
+    );
+  }
   if (!trimmed) {
     if (!res.ok) {
       throw new Error(

@@ -1,8 +1,8 @@
 import fs from "fs/promises";
 import path from "path";
 import { spawn } from "child_process";
-import type { ManifestEntry } from "@/app/lib/asset-manifest";
-import { assetsManifestPath, outputVideoDir, projectRoot } from "@/app/lib/paths";
+import { readStoredManifest, writeStoredManifest } from "@/app/lib/asset-manifest-store";
+import { outputVideoDir, projectRoot } from "@/app/lib/paths";
 import {
   assertVideoOutputRel,
   editedVideoRelForContentId,
@@ -112,26 +112,14 @@ export async function trimVideoToEdited(params: TrimVideoParams): Promise<{
 }
 
 async function setManifestEditedVideo(contentId: string, editedRelNorm: string): Promise<void> {
-  const p = assetsManifestPath();
-  let list: ManifestEntry[] = [];
-  try {
-    const raw = await fs.readFile(p, "utf-8");
-    const parsed = JSON.parse(raw) as unknown;
-    if (Array.isArray(parsed)) list = parsed as ManifestEntry[];
-  } catch {
-    return;
-  }
+  const list = await readStoredManifest();
   let changed = false;
-  const next = list.map((e) => {
-    if (e.id === contentId) {
-      changed = true;
-      return { ...e, editedVideo: editedRelNorm };
-    }
-    return e;
+  const next = list.map((entry) => {
+    if (entry.id !== contentId) return entry;
+    changed = true;
+    return { ...entry, editedVideo: editedRelNorm };
   });
-  if (changed) {
-    await fs.writeFile(p, JSON.stringify(next, null, 2), "utf-8");
-  }
+  if (changed) await writeStoredManifest(next);
 }
 
 /** Duration for any `video/*.mp4` under output (disk or Netlify blob). */

@@ -4,7 +4,6 @@ import {
   outputSubtitlesDir,
   outputVideoDir,
   outputDir,
-  assetsManifestPath,
   projectRoot,
 } from "@/app/lib/paths";
 import { ffmpegBinary, probeHasAudioStream, probeMediaDurationSec, ffmpegMp4VideoEncodeArgs, runFfmpeg } from "./ffmpeg-utils";
@@ -17,9 +16,12 @@ import {
   SPORT365_SUBTITLE_PINK,
 } from "@/app/lib/sport365-subtitle-burn";
 import type { ManifestEntry } from "@/app/lib/asset-manifest";
+import { appendStoredManifest } from "@/app/lib/asset-manifest-store";
 import { assertAudioAssetRel, assertCrossContentBackdropRel } from "@/app/lib/editor-upload";
 import { readLibraryBlobAsset } from "@/app/lib/library-blob-assets";
-import { materializeVideoAssetToDisk } from "@/app/lib/video-blob-assets";
+import { shouldUseNetlifyBlobStore } from "@/app/lib/netlify-blob-json";
+import { materializeVideoAssetToDisk, persistVideoOutputToBlob } from "@/app/lib/video-blob-assets";
+import { alignSceneDurationsToAudio } from "@/app/lib/script-scene-captions";
 import { BRAND_ENCODER, BRAND_MARK } from "@/app/lib/brand";
 import { upsertLibraryMetadata } from "@/app/lib/library-metadata";
 import type { BackingMusicConfig, VideoRecordCirclePosition, VideoRecordLayout } from "@/app/features/news-shorts/types";
@@ -458,6 +460,10 @@ export async function buildShortVideo(input: BuildShortInput): Promise<{
   /** Present when `styledSubtitleBurn` — ASS burned into the MP4. */
   assPath?: string;
   concatPath: string;
+  /** Scene lengths used for the pictures and subtitle cues, after narration matching. */
+  sceneDurationsSec: number[];
+  narrationDurationSec: number;
+  captionsBurned: boolean;
 }> {
   await fs.mkdir(outputVideoDir(), { recursive: true });
   await fs.mkdir(outputSubtitlesDir(), { recursive: true });
@@ -472,93 +478,9 @@ export async function buildShortVideo(input: BuildShortInput): Promise<{
   const halfSlideH = Math.round(oh / 2);
 
   const concatPath = path.join(outputDir(), `concat-${input.contentId}.txt`);
-  await writeConcatFile(scenes, concatPath);
-
-  const sceneSum = Math.max(0.1, scenes.reduce((a, s) => a + s.durationSec, 0));
-  const sport365Script =
-    input.script?.trim() ||
-    scenes
-      .map((s) => s.caption.trim())
-      .filter(Boolean)
-      .join(" ");
-  const useSport365Ass =
-    input.format === "planet-football-table" &&
-    input.burnSubtitles !== false &&
-    Boolean(sport365Script);
-
-  let t = 0;
-  const sceneCues: SubtitleCue[] = scenes.map((s) => {
-    const start = t;
-    const end = t + s.durationSec;
-    t = end;
-    return { startSec: start, endSec: end, text: s.caption };
-  });
-  const sentenceCues = useSport365Ass ? buildSport365SentenceCues(sport365Script, sceneSum) : [];
-  const srtCues = useSport365Ass && sentenceCues.length > 0 ? sentenceCues : sceneCues;
-  const srtPath = path.join(outputSubtitlesDir(), `${input.contentId}.srt`);
-  await fs.writeFile(srtPath, buildSrt(srtCues), "utf-8");
-
-  const useAss =
-    input.styledSubtitleBurn === true &&
-    input.format === "news-shorts" &&
-    input.subtitleStyle &&
-    input.burnSubtitles !== false;
-
-  let assPath: string | undefined;
-  let subtitleRelForBurn: string;
-  if (useSport365Ass && sentenceCues.length > 0) {
-    assPath = path.join(outputSubtitlesDir(), `${input.contentId}-sport365.ass`);
-    await fs.writeFile(
-      assPath,
-      buildLeagueTableAss(sentenceCues, {
-        playResX: ow,
-        playResY: oh,
-        busyMotionBackdrop: Boolean(input.backgroundVideoRel?.trim()),
-        accentColor: input.subtitleAccentColor ?? SPORT365_SUBTITLE_PINK,
-        styleName: "FootballTable",
-      }),
-      "utf-8",
-    );
-    subtitleRelForBurn = path.relative(projectRoot(), assPath).split(path.sep).join("/");
-  } else if (useAss) {
-    t = 0;
-    const assCues = scenes.map((s) => {
-      const start = t;
-      const end = t + s.durationSec;
-      t = end;
-      return {
-        startSec: start,
-        endSec: end,
-        headline: (s.subtitleHeadline ?? s.caption).trim(),
-        subline: (s.subtitleSubline ?? "").trim(),
-        highlightWords: s.highlightWords ?? [],
-      };
-    });
-    assPath = path.join(outputSubtitlesDir(), `${input.contentId}-short.ass`);
-    await fs.writeFile(
-      assPath,
-      buildNewsShortAss(assCues, {
-        ...input.subtitleStyle!,
-        busyMotionBackdrop: Boolean(input.backgroundVideoRel?.trim()),
-        playResX: ow,
-        playResY: oh,
-      }),
-      "utf-8",
-    );
-    subtitleRelForBurn = path.relative(projectRoot(), assPath).split(path.sep).join("/");
-  } else {
-    subtitleRelForBurn = path.relative(projectRoot(), srtPath).split(path.sep).join("/");
-  }
-
   const videoPath = path.join(outputVideoDir(), `${input.contentId}-short.mp4`);
-  const srtRel = subtitleRelForBurn;
-  const fontsDirForAss =
-    useAss && bundledNewsShortFontsDirExists()
-      ? path.join(projectRoot(), "assets", "fonts", "news-shorts")
-      : undefined;
-  const subtitleBurnFilter = subtitlesFilterWithOptionalFontsdir(srtRel, fontsDirForAss);
 
-  /** Output length follows voiceover (and scene timeline), padded to match. */
+  /** Output length follows the narration. News Shorts match frames and cues to that length. */
   const ABS_MAX_SEC = 600;
 
   const backdropRel = input.backgroundVideoRel?.trim();
@@ -652,16 +574,113 @@ export async function buildShortVideo(input: BuildShortInput): Promise<{
     await fs.access(backingMusic.abs);
   }
 
-  let audioDur = sceneSum;
+  let audioDur = Math.max(0.1, scenes.reduce((sum, scene) => sum + scene.durationSec, 0));
+  let audioProbed = false;
   try {
     if (useVideoAudio) {
       audioDur = await probeMediaDurationSec(bgVideoAbs);
     } else {
       audioDur = await probeMediaDurationSec(audioIn);
     }
+    audioProbed = true;
   } catch {
     /* probe failed — assume similar to scene timing */
   }
+
+  if (input.format === "news-shorts" && audioProbed) {
+    const durations = alignSceneDurationsToAudio(
+      scenes.map((scene) => (scene.caption || scene.subtitleHeadline || "").trim()),
+      audioDur,
+    );
+    scenes.forEach((scene, index) => {
+      scene.durationSec = durations[index]!;
+    });
+  }
+
+  await writeConcatFile(scenes, concatPath);
+
+  const sceneSum = Math.max(0.1, scenes.reduce((sum, scene) => sum + scene.durationSec, 0));
+  const sport365Script =
+    input.script?.trim() ||
+    scenes
+      .map((scene) => scene.caption.trim())
+      .filter(Boolean)
+      .join(" ");
+  const useSport365Ass =
+    input.format === "planet-football-table" &&
+    input.burnSubtitles !== false &&
+    Boolean(sport365Script);
+
+  let cueTime = 0;
+  const sceneCues: SubtitleCue[] = scenes.map((scene) => {
+    const start = cueTime;
+    const end = cueTime + scene.durationSec;
+    cueTime = end;
+    return { startSec: start, endSec: end, text: scene.caption };
+  });
+  const sentenceCues = useSport365Ass ? buildSport365SentenceCues(sport365Script, sceneSum) : [];
+  const srtCues = useSport365Ass && sentenceCues.length > 0 ? sentenceCues : sceneCues;
+  const srtPath = path.join(outputSubtitlesDir(), `${input.contentId}.srt`);
+  await fs.writeFile(srtPath, buildSrt(srtCues), "utf-8");
+
+  const useAss =
+    input.styledSubtitleBurn === true &&
+    input.format === "news-shorts" &&
+    input.subtitleStyle &&
+    input.burnSubtitles !== false;
+
+  let assPath: string | undefined;
+  let subtitleRelForBurn: string;
+  if (useSport365Ass && sentenceCues.length > 0) {
+    assPath = path.join(outputSubtitlesDir(), `${input.contentId}-sport365.ass`);
+    await fs.writeFile(
+      assPath,
+      buildLeagueTableAss(sentenceCues, {
+        playResX: ow,
+        playResY: oh,
+        busyMotionBackdrop: Boolean(input.backgroundVideoRel?.trim()),
+        accentColor: input.subtitleAccentColor ?? SPORT365_SUBTITLE_PINK,
+        styleName: "FootballTable",
+      }),
+      "utf-8",
+    );
+    subtitleRelForBurn = path.relative(projectRoot(), assPath).split(path.sep).join("/");
+  } else if (useAss) {
+    cueTime = 0;
+    const assCues = scenes.map((scene) => {
+      const start = cueTime;
+      const end = cueTime + scene.durationSec;
+      cueTime = end;
+      return {
+        startSec: start,
+        endSec: end,
+        headline: (scene.subtitleHeadline ?? scene.caption).trim(),
+        subline: (scene.subtitleSubline ?? "").trim(),
+        highlightWords: scene.highlightWords ?? [],
+      };
+    });
+    assPath = path.join(outputSubtitlesDir(), `${input.contentId}-short.ass`);
+    await fs.writeFile(
+      assPath,
+      buildNewsShortAss(assCues, {
+        ...input.subtitleStyle!,
+        busyMotionBackdrop: Boolean(input.backgroundVideoRel?.trim()),
+        playResX: ow,
+        playResY: oh,
+      }),
+      "utf-8",
+    );
+    subtitleRelForBurn = path.relative(projectRoot(), assPath).split(path.sep).join("/");
+  } else {
+    subtitleRelForBurn = path.relative(projectRoot(), srtPath).split(path.sep).join("/");
+  }
+
+  const srtRel = subtitleRelForBurn;
+  const fontsDirForAss =
+    useAss && bundledNewsShortFontsDirExists()
+      ? path.join(projectRoot(), "assets", "fonts", "news-shorts")
+      : undefined;
+  const subtitleBurnFilter = subtitlesFilterWithOptionalFontsdir(srtRel, fontsDirForAss);
 
   const rawTarget = Math.max(sceneSum, audioDur);
   const targetDur = Math.min(ABS_MAX_SEC, Math.max(0.1, rawTarget));
@@ -1072,11 +1091,18 @@ export async function buildShortVideo(input: BuildShortInput): Promise<{
     await runFfmpeg(args);
   }
 
+  if (shouldUseNetlifyBlobStore()) {
+    const persisted = await persistVideoOutputToBlob(videoPath);
+    if (!persisted) {
+      throw new Error("Video encoded but could not be saved to the library. Try the build again.");
+    }
+  }
+
   await appendManifest({
     id: input.contentId,
     format: input.format,
     createdAt: new Date().toISOString(),
-    video: path.relative(outputDir(), videoPath),
+    video: path.relative(outputDir(), videoPath).split(path.sep).join("/"),
     subtitles: path.relative(outputDir(), assPath ?? srtPath),
     images: scenes.map((s) => path.relative(outputDir(), s.imagePath)),
     seoTitle: input.seoTitle,
@@ -1093,19 +1119,17 @@ export async function buildShortVideo(input: BuildShortInput): Promise<{
     keywords: input.searchKeywords,
   });
 
-  return { videoPath, srtPath, ...(assPath ? { assPath } : {}), concatPath };
+  return {
+    videoPath,
+    srtPath,
+    ...(assPath ? { assPath } : {}),
+    concatPath,
+    sceneDurationsSec: scenes.map((scene) => scene.durationSec),
+    narrationDurationSec: audioDur,
+    captionsBurned: burn,
+  };
 }
 
 async function appendManifest(entry: ManifestEntry) {
-  const p = assetsManifestPath();
-  let list: ManifestEntry[] = [];
-  try {
-    const raw = await fs.readFile(p, "utf-8");
-    list = JSON.parse(raw) as ManifestEntry[];
-  } catch {
-    list = [];
-  }
-  list.unshift(entry);
-  await fs.mkdir(path.dirname(p), { recursive: true });
-  await fs.writeFile(p, JSON.stringify(list, null, 2), "utf-8");
+  await appendStoredManifest(entry);
 }
