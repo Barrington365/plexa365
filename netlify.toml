@@ -13,8 +13,9 @@
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
-# The Netlify UI install of this plugin has no inputs, and the build
-# rejects it before Next.js starts. Studio does not read its output.
+# The Netlify UI install has no inputs, and the published package cannot load
+# on the current build image. package.json points this name at the local no-op.
+# Studio does not read this plugin's output.
 [[plugins]]
   package = "netlify-plugin-fetch-feeds"
 
