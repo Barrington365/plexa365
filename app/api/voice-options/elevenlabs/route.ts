@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { includeSamVoice, SAM_ELEVENLABS_VOICE } from "@/app/lib/elevenlabs-voice-catalog";
 import { getServerSecretAsync } from "@/app/lib/server-secrets";
 
 type ElevenLabsVoice = {
@@ -64,6 +65,7 @@ const FALLBACK_DEFAULTS: ElevenLabsVoice[] = [
   { voice_id: "JBFqnCBsd6RMkjVDRZzb", name: "George", category: "premade", is_default: true, labels: { gender: "male", accent: "British" } },
   { voice_id: "N2lVS1w4EtoT3dr4eOWO", name: "Callum", category: "premade", is_default: true, labels: { gender: "male", accent: "American" } },
   { voice_id: "SAz9YHcvj6GT2YYXdXww", name: "River", category: "premade", is_default: true, labels: { gender: "neutral", accent: "American" } },
+  SAM_ELEVENLABS_VOICE,
   { voice_id: "TX3LPaxmHKxFdv7VOQHJ", name: "Liam", category: "premade", is_default: true, labels: { gender: "male", accent: "American" } },
   { voice_id: "XB0fDUnXU5powFXDhCwa", name: "Charlotte", category: "premade", is_default: true, labels: { gender: "female", accent: "Swedish" } },
   { voice_id: "Xb7hH8MSUJpSbSDYk0k2", name: "Alice", category: "premade", is_default: true, labels: { gender: "female", accent: "British" } },
@@ -79,33 +81,63 @@ const FALLBACK_DEFAULTS: ElevenLabsVoice[] = [
   { voice_id: "21m00Tcm4TlvDq8ikWAM", name: "Rachel (legacy)", category: "premade", is_default: true, labels: { gender: "female", accent: "American" } },
 ];
 
-async function fetchVoiceEndpoint(url: string, key: string): Promise<ElevenLabsVoice[]> {
+type VoiceListPage = {
+  voices?: ElevenLabsVoice[];
+  has_more?: boolean;
+  next_page_token?: string | null;
+};
+
+async function fetchVoicePage(url: string, key: string): Promise<VoiceListPage> {
   const res = await fetch(url, {
     headers: { "xi-api-key": key },
     cache: "no-store",
   });
-  if (!res.ok) return [];
-  const data = (await res.json()) as { voices?: ElevenLabsVoice[] };
-  return Array.isArray(data.voices) ? data.voices : [];
+  if (!res.ok) return { voices: [] };
+  const data = (await res.json()) as VoiceListPage;
+  return {
+    voices: Array.isArray(data.voices) ? data.voices : [],
+    has_more: data.has_more === true,
+    next_page_token: data.next_page_token ?? null,
+  };
+}
+
+function addVoices(seen: Set<string>, voices: ElevenLabsVoice[], batch: ElevenLabsVoice[] | undefined) {
+  for (const voice of batch ?? []) {
+    const id = String(voice.voice_id ?? "").trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    voices.push(voice);
+  }
 }
 
 async function fetchAvailableVoices(key: string): Promise<ElevenLabsVoice[]> {
-  const endpoints = [
-    "https://api.elevenlabs.io/v2/voices/search?page_size=100&sort=name&sort_direction=asc",
-    "https://api.elevenlabs.io/v1/voices?show_legacy=true",
-  ];
-
   const seen = new Set<string>();
   const voices: ElevenLabsVoice[] = [];
-  for (const endpoint of endpoints) {
-    const batch = await fetchVoiceEndpoint(endpoint, key);
-    for (const voice of batch) {
-      const id = String(voice.voice_id ?? "").trim();
-      if (!id || seen.has(id)) continue;
-      seen.add(id);
-      voices.push(voice);
-    }
+
+  let pageToken: string | null = null;
+  for (let page = 0; page < 8; page += 1) {
+    const url = new URL("https://api.elevenlabs.io/v2/voices");
+    url.searchParams.set("page_size", "100");
+    url.searchParams.set("sort", "name");
+    url.searchParams.set("sort_direction", "asc");
+    url.searchParams.set("include_total_count", "false");
+    if (pageToken) url.searchParams.set("next_page_token", pageToken);
+    const pageData = await fetchVoicePage(url.toString(), key);
+    addVoices(seen, voices, pageData.voices);
+    if (!pageData.has_more || !pageData.next_page_token) break;
+    pageToken = pageData.next_page_token;
   }
+
+  const samSearch = new URL("https://api.elevenlabs.io/v2/voices");
+  samSearch.searchParams.set("search", "Sam");
+  samSearch.searchParams.set("page_size", "100");
+  samSearch.searchParams.set("include_total_count", "false");
+  const samPage = await fetchVoicePage(samSearch.toString(), key);
+  addVoices(seen, voices, samPage.voices);
+
+  const legacy = await fetchVoicePage("https://api.elevenlabs.io/v1/voices?show_legacy=true", key);
+  addVoices(seen, voices, legacy.voices);
+
   return voices;
 }
 
@@ -133,7 +165,7 @@ export async function GET() {
         return a.name.localeCompare(b.name);
       });
 
-    const sourceVoices = all.length > 0 ? sortForUi(all) : FALLBACK_DEFAULTS;
+    const sourceVoices = all.length > 0 ? sortForUi(includeSamVoice(all)) : FALLBACK_DEFAULTS;
     const diagnostics = buildDiagnostics(sourceVoices);
     return NextResponse.json({
       voices: sourceVoices.map(toVoiceResponse),
