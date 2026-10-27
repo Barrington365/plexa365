@@ -1,7 +1,7 @@
 import {
   executeNewsShortsBuild,
   type NewsShortsBuildBody,
-} from "@/app/api/news-shorts/build/route";
+} from "@/app/lib/news-shorts-execute-build";
 import {
   completeVideoBuildJobResult,
   failVideoBuildJob,

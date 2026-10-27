@@ -1,4 +1,4 @@
-import type { NewsShortsBuildBody } from "../../app/api/news-shorts/build/route";
+import type { NewsShortsBuildBody } from "../../app/lib/news-shorts-execute-build";
 import { failVideoBuildJob } from "../../app/lib/video-build-jobs";
 import { runNewsShortsVideoBuildJob } from "../../app/lib/news-shorts-video-build-job";
 
