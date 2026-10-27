@@ -756,6 +756,28 @@ export function NewsShortsBuilder() {
   const [voicePreviewPlaying, setVoicePreviewPlaying] = useState(false);
   const [elevenlabsVoices, setElevenlabsVoices] = useState<ElevenlabsVoiceOption[]>([]);
   const [elevenlabsVoiceId, setElevenlabsVoiceId] = useState(DEFAULT_NEWS_SHORTS_ELEVENLABS_VOICE_ID);
+  // Restore only voice preferences on a fresh builder; article drafts stay opt-in.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("news-shorts-template-draft");
+      if (!raw) return;
+      const saved = JSON.parse(raw);
+      if (typeof saved.elevenlabsVoiceId === "string" && saved.elevenlabsVoiceId.trim()) {
+        setElevenlabsVoiceId(saved.elevenlabsVoiceId.trim());
+      }
+      if (typeof saved.voiceSpeed === "number" && Number.isFinite(saved.voiceSpeed)) {
+        setVoiceSpeed(Math.min(2, Math.max(0.5, saved.voiceSpeed)));
+      }
+      if (saved.voiceGender === "male" || saved.voiceGender === "female") setVoiceGender(saved.voiceGender);
+      if (["auto", "elevenlabs", "openai"].includes(saved.voiceProviderPreference)) setVoiceProviderPreference(saved.voiceProviderPreference);
+      const captions = captionPreferenceFromDraft(saved);
+      setBurnSubtitles(captions.burnSubtitles);
+      setBurnSubtitlesReplaceSlideText(captions.burnSubtitlesReplaceSlideText);
+      if (typeof saved.voiceSettingsSavedAt === "number") setVoiceSettingsSavedAt(saved.voiceSettingsSavedAt);
+    } catch {
+      // An invalid or unavailable local draft must not prevent opening the builder.
+    }
+  }, []);
   const [voicesLoading, setVoicesLoading] = useState(false);
   const [voiceDiagnostics, setVoiceDiagnostics] = useState<{
     totalDefaults: number;
@@ -2361,6 +2383,7 @@ export function NewsShortsBuilder() {
         return;
       }
     }
+    draft.voiceSettingsSavedAt = Date.now();
     draft.elevenlabsVoiceId = elevenlabsVoiceId;
     draft.voiceSpeed = voiceSpeed;
     draft.voiceGender = voiceGender;
