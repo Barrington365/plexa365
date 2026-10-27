@@ -27,6 +27,7 @@ import { upsertLibraryMetadata } from "@/app/lib/library-metadata";
 import type { BackingMusicConfig, VideoRecordCirclePosition, VideoRecordLayout } from "@/app/features/news-shorts/types";
 import { motionBackdropRelLooksLikeCameraRecording } from "@/app/lib/news-shorts-build-sources";
 import { requireNewsShortFontsDir, subtitlesFilterWithOptionalFontsdir } from "@/app/lib/news-short-fonts-server";
+import { styleTimedNewsShortCaptions } from "@/app/lib/news-short-timed-caption-style";
 
 export interface SceneClip {
   imagePath: string;
@@ -663,7 +664,7 @@ export async function buildShortVideo(input: BuildShortInput): Promise<{
     assPath = path.join(outputSubtitlesDir(), `${input.contentId}-short.ass`);
     await fs.writeFile(
       assPath,
-      buildNewsShortAss(input.narrationCues?.length ? input.narrationCues.map(c => ({...c, headline:c.text, subline:"", highlightWords:[]})) : assCues, {
+      buildNewsShortAss(input.narrationCues?.length ? styleTimedNewsShortCaptions(input.narrationCues, assCues) : assCues, {
         ...input.subtitleStyle!,
         busyMotionBackdrop: Boolean(input.backgroundVideoRel?.trim()),
         playResX: ow,

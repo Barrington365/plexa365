@@ -5,6 +5,8 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import ffmpeg from "ffmpeg-static";
 import { buildNewsShortAss } from "@/app/features/content/news-short-ass";
+import { styleTimedNewsShortCaptions } from "./news-short-timed-caption-style";
+import { getNewsShortBrandTemplateDefinition } from "@/app/features/news-shorts/news-shorts-brand-templates";
 import { assertCaptionRenderer, requireNewsShortFontsDir, subtitlesFilterWithOptionalFontsdir } from "./news-short-fonts-server";
 
 const blobs = vi.hoisted(() => new Map<string, { data: ArrayBuffer; metadata: Record<string, string> }>());
@@ -16,6 +18,24 @@ vi.mock("@netlify/blobs", () => ({ getStore: () => ({
 import { normaliseBuildSidecarRel, writeVideoBlobAsset, readVideoBlobAsset } from "./video-blob-assets";
 
 describe("durable captions", () => {
+  it.each(["teamtalk", "football365"])("burns white and brand-coloured pixels for %s timed narration", async (brand) => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "brand-caption-"));
+    try {
+      const file = path.join(dir, "captions.ass");
+      const cues = styleTimedNewsShortCaptions([{startSec:0,endSec:1,text:"Reports suggest Chelsea may allow a"}], [{startSec:0,endSec:1,headline:"",subline:"",highlightWords:["Chelsea"]}]);
+      await fs.writeFile(file, buildNewsShortAss(cues, {...getNewsShortBrandTemplateDefinition(brand)!.buildTemplate().style,playResX:1920,playResY:1080}));
+      const result = spawnSync(ffmpeg!, ["-v","error","-f","lavfi","-i","color=black:s=1920x1080:d=1", "-vf",subtitlesFilterWithOptionalFontsdir(file, requireNewsShortFontsDir()),"-frames:v","1","-f","rawvideo","-pix_fmt","rgb24","pipe:1"], {maxBuffer:8*1024*1024});
+      expect(result.status, result.stderr.toString()).toBe(0);
+      let white = 0, accent = 0;
+      for (let i = 0; i < result.stdout.length; i += 3) {
+        const [r,g,b] = result.stdout.subarray(i,i+3);
+        if (r>220 && g>220 && b>220) white++;
+        if (g>180 && r<100 && (brand === "teamtalk" ? b>120 && b<225 : b>210)) accent++;
+      }
+      expect(white).toBeGreaterThan(500);
+      expect(accent).toBeGreaterThan(500);
+    } finally { await fs.rm(dir, {recursive:true,force:true}); }
+  });
   it("validates caption pixels before narration", async () => { await expect(assertCaptionRenderer()).resolves.toBeUndefined(); });
   it("round trips SRT, ASS and engine JSON independently of worker disk", async () => {
     for (const rel of ["subtitles/test.srt", "subtitles/test-short.ass", "video/test-short-engine.json"]) {

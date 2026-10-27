@@ -51,11 +51,10 @@ function hexToAssColor(hex: string, alphaByte: string = "00"): string {
 }
 
 /**
- * Near-black panel behind burned ASS — maximally dark with a hint of green (readable on any motion).
- * Alpha 00 = fully opaque in libass.
+ * Preserve the selected brand panel, including CSS opacity (ASS uses inverse alpha).
  */
-function assSubtitlePanelBackColour(): string {
-  return hexToAssColor("#020302", "00");
+function assSubtitlePanelBackColour(panelColor: string): string {
+  return cssColorToAssPrimary(panelColor || "#020302");
 }
 
 function sanitizeAssLiteral(s: string): string {
@@ -80,7 +79,7 @@ function cssColorToAssPrimary(input: string): string {
   }
   const long = s.match(/^#([0-9a-fA-F]{6})([0-9a-fA-F]{2})?$/i);
   if (long) {
-    return hexToAssColor(`#${long[1]!.toLowerCase()}`, long[2] ? long[2].toUpperCase() : "00");
+    return hexToAssColor(`#${long[1]!.toLowerCase()}`, long[2] ? (255 - parseInt(long[2], 16)).toString(16).padStart(2, "0") : "00");
   }
   const rgba = s.match(
     /^rgba?\(\s*([0-9]+(?:\.[0-9]+)?)\s*,\s*([0-9]+(?:\.[0-9]+)?)\s*,\s*([0-9]+(?:\.[0-9]+)?)(?:\s*,\s*([0-9]+(?:\.[0-9]+)?))?\s*\)$/i,
@@ -90,7 +89,8 @@ function cssColorToAssPrimary(input: string): string {
     const g = Math.round(Math.min(255, Math.max(0, Number(rgba[2]))));
     const b = Math.round(Math.min(255, Math.max(0, Number(rgba[3]))));
     const hex = `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
-    return hexToAssColor(hex);
+    const opacity = rgba[4] == null ? 1 : Math.min(1, Math.max(0, Number(rgba[4])));
+    return hexToAssColor(hex, Math.round((1 - opacity) * 255).toString(16).padStart(2, "0"));
   }
   return "&H00FFFFFF&";
 }
@@ -170,7 +170,7 @@ export function buildNewsShortAss(cues: NewsShortAssCue[], style: NewsShortAssSt
   const bundle = resolveNewsShortFontBundle(style.headlineFont);
   const s = NEWS_SHORT_ASS_BURN_FONT_SCALE;
   const fsHead = newsShortAssBurnHeadFontPx(style.fontSize);
-  const panel = assSubtitlePanelBackColour();
+  const panel = assSubtitlePanelBackColour(style.panelColor);
   const outlineCol = hexToAssColor("#0a0c0a", "40");
   const playResX = style.playResX && style.playResX > 0 ? Math.round(style.playResX) : 1080;
   const playResY = style.playResY && style.playResY > 0 ? Math.round(style.playResY) : 1920;
