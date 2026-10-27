@@ -1,6 +1,5 @@
 import type { NewsShortsBuildBody } from "../../app/lib/news-shorts-execute-build";
-import { failVideoBuildJob } from "../../app/lib/video-build-jobs";
-import { runNewsShortsVideoBuildJob } from "../../app/lib/news-shorts-video-build-job";
+import { failVideoBuildJob, markVideoBuildJobRunning } from "../../app/lib/video-build-jobs";
 
 type BackgroundBody = {
   jobId?: string;
@@ -42,6 +41,10 @@ export default async (req: Request) => {
   });
 
   try {
+    // Mark the job before loading Puppeteer/FFmpeg. A startup throw used to leave
+    // the job pending until the client reported that the worker never started.
+    await markVideoBuildJobRunning(jobId);
+    const { runNewsShortsVideoBuildJob } = await import("../../app/lib/news-shorts-video-build-job");
     await runNewsShortsVideoBuildJob(jobId, body);
     console.info("[news-shorts-build-background] completed", { jobId });
     return new Response(JSON.stringify({ ok: true, jobId }), { status: 200 });

@@ -1,9 +1,16 @@
-import "server-only";
-
 import fs from "fs";
 import path from "path";
 import type { LaunchOptions } from "puppeteer";
 import { isNetlifyHostedLambdaRuntime } from "@/app/lib/netlify-hosted-runtime";
+
+/**
+ * Next's `server-only` package throws when a Netlify function evaluates it, which
+ * aborts the News Shorts background worker before the job can leave "pending".
+ * This file is only imported from server routes and functions.
+ */
+if (typeof window !== "undefined") {
+  throw new Error("Puppeteer launch can only run on the server.");
+}
 
 const MAC_CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const MAC_CHROMIUM = "/Applications/Chromium.app/Contents/MacOS/Chromium";
