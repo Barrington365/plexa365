@@ -278,9 +278,8 @@ function buildImageChain(
   return { args, filterComplex, audioInputIndex };
 }
 
-async function materializeSceneImagePath(imagePath: string, contentId: string, index: number): Promise<string> {
-  if (path.isAbsolute(imagePath)) return imagePath;
-  const normalized = imagePath.split(path.sep).join("/").replace(/^\/+/, "");
+async function materializeRelativeSceneImage(rel: string, contentId: string, index: number): Promise<string | null> {
+  const normalized = rel.split(path.sep).join("/").replace(/^\/+/, "");
   const blob = await readLibraryBlobAsset(normalized);
   if (blob) {
     const ext = path.extname(normalized) || ".png";
@@ -294,8 +293,29 @@ async function materializeSceneImagePath(imagePath: string, contentId: string, i
     await fs.access(underOutput);
     return underOutput;
   } catch {
-    /* fall through */
+    return null;
   }
+}
+
+async function materializeSceneImagePath(imagePath: string, contentId: string, index: number): Promise<string> {
+  if (path.isAbsolute(imagePath)) {
+    try {
+      await fs.access(imagePath);
+      return imagePath;
+    } catch {
+      const norm = imagePath.replace(/\\/g, "/");
+      const libraryAt = norm.indexOf("images/library/");
+      if (libraryAt >= 0) {
+        const fromLibrary = await materializeRelativeSceneImage(norm.slice(libraryAt), contentId, index);
+        if (fromLibrary) return fromLibrary;
+      }
+      throw new Error(
+        `Scene image missing on this server (${path.basename(imagePath)}). Render scenes again, then build the video.`,
+      );
+    }
+  }
+  const fromRel = await materializeRelativeSceneImage(imagePath, contentId, index);
+  if (fromRel) return fromRel;
   return path.resolve(projectRoot(), imagePath);
 }
 

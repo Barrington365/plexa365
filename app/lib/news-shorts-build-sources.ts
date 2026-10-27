@@ -43,6 +43,18 @@ export function resolveMotionBackdropRel(params: {
   return { rel: undefined, source: "none" };
 }
 
+/**
+ * Prefer the library blob path from Render scenes. Absolute paths from that request
+ * do not exist on the next Netlify Lambda that encodes the MP4.
+ */
+export function newsShortRenderedImageRef(
+  image: { path?: string; rel?: string } | null | undefined,
+): string {
+  const rel = (image?.rel ?? "").trim().replace(/\\/g, "/").replace(/^\/+/, "");
+  if (rel.startsWith("images/library/") && !rel.includes("..")) return rel;
+  return (image?.path ?? "").trim();
+}
+
 /** True when the motion backdrop file is a saved News Shorts camera clip (circle still is composed with this only). */
 export function motionBackdropRelLooksLikeCameraRecording(rel: string | null | undefined): boolean {
   const n = (rel ?? "").trim().replace(/\\/g, "/");

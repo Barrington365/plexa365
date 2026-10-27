@@ -8,7 +8,7 @@ import { normalizeVoiceProviderPreference, resolveVoiceTrackWithFallback } from 
 import { buildShortVideo } from "@/app/features/video/video-builder";
 import { assertVoiceRecordingRel, normalizeContentIdForFilename } from "@/app/lib/editor-upload";
 import { buildVideoSlug } from "@/app/lib/seo-slug";
-import { outputDir } from "@/app/lib/paths";
+import { outputDir, outputVideoDir } from "@/app/lib/paths";
 import {
   generateSocialVideoSeo,
   type SocialVideoSeoInput,
@@ -23,6 +23,7 @@ import type {
 } from "@/app/features/news-shorts/types";
 import {
   motionBackdropRelLooksLikeCameraRecording,
+  newsShortRenderedImageRef,
   resolveMotionBackdropRel,
   resolveOutputAudioSource,
 } from "@/app/lib/news-shorts-build-sources";
@@ -33,7 +34,14 @@ import {
   normalizeCreativeVideoFormat,
   videoDimensionsForCreativeFormat,
 } from "@/app/features/news-shorts/creative-video-format";
-import { outputVideoDir } from "@/app/lib/paths";
+import { shouldUseNetlifyBlobStore } from "@/app/lib/netlify-blob-json";
+import { isNetlifyHostedLambdaRuntime } from "@/app/lib/netlify-hosted-runtime";
+import { persistVideoOutputToBlob } from "@/app/lib/video-blob-assets";
+import {
+  createVideoBuildJob,
+  failVideoBuildJob,
+  resolveStaleVideoBuildJob,
+} from "@/app/lib/video-build-jobs";
 import {
   highlightWordsForCaption,
   sceneSubtitleLineForBurn,
@@ -50,10 +58,10 @@ import {
   resolvedPanelTextColorForNewsShort,
 } from "@/app/lib/news-shorts-slide-render-data";
 
-type Body = {
+export type NewsShortsBuildBody = {
   contentId?: string;
   template: NewsShortTemplateData;
-  images?: Array<{ sceneId: string; path: string }>;
+  images?: Array<{ sceneId: string; path: string; rel?: string }>;
   voiceoverScript?: string;
   additionalKeywords?: string[];
   /** Runway / upload motion backdrop (lower priority than videoRecordingRel). */
@@ -149,12 +157,10 @@ function normalizeBackingMusic(raw?: BackingMusicConfig): BackingMusicConfig | u
   };
 }
 
-export async function POST(req: Request) {
-  try {
-    const body = (await req.json()) as Body;
+export async function executeNewsShortsBuild(body: NewsShortsBuildBody) {
     const raw = body?.template;
     if (!raw || !Array.isArray(raw.slides) || raw.slides.length === 0) {
-      return NextResponse.json({ error: "template with slides is required" }, { status: 400 });
+      throw new Error("template with slides is required");
     }
     const template: NewsShortTemplateData = {
       ...raw,
@@ -189,9 +195,15 @@ export async function POST(req: Request) {
       };
     });
 
-    let images = Array.isArray(body.images) ? body.images : [];
-    if (images.length !== scenes.length || styledSubtitleBurn) {
-      images = [];
+    const providedImages = Array.isArray(body.images) ? body.images : [];
+    const renderedRefs = scenes.map((scene, index) => {
+      const match = providedImages.find((image) => image.sceneId === scene.id) ?? providedImages[index];
+      return newsShortRenderedImageRef(match);
+    });
+    const canUseRenderedImages = renderedRefs.every((ref) => ref.length > 0);
+
+    let images: Array<{ sceneId: string; path: string; rel?: string }> = [];
+    if (!canUseRenderedImages) {
       await withSharedPuppeteerBrowser(async (browser) => {
         for (const scene of scenes) {
           const sceneDataForRender = hasRequestedMotionBackdrop
@@ -208,6 +220,15 @@ export async function POST(req: Request) {
           );
           images.push({ sceneId: scene.id, path: imagePath });
         }
+      });
+    } else {
+      images = scenes.map((scene, index) => {
+        const ref = renderedRefs[index]!;
+        return {
+          sceneId: scene.id,
+          path: ref,
+          ...(ref.startsWith("images/library/") ? { rel: ref } : {}),
+        };
       });
     }
 
@@ -326,7 +347,7 @@ export async function POST(req: Request) {
           ? voiceLine
           : [slide.headline, slide.subline].filter(Boolean).join(" ").trim() || slideCaption;
         return {
-          imagePath: images[idx]!.path,
+          imagePath: newsShortRenderedImageRef(images[idx]) || images[idx]!.path,
           durationSec: scene.durationSec,
           caption: useVoiceLine ? voiceLine : slideCaption,
           subtitleHeadline: useAssOverlayLine ? voiceLine : slide.headline,
@@ -381,14 +402,21 @@ export async function POST(req: Request) {
     const enginePath = path.join(outputVideoDir(), `${contentId}-short-engine.json`);
     await fs.writeFile(enginePath, JSON.stringify(engineExport, null, 2), "utf-8");
     const engineRel = path.relative(outputDir(), enginePath).split(path.sep).join("/");
+    const videoRel = path.relative(outputDir(), build.videoPath).split(path.sep).join("/");
+    if (shouldUseNetlifyBlobStore()) {
+      const persisted = await persistVideoOutputToBlob(build.videoPath);
+      if (!persisted) {
+        throw new Error("Video encoded but could not be saved for preview. Try the build again.");
+      }
+    }
 
-    return NextResponse.json({
-      ok: true,
+    return {
+      ok: true as const,
       contentId,
       images,
       audioPath,
       videoPath: build.videoPath,
-      videoRel: path.relative(outputDir(), build.videoPath).split(path.sep).join("/"),
+      videoRel,
       srtPath: build.srtPath,
       ...(build.assPath
         ? { assPath: path.relative(outputDir(), build.assPath).split(path.sep).join("/") }
@@ -399,7 +427,120 @@ export async function POST(req: Request) {
       seo: mergedSeo,
       engine: engineExport,
       engineRel,
+    };
+}
+
+function siteOrigin(req: Request): string {
+  const fromEnv = process.env.DEPLOY_PRIME_URL?.trim() || process.env.URL?.trim();
+  if (fromEnv) {
+    try {
+      return new URL(fromEnv).origin;
+    } catch {
+      /* fall through */
+    }
+  }
+  return new URL(req.url).origin;
+}
+
+function internalBuildAuthHeader(): Record<string, string> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const secret = process.env.CRON_SECRET?.trim();
+  if (secret) headers.Authorization = `Bearer ${secret}`;
+  return headers;
+}
+
+type InvokeResult = "background" | "fallback";
+
+async function invokeNewsShortsBackgroundBuild(
+  origin: string,
+  jobId: string,
+  body: NewsShortsBuildBody,
+): Promise<InvokeResult> {
+  const url = `${origin}/.netlify/functions/news-shorts-build-background`;
+  console.info("[news-shorts-build] invoking background function", { jobId, origin });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 20_000);
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: internalBuildAuthHeader(),
+      redirect: "manual",
+      signal: controller.signal,
+      body: JSON.stringify({ jobId, body }),
     });
+    if (res.status >= 300 && res.status < 400) {
+      const location = res.headers.get("location") ?? "";
+      await failVideoBuildJob(
+        jobId,
+        `Background build invoke was redirected (${res.status}) to ${location || "login"}`,
+      );
+      return "background";
+    }
+    if (res.status === 404 || res.status === 502 || res.status === 503) {
+      console.warn("[news-shorts-build] background function unavailable", { jobId, status: res.status });
+      return "fallback";
+    }
+    if (!res.ok && res.status !== 202) {
+      const text = await res.text().catch(() => "");
+      await failVideoBuildJob(jobId, text || `Background build invoke failed (${res.status})`);
+      return "background";
+    }
+    console.info("[news-shorts-build] background invoke accepted", { jobId, status: res.status });
+    return "background";
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Background build invoke failed";
+    console.warn("[news-shorts-build] background invoke network error", { jobId, message });
+    return "fallback";
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+export async function GET(req: Request) {
+  const jobId = new URL(req.url).searchParams.get("jobId")?.trim();
+  if (!jobId) {
+    return NextResponse.json({ error: "jobId required" }, { status: 400 });
+  }
+  const job = await resolveStaleVideoBuildJob(jobId);
+  if (!job) {
+    return NextResponse.json({ error: "Job not found" }, { status: 404 });
+  }
+  return NextResponse.json(job);
+}
+
+export async function POST(req: Request) {
+  let body: NewsShortsBuildBody;
+  try {
+    body = (await req.json()) as NewsShortsBuildBody;
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
+  }
+  if (!body?.template || !Array.isArray(body.template.slides) || body.template.slides.length === 0) {
+    return NextResponse.json({ error: "template with slides is required" }, { status: 400 });
+  }
+
+  if (isNetlifyHostedLambdaRuntime()) {
+    const contentId = normalizeContentIdForFilename(body.contentId ?? "");
+    const jobId = `ns-${contentId}-${Date.now()}`;
+    try {
+      await createVideoBuildJob(jobId, contentId);
+      const mode = await invokeNewsShortsBackgroundBuild(siteOrigin(req), jobId, body);
+      if (mode === "fallback") {
+        await failVideoBuildJob(
+          jobId,
+          "Video build worker is not deployed. Redeploy Planet Sport Studio, then try Build video again.",
+        );
+      }
+      return NextResponse.json({ async: true, jobId, status: "pending", contentId }, { status: 202 });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not start video build";
+      return NextResponse.json({ error: message }, { status: 500 });
+    }
+  }
+
+  try {
+    const result = await executeNewsShortsBuild(body);
+    return NextResponse.json(result);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });

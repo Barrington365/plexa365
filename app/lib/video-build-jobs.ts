@@ -30,6 +30,8 @@ export type VideoBuildJobRecord = {
   voiceFallbackReason?: string;
   seoTitle?: string;
   seoSlug?: string;
+  /** Full News Shorts build payload, including videoRel, when that job completes. */
+  result?: Record<string, unknown>;
 };
 
 /** If a running job has not heartbeated recently, the worker likely died on the host. */
@@ -109,6 +111,23 @@ export async function completeVideoBuildJob(jobId: string, payload: BuildShortPa
     ...payload,
     status: "completed",
     updatedAt: now,
+  });
+}
+
+export async function completeVideoBuildJobResult(
+  jobId: string,
+  result: { videoRel: string },
+): Promise<void> {
+  const current = await getVideoBuildJob(jobId);
+  const now = Date.now();
+  const stored = result as unknown as Record<string, unknown>;
+  const videoRel = result.videoRel;
+  await writeJsonBlob<VideoBuildJobRecord>(STORE, jobId, {
+    ...(current ?? { createdAt: now, contentId: undefined }),
+    status: "completed",
+    updatedAt: now,
+    videoPath: videoRel,
+    result: stored,
   });
 }
 

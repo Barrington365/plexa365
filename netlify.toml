@@ -29,6 +29,10 @@
   included_files = ["node_modules/ffmpeg-static/ffmpeg"]
   timeout = 900
 
+[functions."news-shorts-build-background"]
+  included_files = ["node_modules/ffmpeg-static/ffmpeg"]
+  timeout = 900
+
 [functions."language-rewrite-background"]
   timeout = 900
 

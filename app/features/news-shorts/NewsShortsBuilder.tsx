@@ -100,6 +100,7 @@ import {
   videoDimensionsForCreativeFormat,
 } from "@/app/features/news-shorts/creative-video-format";
 import { studioApiPath, withAppPathPrefix } from "@/app/lib/app-base-path";
+import { parseApiJson, pollVideoBuildJob } from "@/app/lib/parse-api-json";
 import { resolvedPanelTextColorForNewsShort } from "@/app/lib/news-shorts-slide-render-data";
 
 function VideoRecordPreview(props: {
@@ -642,6 +643,7 @@ export function NewsShortsBuilder() {
     ffmpegPlanC?: unknown;
   }>({});
   const [buildBusy, setBuildBusy] = useState(false);
+  const [buildPhase, setBuildPhase] = useState<string | null>(null);
   const [renderBusy, setRenderBusy] = useState(false);
   const [buildResult, setBuildResult] = useState<RenderBuildResponse | null>(null);
   const [renderResult, setRenderResult] = useState<RenderOnlyResponse | null>(null);
@@ -1438,6 +1440,7 @@ export function NewsShortsBuilder() {
 
   const buildMp4 = async () => {
     setBuildBusy(true);
+    setBuildPhase("starting");
     setError("");
     setBuildResult(null);
     const body = {
@@ -1477,57 +1480,60 @@ export function NewsShortsBuilder() {
           : { ...backingMusic, enabled: false },
     };
     try {
-      let lastMessage = "Failed to render and build the short.";
-      for (let attempt = 0; attempt < 2; attempt++) {
-        let res: Response;
-        try {
-          res = await fetch("/api/news-shorts/build", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body),
-          });
-        } catch {
-          if (attempt === 0) {
-            await new Promise((r) => setTimeout(r, 1200));
-            continue;
-          }
-          throw new Error("Network error while building — try again.");
-        }
-        const raw = await res.text();
-        let json: RenderBuildResponse | { error?: string } = {};
-        try {
-          json = raw ? (JSON.parse(raw) as RenderBuildResponse | { error?: string }) : {};
-        } catch {
-          lastMessage = "Build response was not valid JSON — try again.";
-          if (attempt === 0) {
-            await new Promise((r) => setTimeout(r, 1200));
-            continue;
-          }
-          throw new Error(lastMessage);
-        }
-        if (res.ok && "ok" in json && json.ok) {
-          setBuildResult(json);
-          if (json.seo) setSeoTemplate(json.seo);
-          setContentId(json.contentId);
-          setRenderResult({
-            ok: true,
-            contentId: json.contentId,
-            images: json.images,
-            usedAssOverlay: Boolean(burnSubtitles && burnSubtitlesReplaceSlideText),
-          });
-          return;
-        }
-        lastMessage = "error" in json && json.error ? json.error : lastMessage;
-        if (attempt === 0 && (res.status >= 500 || res.status === 408 || res.status === 429)) {
-          await new Promise((r) => setTimeout(r, 1500));
-          continue;
-        }
-        throw new Error(lastMessage);
+      const res = await fetch(studioApiPath("/api/news-shorts/build"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const json = await parseApiJson<
+        RenderBuildResponse | { error?: string; async?: boolean; jobId?: string; status?: string }
+      >(res);
+      if ("error" in json && json.error && res.status !== 202) {
+        throw new Error(json.error);
       }
+      if (!res.ok && res.status !== 202) {
+        throw new Error(("error" in json && json.error) || "Failed to render and build the short.");
+      }
+
+      let built: RenderBuildResponse;
+      if (res.status === 202 && "async" in json && json.async && json.jobId) {
+        const job = await pollVideoBuildJob(
+          studioApiPath(`/api/news-shorts/build?jobId=${encodeURIComponent(json.jobId)}`),
+          {
+            onProgress: (update) => {
+              if (update.status === "failed") return;
+              setBuildPhase(update.phase || (update.status === "pending" ? "starting" : "encoding"));
+            },
+          },
+        );
+        if (job.status === "failed" || job.error) {
+          throw new Error(job.error || "Video build failed.");
+        }
+        const result = (job as { result?: RenderBuildResponse }).result;
+        if (!result?.ok || !result.videoRel) {
+          throw new Error("Video build finished without a playable MP4.");
+        }
+        built = result;
+      } else if ("ok" in json && json.ok) {
+        built = json;
+      } else {
+        throw new Error(("error" in json && json.error) || "Failed to render and build the short.");
+      }
+
+      setBuildResult(built);
+      if (built.seo) setSeoTemplate(built.seo);
+      setContentId(built.contentId);
+      setRenderResult({
+        ok: true,
+        contentId: built.contentId,
+        images: built.images,
+        usedAssOverlay: Boolean(burnSubtitles && burnSubtitlesReplaceSlideText),
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Build failed.");
     } finally {
       setBuildBusy(false);
+      setBuildPhase(null);
     }
   };
 
@@ -3088,7 +3094,7 @@ export function NewsShortsBuilder() {
                     onClick={buildMp4}
                     disabled={buildBusy}
                   >
-                    {buildBusy ? "Building..." : "Build video"}
+                    {buildBusy ? (buildPhase ? `Building · ${buildPhase}` : "Building...") : "Build video"}
                   </button>
                 </div>
               </div>
