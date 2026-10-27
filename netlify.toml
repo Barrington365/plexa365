@@ -13,6 +13,15 @@
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
+# The Netlify UI install of this plugin has no inputs, and the build
+# rejects it before Next.js starts. Studio does not read its output.
+[[plugins]]
+  package = "netlify-plugin-fetch-feeds"
+
+  [plugins.inputs]
+    dataDir = "data/netlify-feeds"
+    feeds = []
+
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"
