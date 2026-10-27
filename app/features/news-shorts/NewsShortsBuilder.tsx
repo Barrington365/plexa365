@@ -92,11 +92,14 @@ import {
 } from "@/app/features/news-shorts/news-shorts-brand-templates";
 import type { CreativeVideoFormatId } from "@/app/features/news-shorts/types";
 import {
+  applyCreativeFormatToTemplate,
   coerceLayoutPresetForFormat,
+  creativeFormatFromQuery,
   defaultLayoutPresetForFormat,
   layoutPresetsForFormat,
   mergeStyleDefaultsForCreativeFormat,
   normalizeCreativeVideoFormat,
+  preserveCreativeFormat,
   videoDimensionsForCreativeFormat,
 } from "@/app/features/news-shorts/creative-video-format";
 import { studioApiPath, withAppPathPrefix } from "@/app/lib/app-base-path";
@@ -1171,7 +1174,9 @@ export function NewsShortsBuilder() {
   }, []);
 
   /** Keeps latest `applyBrandTemplate` for URL `?brand=` handling without re-subscribing the effect every render. */
-  const applyBrandTemplateRef = useRef<(brandId: string) => void>(() => {});
+  const applyBrandTemplateRef = useRef<(brandId: string, format?: CreativeVideoFormatId | null) => void>(
+    () => {},
+  );
 
   const applyParsedHeroToImageToVideo = useCallback(async (
     t: NewsShortTemplateData,
@@ -1212,10 +1217,11 @@ export function NewsShortsBuilder() {
   }, [loadI2vImageFromLibraryRel]);
 
   const applyBrandTemplate = useCallback(
-    (brandId: string) => {
+    (brandId: string, format?: CreativeVideoFormatId | null) => {
       const def = getNewsShortBrandTemplateDefinition(brandId);
       if (!def) return;
-      const next = def.buildTemplate();
+      const built = def.buildTemplate();
+      const next = format ? applyCreativeFormatToTemplate(built, format) : built;
       setSelectedBrandTemplateId(brandId);
       setTemplate(next);
       setArticleUrl(next.sourceUrl);
@@ -1252,12 +1258,18 @@ export function NewsShortsBuilder() {
 
   useEffect(() => {
     const brand = searchParams.get("brand")?.trim().toLowerCase();
-    if (!brand) return;
+    const format = creativeFormatFromQuery(searchParams.get("format"));
+    if (!brand && !format) return;
     const next = new URLSearchParams(searchParams.toString());
     next.delete("brand");
+    next.delete("format");
     const q = next.toString();
-    if (getNewsShortBrandTemplateDefinition(brand)) {
-      applyBrandTemplateRef.current(brand);
+    if (brand && getNewsShortBrandTemplateDefinition(brand)) {
+      applyBrandTemplateRef.current(brand, format);
+    } else if (format) {
+      setTemplate((prev) => applyCreativeFormatToTemplate(prev, format));
+      setRenderResult(null);
+      setBuildResult(null);
     }
     router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
   }, [searchParams, router, pathname]);
@@ -1293,7 +1305,12 @@ export function NewsShortsBuilder() {
         const message = "error" in json && json.error ? json.error : "Could not parse the source.";
         throw new Error(message);
       }
-      setTemplate(mergeParsedTemplateWithBrandStyle(json.template, selectedBrandTemplateId));
+      setTemplate((prev) =>
+        preserveCreativeFormat(
+          mergeParsedTemplateWithBrandStyle(json.template, selectedBrandTemplateId),
+          prev,
+        ),
+      );
       setFfmpegPlan(json.ffmpegPlan);
       if (json.importedLibraryImageRel) applyGlobalBackdropImageRel(json.importedLibraryImageRel);
       setPreviewSlideId(json.template.slides[0]?.id ?? "slide-1");
@@ -1311,11 +1328,16 @@ export function NewsShortsBuilder() {
     const brandStyle =
       getNewsShortBrandTemplateDefinition(selectedBrandTemplateId)?.buildTemplate().style ??
       NEWS_SHORT_DEFAULT_STYLE;
-    setTemplate({
-      ...nextTemplate,
-      brandTemplateId: selectedBrandTemplateId,
-      style: { ...NEWS_SHORT_DEFAULT_STYLE, ...nextTemplate.style, ...brandStyle },
-    });
+    setTemplate((prev) =>
+      preserveCreativeFormat(
+        {
+          ...nextTemplate,
+          brandTemplateId: selectedBrandTemplateId,
+          style: { ...NEWS_SHORT_DEFAULT_STYLE, ...nextTemplate.style, ...brandStyle },
+        },
+        prev,
+      ),
+    );
     setFfmpegPlan(nextPlan);
     setPreviewSlideId(nextTemplate.slides[0]?.id ?? "slide-1");
     // Rewriting the article should invalidate the current render/build outputs.
@@ -2921,7 +2943,7 @@ export function NewsShortsBuilder() {
               <button
                 key={b.id}
                 type="button"
-                onClick={() => applyBrandTemplate(b.id)}
+                onClick={() => applyBrandTemplate(b.id, template.creativeVideoFormat)}
                 className={`rounded-xl border px-3 py-2.5 text-left transition ${
                   active
                     ? "border-[#b7ff1a]/70 bg-[#b7ff1a]/10 ring-1 ring-[#b7ff1a]/25"
@@ -3038,7 +3060,8 @@ export function NewsShortsBuilder() {
                     <div className="min-w-0 flex-1 space-y-0.5">
                       <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#eab308]/90">Step 2</p>
                       <p className="text-[10px] leading-snug text-slate-500">
-                        Creates PNGs for each scene (1080x1920) from your current template and data.
+                        Creates PNGs for each scene ({creativeCanvasDims.width}×{creativeCanvasDims.height}) from your
+                        current template and data.
                       </p>
                     </div>
                   </div>

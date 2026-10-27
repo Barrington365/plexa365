@@ -318,11 +318,11 @@ export default async function LandscapePage() {
         </div>
       </Section>
 
-      <Section id="news-shorts" title="News Shorts (Planet Sport)">
+      <Section id="news-shorts" title="News video (Planet Sport)">
         <p className="max-w-3xl text-sm text-[color:var(--text-secondary)]">
-          One reusable starter per site: same Fetch + Parse, SEO, voiceover, image-to-video, background, global style,
-          and ASS workflow as the builder — pick a brand to open{" "}
-          <code className="ds-code">/news-shorts</code> with that template selected.
+          Same article builder as Shorts Studio. From here each brand opens in{" "}
+          <strong className="font-semibold text-[color:var(--text-primary)]">Landscape · 1920×1080</strong>. Shorts
+          Studio still opens the same article as a vertical short.
         </p>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {NEWS_SHORTS_BRAND_TEMPLATES.map((b) => (
@@ -332,10 +332,10 @@ export default async function LandscapePage() {
                 {b.articleUrlPlaceholder}
               </p>
               <Link
-                href={`/news-shorts?brand=${encodeURIComponent(b.id)}`}
+                href={`/news-shorts?brand=${encodeURIComponent(b.id)}&format=landscape_video`}
                 className="ds-link-accent mt-3 inline-flex text-sm font-semibold"
               >
-                Open in builder →
+                Open landscape video →
               </Link>
             </Panel>
           ))}
@@ -351,7 +351,18 @@ export default async function LandscapePage() {
       </Section>
 
       <Section id="football365" title="Football365">
-        <PipelineGrid items={football365} libraryVideoByFormat={libraryVideoByFormat} />
+        <p className="max-w-3xl text-sm text-[color:var(--text-secondary)]">
+          News articles from football365.com open as landscape video. Line-up boards stay on the template below.
+        </p>
+        <Link
+          href="/news-shorts?brand=football365&format=landscape_video"
+          className="ds-link-accent mt-3 inline-flex text-sm font-semibold"
+        >
+          Open Football365 news as landscape →
+        </Link>
+        <div className="mt-4">
+          <PipelineGrid items={football365} libraryVideoByFormat={libraryVideoByFormat} />
+        </div>
       </Section>
 
       <section className="space-y-4">

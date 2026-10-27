@@ -36,6 +36,49 @@ export function normalizeCreativeVideoFormat(raw: string | undefined | null): Cr
   return "shorts_vertical";
 }
 
+/** Query values from Shorts Studio / Landscape Studio entry links. */
+export function creativeFormatFromQuery(raw: string | null | undefined): CreativeVideoFormatId | null {
+  const value = (raw ?? "").trim().toLowerCase();
+  if (value === "landscape" || value === "landscape_video") return "landscape_video";
+  if (value === "portrait" || value === "portrait_video") return "portrait_video";
+  if (value === "shorts" || value === "shorts_vertical") return "shorts_vertical";
+  return null;
+}
+
+type CreativeFormatCarrier = {
+  creativeVideoFormat?: CreativeVideoFormatId;
+  creativeLayoutPreset?: string;
+  style: NewsShortStyleControls;
+};
+
+export function applyCreativeFormatToTemplate<T extends CreativeFormatCarrier>(
+  template: T,
+  format: CreativeVideoFormatId,
+): T {
+  const fmt = normalizeCreativeVideoFormat(format);
+  return {
+    ...template,
+    creativeVideoFormat: fmt,
+    creativeLayoutPreset: defaultLayoutPresetForFormat(fmt),
+    style: mergeStyleDefaultsForCreativeFormat(fmt, template.style),
+  };
+}
+
+/** Keep the canvas the user (or studio hub) chose when a parse replaces the template. */
+export function preserveCreativeFormat<T extends CreativeFormatCarrier>(
+  next: T,
+  previous: Pick<CreativeFormatCarrier, "creativeVideoFormat" | "creativeLayoutPreset">,
+): T {
+  if (!previous.creativeVideoFormat) return next;
+  const fmt = normalizeCreativeVideoFormat(previous.creativeVideoFormat);
+  return {
+    ...next,
+    creativeVideoFormat: fmt,
+    creativeLayoutPreset: coerceLayoutPresetForFormat(fmt, previous.creativeLayoutPreset),
+    style: mergeStyleDefaultsForCreativeFormat(fmt, next.style),
+  };
+}
+
 export function exportFormatForCreativeVideo(format: CreativeVideoFormatId): CreativeExportFormat {
   if (format === "portrait_video") return "portrait";
   if (format === "landscape_video") return "landscape";
