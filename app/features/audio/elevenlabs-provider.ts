@@ -1,3 +1,4 @@
+import { elevenLabsCaptionCues } from "@/app/lib/elevenlabs-caption-timing";
 import fs from "fs/promises";
 import path from "path";
 import { outputAudioDir } from "@/app/lib/paths";
@@ -39,13 +40,13 @@ export class ElevenLabsAudioProvider implements AudioProvider {
       );
     }
 
-    const url = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`;
+    const url = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}${options?.onCaptionCues ? "/with-timestamps" : ""}`;
     const res = await fetch(url, {
       method: "POST",
       headers: {
         "xi-api-key": key,
         "Content-Type": "application/json",
-        Accept: "audio/mpeg",
+        Accept: options?.onCaptionCues ? "application/json" : "audio/mpeg",
       },
       body: JSON.stringify({
         text: text || " ",
@@ -58,13 +59,16 @@ export class ElevenLabsAudioProvider implements AudioProvider {
       throw new Error(`ElevenLabs TTS failed (${res.status}): ${err.slice(0, 500)}`);
     }
 
-    const buf = Buffer.from(await res.arrayBuffer());
+    const timed = options?.onCaptionCues ? await res.json() : null;
+    const buf = timed ? Buffer.from(timed.audio_base64, "base64") : Buffer.from(await res.arrayBuffer());
+    const cues = timed ? elevenLabsCaptionCues(timed.normalized_alignment ?? timed.alignment, options?.speed ?? 1) : undefined;
     const dir = outputAudioDir();
     await fs.mkdir(dir, { recursive: true });
     const out = path.join(dir, `${contentId}-elevenlabs.mp3`);
     await fs.writeFile(out, buf);
     const speed = options?.speed ?? 1;
     await applyAudioTempoInPlace(out, speed);
+    if (cues) options?.onCaptionCues?.(cues);
     return out;
   }
 }

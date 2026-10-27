@@ -243,6 +243,7 @@ export async function executeNewsShortsBuild(body: NewsShortsBuildBody) {
     const useVideoAudio =
       body.useVideoAudio === true && Boolean(dualCompositeActive ? bgvMotion : motion.rel);
 
+    let narrationCues: import("@/app/features/content/subtitle-generator").SubtitleCue[] | undefined;
     let audioPath: string | undefined;
     let voiceTrackProvider: string | undefined;
     let voiceFallbackReason: string | undefined;
@@ -259,6 +260,7 @@ export async function executeNewsShortsBuild(body: NewsShortsBuildBody) {
           speed,
           voiceId: requestedVoiceId,
           providerPreference: normalizeVoiceProviderPreference(body.voiceProviderPreference),
+          onCaptionCues: (cues) => { narrationCues = cues; },
         });
         audioPath = audio.audioPath;
         voiceTrackProvider = audio.provider;
@@ -352,6 +354,7 @@ export async function executeNewsShortsBuild(body: NewsShortsBuildBody) {
         };
       }),
       audioPath,
+      narrationCues,
       burnSubtitles: body.burnSubtitles ?? true,
       styledSubtitleBurn,
       subtitleStyle: styledSubtitleBurn
@@ -400,6 +403,9 @@ export async function executeNewsShortsBuild(body: NewsShortsBuildBody) {
     const engineRel = path.relative(outputDir(), enginePath).split(path.sep).join("/");
     const videoRel = path.relative(outputDir(), build.videoPath).split(path.sep).join("/");
     if (shouldUseNetlifyBlobStore()) {
+      if (!(await persistVideoOutputToBlob(enginePath))) {
+        throw new Error("Build report could not be saved. Build is incomplete.");
+      }
       const persisted = await persistVideoOutputToBlob(build.videoPath);
       if (!persisted) {
         throw new Error("Video encoded but could not be saved for preview. Try the build again.");

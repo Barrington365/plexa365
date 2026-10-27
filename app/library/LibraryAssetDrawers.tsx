@@ -426,14 +426,14 @@ export function BuildManifestDetailDrawer({
           style={{ borderColor: "var(--border)", background: "var(--surface-muted)" }}
           href={libraryFileUrl(entry.subtitles)}
         >
-          Preview SRT
+          Preview {entry.subtitles.toLowerCase().endsWith(".ass") ? "ASS captions" : "SRT captions"}
         </a>
         <a
           className="rounded-lg border px-3 py-2 text-xs font-semibold text-[color:var(--text-secondary)] hover:bg-[var(--surface-hover)]"
           style={{ borderColor: "var(--border)", background: "var(--surface-muted)" }}
           href={libraryDownloadUrl(entry.subtitles)}
         >
-          Download SRT
+          Download {entry.subtitles.toLowerCase().endsWith(".ass") ? "ASS captions" : "SRT captions"}
         </a>
       </div>
 

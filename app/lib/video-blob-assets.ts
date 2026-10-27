@@ -29,12 +29,20 @@ function normaliseUploadVideoRel(rel: string): string | null {
   return cleaned;
 }
 
+export function normaliseBuildSidecarRel(rel: string): string | null {
+  const cleaned = rel.trim().replace(/\\/g, "/").replace(/^\/+/, "");
+  if (!cleaned || cleaned.includes("..") || path.isAbsolute(cleaned)) return null;
+  return /^(subtitles\/[^/]+\.(srt|ass)|video\/[^/]+-engine\.json)$/i.test(cleaned) ? cleaned : null;
+}
+
 function normaliseStoredVideoRel(rel: string): string | null {
-  return normaliseVideoOutputRel(rel) ?? normaliseUploadVideoRel(rel);
+  return normaliseVideoOutputRel(rel) ?? normaliseUploadVideoRel(rel) ?? normaliseBuildSidecarRel(rel);
 }
 
 function contentTypeForVideoRel(rel: string): string {
   const ext = path.extname(rel).toLowerCase();
+  if (ext === ".srt" || ext === ".ass") return "text/plain; charset=utf-8";
+  if (ext === ".json") return "application/json; charset=utf-8";
   if (ext === ".webm") return "video/webm";
   if (ext === ".mov") return "video/quicktime";
   return "video/mp4";

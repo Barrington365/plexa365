@@ -4,7 +4,7 @@ import path from "path";
 import type { ManifestEntry } from "@/app/lib/asset-manifest";
 import { readAudioStudioBlobAsset } from "@/app/lib/audio-studio-store";
 import { readLibraryBlobAsset } from "@/app/lib/library-blob-assets";
-import { readVideoBlobAsset } from "@/app/lib/video-blob-assets";
+import { readVideoBlobAsset, normaliseBuildSidecarRel } from "@/app/lib/video-blob-assets";
 import { planVideoByteRange, videoByteRangeHeaders } from "@/app/lib/http-byte-range";
 import { readStoredManifest } from "@/app/lib/asset-manifest-store";
 import { outputDir } from "@/app/lib/paths";
@@ -127,6 +127,19 @@ export async function GET(req: Request) {
     }
   }
 
+  if (normaliseBuildSidecarRel(rel)) {
+    const asset = await readVideoBlobAsset(rel);
+    if (asset) {
+      const filename = path.basename(rel).replace(/"/g, "");
+      return new NextResponse(new Uint8Array(asset.bytes), { headers: {
+        "Content-Type": asset.contentType,
+        "Cache-Control": PREVIEW_CACHE_CONTROL,
+        "X-Asset-Rel": rel,
+        "Content-Disposition": `${searchParams.get("download") === "1" ? "attachment" : "inline"}; filename="${filename}"`,
+      } });
+    }
+  }
+
   if (isVideoRel(rel)) {
     const videoBlob = await readVideoBlobAsset(rel);
     if (videoBlob) {
@@ -168,7 +181,7 @@ export async function GET(req: Request) {
                 ? "audio/mp4"
               : ext === ".wav"
                 ? "audio/wav"
-              : ext === ".srt"
+              : (ext === ".srt" || ext === ".ass")
                 ? "text/plain; charset=utf-8"
                 : ext === ".json"
                   ? "application/json; charset=utf-8"
@@ -191,7 +204,7 @@ export async function GET(req: Request) {
         "X-Asset-Rel": rel,
       });
     }
-    if (ext === ".mp4" || ext === ".srt") {
+    if (ext === ".mp4" || ext === ".srt" || ext === ".ass") {
       const entry = await manifestEntryForRel(rel);
       const filename = dispositionFilenameForRel(rel, path.basename(full), ext, entry)
         .replace(/"/g, "");

@@ -41,3 +41,11 @@ export function subtitlesFilterWithOptionalFontsdir(
   }
   return `subtitles=${sub}:charenc=UTF-8`;
 }
+
+/** Serverless hosts have no system fonts. Never silently render captionless video. */
+export function requireNewsShortFontsDir(): string {
+  if (!bundledNewsShortFontsDirExists()) {
+    throw new Error("Caption fonts are missing from this worker. Include assets/fonts/news-shorts/*.ttf before rebuilding.");
+  }
+  return BUNDLED_DIR;
+}

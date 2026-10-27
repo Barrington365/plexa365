@@ -26,7 +26,7 @@ import { BRAND_ENCODER, BRAND_MARK } from "@/app/lib/brand";
 import { upsertLibraryMetadata } from "@/app/lib/library-metadata";
 import type { BackingMusicConfig, VideoRecordCirclePosition, VideoRecordLayout } from "@/app/features/news-shorts/types";
 import { motionBackdropRelLooksLikeCameraRecording } from "@/app/lib/news-shorts-build-sources";
-import { bundledNewsShortFontsDirExists, subtitlesFilterWithOptionalFontsdir } from "@/app/lib/news-short-fonts-server";
+import { requireNewsShortFontsDir, subtitlesFilterWithOptionalFontsdir } from "@/app/lib/news-short-fonts-server";
 
 export interface SceneClip {
   imagePath: string;
@@ -51,6 +51,7 @@ export interface BuildShortInput {
   outputHeight?: number;
   /** Voice/TTS file — omit when `useVideoAudio` is true with a backdrop video. */
   audioPath?: string;
+  narrationCues?: SubtitleCue[];
   burnSubtitles?: boolean;
   /** Accent colour for planet-football-table ASS subtitle outline (hex). */
   subtitleAccentColor?: string;
@@ -619,7 +620,7 @@ export async function buildShortVideo(input: BuildShortInput): Promise<{
     return { startSec: start, endSec: end, text: scene.caption };
   });
   const sentenceCues = useSport365Ass ? buildSport365SentenceCues(sport365Script, sceneSum) : [];
-  const srtCues = useSport365Ass && sentenceCues.length > 0 ? sentenceCues : sceneCues;
+  const srtCues = input.narrationCues?.length ? input.narrationCues : useSport365Ass && sentenceCues.length > 0 ? sentenceCues : sceneCues;
   const srtPath = path.join(outputSubtitlesDir(), `${input.contentId}.srt`);
   await fs.writeFile(srtPath, buildSrt(srtCues), "utf-8");
 
@@ -662,7 +663,7 @@ export async function buildShortVideo(input: BuildShortInput): Promise<{
     assPath = path.join(outputSubtitlesDir(), `${input.contentId}-short.ass`);
     await fs.writeFile(
       assPath,
-      buildNewsShortAss(assCues, {
+      buildNewsShortAss(input.narrationCues?.length ? input.narrationCues.map(c => ({...c, headline:c.text, subline:"", highlightWords:[]})) : assCues, {
         ...input.subtitleStyle!,
         busyMotionBackdrop: Boolean(input.backgroundVideoRel?.trim()),
         playResX: ow,
@@ -677,8 +678,8 @@ export async function buildShortVideo(input: BuildShortInput): Promise<{
 
   const srtRel = subtitleRelForBurn;
   const fontsDirForAss =
-    useAss && bundledNewsShortFontsDirExists()
-      ? path.join(projectRoot(), "assets", "fonts", "news-shorts")
+    useAss || useSport365Ass
+      ? requireNewsShortFontsDir()
       : undefined;
   const subtitleBurnFilter = subtitlesFilterWithOptionalFontsdir(srtRel, fontsDirForAss);
 
@@ -1092,6 +1093,11 @@ export async function buildShortVideo(input: BuildShortInput): Promise<{
   }
 
   if (shouldUseNetlifyBlobStore()) {
+    for (const captionPath of [srtPath, ...(assPath ? [assPath] : [])]) {
+      if (!(await persistVideoOutputToBlob(captionPath))) {
+        throw new Error("Caption file could not be saved to the Library. Build is incomplete.");
+      }
+    }
     const persisted = await persistVideoOutputToBlob(videoPath);
     if (!persisted) {
       throw new Error("Video encoded but could not be saved to the library. Try the build again.");
