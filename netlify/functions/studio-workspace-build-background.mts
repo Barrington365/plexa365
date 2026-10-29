@@ -32,6 +32,10 @@ export default async (request:Request)=>{
       await patchWorkspaceJob(workspace,body.jobId,{status:'failed',stage:error instanceof Error?error.message:'Import failed'});
       throw error;
     }
+  }else if(job.request?.kind==='voice-review'){
+    const {getServerSecretAsync}=await import('../../app/lib/server-secrets');
+    const {runVoiceReview}=await import('../../features/msn-local/voice-review.mjs');
+    await runVoiceReview(workspace,body.jobId,await getServerSecretAsync('ELEVENLABS_API_KEY')||'');
   }else if(job.request?.kind==='narration'){
     const {getServerSecretAsync}=await import('../../app/lib/server-secrets');
     const {runWorkspaceNarration}=await import('../../features/msn-local/workspace-narration.mjs');

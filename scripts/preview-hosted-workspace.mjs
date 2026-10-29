@@ -1,6 +1,7 @@
 /** Loopback-only QA harness for the production adapters. No provider keys or paid calls. */
 import http from 'node:http';import fs from 'node:fs/promises';import path from 'node:path';
 import {diskObjectStore} from '../features/msn-local/disk-object-store.mjs';import {createWorkspaceStore} from '../features/msn-local/workspace-store.mjs';import {workspaceRead,workspaceWrite} from '../features/msn-local/workspace-api.mjs';import {workspacePage,hostedUI} from '../features/msn-local/hosted-ui.mjs';import {queueWorkspaceRender,runWorkspaceRender} from '../features/msn-local/workspace-render.mjs';
+import {readVoiceReview,reviewVoiceCandidate,selectVoicePreset,applyVoiceCandidate} from '../features/msn-local/voice-review.mjs';
 const port=8102,origin='http://127.0.0.1:'+port,workspace=createWorkspaceStore(diskObjectStore(path.resolve('output/studio-hosted-preview')));
 const json=(res,status,data)=>{res.writeHead(status,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end(JSON.stringify(data));};
 http.createServer(async(req,res)=>{try{
@@ -13,11 +14,14 @@ http.createServer(async(req,res)=>{try{
   if(route==='media'){const {entry,range,stream}=await workspace.openFile(url.searchParams.get('asset'),req.headers.range);const type=({'mp4':'video/mp4','mp3':'audio/mpeg','wav':'audio/wav','m4a':'audio/mp4','png':'image/png','jpg':'image/jpeg','jpeg':'image/jpeg','webp':'image/webp'})[entry.asset.split('.').at(-1)];if(!type)return json(res,404,{error:'Media not found'});res.writeHead(range.status,{'Content-Type':type,'Accept-Ranges':'bytes','Content-Length':range.end-range.start+1,...(range.status===206?{'Content-Range':`bytes ${range.start}-${range.end}/${entry.bytes}`}:{})});for await(const chunk of stream)res.write(chunk);res.end();return;}
   if(route.startsWith('image/')){res.writeHead(307,{Location:'/api/studio-workspace/media?asset='+encodeURIComponent('images/'+route.split('/')[1]+'.png')});res.end();return;}
   if(route==='projects')return json(res,200,{projects:await workspace.projects.list(),trash:await workspace.projects.list({trash:true}),templates:await workspace.projects.listTemplates()});
+  if(route==='elevenlabs/review')return json(res,200,await readVoiceReview(workspace,url.searchParams.get('projectId')));
   if(route==='elevenlabs/status')return json(res,200,{configured:false,configurationSource:'Paid providers disabled in isolated QA'});
   return json(res,200,await workspaceRead(workspace,route));
  }
  if(req.method==='POST'){
   let raw='';for await(const chunk of req){raw+=chunk;if(raw.length>20e6)throw Error('Request too large');}const body=JSON.parse(raw);
+  if(route==='elevenlabs/audition')return json(res,503,{error:'Paid generation is disabled in isolated QA. No credits used.'});
+  if(['elevenlabs/review','elevenlabs/select-preset','elevenlabs/apply-candidate'].includes(route)){const fn=route.endsWith('/review')?reviewVoiceCandidate:route.endsWith('/select-preset')?selectVoicePreset:applyVoiceCandidate;return json(res,200,await fn(workspace,body,'local-qa'));}
   if(route==='build'){const job=await queueWorkspaceRender(workspace,body,'local-qa');json(res,202,job);void runWorkspaceRender(workspace,job.id).catch(error=>console.error('QA build failed:',error.message));return;}
   const result=await workspaceWrite(workspace,route,body);if(route==='images/preview'){res.writeHead(200,{'Content-Type':'image/png'});res.end(result);return;}return json(res,200,result);
  }

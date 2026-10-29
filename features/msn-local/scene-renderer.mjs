@@ -7,7 +7,7 @@ import {renderFont,renderFontsDirectory} from './render-fonts.mjs';
  * (both required together). Untrimmed narration longer than the timeline is rejected;
  * shorter narration is padded with silence. Duration probes have 0.01-second precision.
  * Music start/end trim its source; timelineStart (default 0) independently delays it.
- * Fades apply within the trimmed clip. No looping, ducking or loudness normalization.
+ * Fades apply within the trimmed clip. No looping. Optional narration-triggered music ducking; existing mixes unchanged.
  * Burned captions must parse as ordered nonoverlapping SRT, <=600 cues, <=300 characters
  * per cue, ending within the timeline. Caption markup is stripped; burn=false ignores SRT.
  * ASS PlayRes matches the canvas. Caption sizes are 52/56 at 1080p; marginV=55,
@@ -67,7 +67,7 @@ export const sceneModelSchema = z.object({
     ])).max(50).default([]),
   }).strict()).min(1).max(100),
   audio: z.object({ asset, start: seconds.optional(), end: seconds.optional(), volume: z.number().finite().min(0).max(4).default(1) }).strict().optional(),
-  music: z.object({ asset, start: seconds.default(0), end: seconds, timelineStart: seconds.default(0),
+  music: z.object({ ducking:z.boolean().optional(), asset, start: seconds.default(0), end: seconds, timelineStart: seconds.default(0),
     volume: z.number().finite().min(0).max(4).default(1), fadeIn: seconds.default(0), fadeOut: seconds.default(0),
   }).strict().optional(),
   srt: z.string().max(200000).default(''), burnCaptions: z.boolean().default(false),
@@ -277,7 +277,15 @@ export async function renderScenes(input, { signal, onProgress = () => {}, root:
       const duration = track.end - track.start;
       filters.push(`[${i + 2}:a]atrim=start=${track.start}:end=${track.end},asetpts=PTS-STARTPTS,aresample=48000,aformat=channel_layouts=stereo,volume=${track.volume},afade=t=in:d=${track.fadeIn},afade=t=out:st=${duration - track.fadeOut}:d=${track.fadeOut},adelay=${Math.round(track.timelineStart * 48000)}S:all=1[a${i}]`);
     }
-    filters.push(`[silence]${tracks.map((_, i) => `[a${i}]`).join('')}amix=inputs=${tracks.length + 1}:duration=first:normalize=0:dropout_transition=0[a]`);
+    let mixLabels=tracks.map((_,i)=>`[a${i}]`);
+    if(model.music?.ducking&&model.audio){
+      const voiceIndex=0,musicIndex=tracks.indexOf(model.music);
+      filters.push(`[a${voiceIndex}]apad=whole_dur=${total},asplit=2[voiceMix][voiceSide]`);
+      filters.push(`[a${musicIndex}]apad=whole_dur=${total}[musicPad]`);
+      filters.push('[musicPad][voiceSide]sidechaincompress=threshold=0.025:ratio=6:attack=30:release=400:makeup=1[ducked]');
+      mixLabels=['[voiceMix]','[ducked]'];
+    }
+    filters.push(`[silence]${mixLabels.join('')}amix=inputs=${mixLabels.length + 1}:duration=first:normalize=0:dropout_transition=0[a]`);
     if (model.burnCaptions) {
       const converted = path.join(work, 'captions.ass');
       await fs.writeFile(converted, await buildCaptionsAss(model));

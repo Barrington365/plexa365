@@ -174,3 +174,11 @@ test('two-line headlines fit saved boxes without cropping the final line',async(
  assert.equal(groups,2,'both complete lines remain in the output');
  await assert.rejects(rasterTextLayer({...layer,text:'Too much text for a tiny box'},5,2),/does not fit/);
 });
+test('music ducking attenuates music during narration and recovers in speech pauses',()=>fixture(async root=>{
+ await run(['-y','-f','lavfi','-i','sine=frequency=220:sample_rate=48000','-af',"volume=4,volume=0:enable='gte(t,1)'",'-t','3',path.join(root,'voice.wav')]);
+ await run(['-y','-f','lavfi','-i','sine=frequency=2000:sample_rate=48000','-t','3',path.join(root,'music.wav')]);
+ const p={...project(),scenes:[{duration:3,background:'#000000',layers:[]}],audio:{asset:'voice.wav'},music:{asset:'music.wav',end:3,volume:.2}};
+ const normal=await renderStudio({request:{project:p}},root);p.music.ducking=true;const ducked=await renderStudio({request:{project:p}},root);
+ async function level(file,start,end){const log=await run(['-hide_banner','-i',file,'-af',`atrim=start=${start}:end=${end},bandpass=f=2000:t=h:w=100,volumedetect`,'-vn','-f','null','-']);return Number(log.match(/mean_volume: ([\d.-]+) dB/)[1]);}
+ const original=await level(normal.file,.3,.8),during=await level(ducked.file,.3,.8),after=await level(ducked.file,2.5,2.9);assert.ok(during<original-5,`expected ducking: ${during} vs ${original}`);assert.ok(after>during+4,`expected recovery: ${after} vs ${during}`);
+}));
