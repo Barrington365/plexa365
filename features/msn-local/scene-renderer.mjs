@@ -170,6 +170,22 @@ export async function buildCaptionsAss(model) {
   return `[Script Info]\nScriptType: v4.00+\nPlayResX: ${model.width}\nPlayResY: ${model.height}\nWrapStyle: 2\nScaledBorderAndShadow: yes\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: Default,Roboto Condensed,${size},&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,${preset.bold ? -1 : 0},0,0,0,100,100,0,0,${preset.boxed ? 3 : 1},${2 * scale},0,2,${marginX},${marginX},${marginV},1\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n${events.join('\n')}\n`;
 }
 
+// Fit complete text inside saved boxes; never crop away the bottom line.
+export async function rasterTextLayer(layer,width,height){
+ let fontSize=layer.fontSize;
+ for(let attempt=0;attempt<8;attempt++){
+  const rendered=await sharp({text:{
+   text:`<span foreground="${layer.color}">${xml(layer.text)}</span>`,
+   font:`${layer.fontFamily === 'sans-serif' ? renderFont(true).font : layer.fontFamily+' Bold'} ${fontSize}`,
+   fontfile:renderFont(true).fontfile,dpi:72,width,wrap:'word-char',rgba:true,
+  }}).png().toBuffer({resolveWithObject:true});
+  if(rendered.info.width<=width&&rendered.info.height<=height)return rendered;
+  fontSize=Math.floor(fontSize*Math.min(width/rendered.info.width,height/rendered.info.height)*.98);
+  if(fontSize<8)break;
+ }
+ throw Error('Text does not fit its saved box. Enlarge the text layer or shorten the wording.');
+}
+
 export async function renderScenes(input, { signal, onProgress = () => {}, root: directory = ASSET_ROOT, assetBoundary = ASSET_ROOT, replaceDirectory } = {}) {
   const model = validateSceneModel(input), total = model.scenes.reduce((n, s) => n + s.duration, 0);
   const boundary = await rootDirectory(assetBoundary);
@@ -220,15 +236,8 @@ export async function renderScenes(input, { signal, onProgress = () => {}, root:
           const height = layer.height ?? model.height - layer.y;
           const canvas = sharp({ create: { width, height, channels: 4, background: '#00000000' } });
           if (layer.text.trim()) {
-            const rendered = await sharp({ text: {
-              text: `<span foreground="${layer.color}">${xml(layer.text)}</span>`,
-              font: `${layer.fontFamily === "sans-serif" ? renderFont(true).font : layer.fontFamily + " Bold"} ${layer.fontSize}`, fontfile: renderFont(true).fontfile, dpi: 72,
-              width, wrap: 'word-char', rgba: true,
-            } }).png().toBuffer({ resolveWithObject: true });
-            const clipped = await sharp(rendered.data).extract({ left: 0, top: 0,
-              width: Math.min(width, rendered.info.width), height: Math.min(height, rendered.info.height),
-            }).png().toBuffer();
-            canvas.composite([{ input: clipped, left: 0, top: 0 }]);
+            const rendered = await rasterTextLayer(layer,width,height);
+            canvas.composite([{ input: rendered.data, left: 0, top: 0 }]);
           }
           await canvas.png().toFile(file);
         } else {

@@ -36,3 +36,13 @@ MSN feed integration/publishing is planning only. Player links remain authentica
 - Migration remains pending the hosting regression release and must be verified before declaring the upgrade ready.
 
 - Worker archive smoke test reproduces the old `next/server` ESM startup failure and passes after changing auth guards to standard Web Responses. The isolated zipped worker loads and rejects unauthenticated POSTs; no credentials or job execution are used by the smoke test. Import UI supports re-verifying an already uploaded manifest without re-uploading unchanged media.
+
+## Verified production upgrade (29 October 2026)
+
+- Netlify published `a5928d938172465907e55c3005dfa9528a4e2fdb`; live release endpoint matched.
+- Import `e2cbe199eb80e12a499bffc2f127921b0515c6867d3caf0e2bdb7773e9197d4c` completed: 12 projects (10 active, 2 existing trash), 23 completed videos, 10 source clips and 14 brand kits. Live Library listed 33 videos before the test render. Original timestamps and files retained.
+- Live standalone Render scenes completed four PNGs (loaded 1080px image verified). No paid generation.
+- Live account catalogue: 35 voices; custom Sam ID `2yqdQ7uuPQDBMgFA8dgu` found by search, selected, saved and retained after refresh. This is provider-account coverage, not a wider-catalogue entitlement claim.
+- Hosted Lacey background removal produced `0e1a3a5f-9edc-4139-ae05-5a73cd9f7917`, 1600x900 transparent PNG, alpha 0..255; 956,691 pixels below alpha 20. Original retained, download and checkerboard preview verified.
+- Live render `6c41b51b-dafe-4cfc-bc3d-1349ab77b08f` completed in roughly 4 minutes and saved to Library; actual download fully decoded: 57 seconds, 1920x1080, H.264 High / AAC stereo 48kHz. Browser reached 57 seconds/ended=true, then sought back with no error. Burned captions visible in extracted frame. Used existing `sam-mac-allister.mp3`, whose provider provenance is not independently verified; no new paid voice generation.
+- Visual inspection caught a clipped two-line headline in that saved template. Renderer now measures and shrinks text to fit the saved box instead of cropping; rejects impossible boxes. 91 Studio tests pass including actual two-line raster coverage. Final corrected render still requires live verification.

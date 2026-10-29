@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import sharp from 'sharp';
 import { run } from './engine.mjs';
-import { ASSET_ROOT, SCENE_MODEL_SCHEMA, validateSceneModel, resolveAssetPath, renderStudio, buildCaptionsAss } from './scene-renderer.mjs';
+import { ASSET_ROOT, SCENE_MODEL_SCHEMA, validateSceneModel, resolveAssetPath, renderStudio, buildCaptionsAss, rasterTextLayer } from './scene-renderer.mjs';
 const project = () => ({ width: 320, height: 180, fps: 10, scenes: [{ id: 'one', duration: .5, background: '#ff0000', layers: [] }] });
 async function fixture(fn) {
   await fs.mkdir(ASSET_ROOT, { recursive: true });
@@ -163,3 +163,14 @@ test('1080p captions stay in bottom quarter, use two lines and highlight bold ta
     assert.ok(captionPreset === 'bold' ? cyan > 100 : cyan === 0, 'cyan only in bold keyword highlights');
   }
 }));
+
+test('two-line headlines fit saved boxes without cropping the final line',async()=>{
+ const layer={text:'ALEXIS\nMAC ALLISTER',color:'#ffffff',fontFamily:'sans-serif',fontSize:64};
+ const result=await rasterTextLayer(layer,760,110);
+ assert.ok(result.info.width<=760);assert.ok(result.info.height<=110);
+ const {data,info}=await sharp(result.data).raw().toBuffer({resolveWithObject:true});
+ const occupied=[];for(let y=0;y<info.height;y++){let row=false;for(let x=0;x<info.width;x++)if(data[(y*info.width+x)*4+3]>128){row=true;break;}occupied.push(row);}
+ let groups=0;for(let y=0;y<occupied.length;y++)if(occupied[y]&&!occupied[y-1])groups++;
+ assert.equal(groups,2,'both complete lines remain in the output');
+ await assert.rejects(rasterTextLayer({...layer,text:'Too much text for a tiny box'},5,2),/does not fit/);
+});
