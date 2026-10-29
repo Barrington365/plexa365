@@ -19,8 +19,9 @@ const nextConfig: NextConfig = {
   // Do not use outputFileTracingIncludes for ffmpeg-static here — it bloats ___netlify-server-handler
   // past Netlify's 250 MB limit. Background functions ship the binary via netlify.toml included_files.
   serverExternalPackages: ["puppeteer", "@sparticuz/chromium", "ffmpeg-static", "@supabase/supabase-js", "onnxruntime-web"],
-  // Runtime drafts, migration backups and local provider settings are never deployment assets.
-  outputFileTracingExcludes: { "/*": ["./output/**/*", "./data/local/**/*"] },
+  // Runtime drafts and provider settings are never deployment assets. Brand manuals
+  // are static CDN downloads, not server dependencies; avoid duplicating them in Lambda.
+  outputFileTracingExcludes: { "/*": ["./output/**/*", "./data/local/**/*", "./public/brand-manuals/*.pdf", "./public/brand-manuals/*.pptx"] },
   outputFileTracingIncludes: { "/api/studio-workspace/[...path]": ["./features/msn-local/models/*", "./features/brand-kits/seeds.json", "./node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.wasm", "./node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.mjs"], "/workspace/[[...path]]": ["./features/msn-local/*.html", "./features/msn-local/navigation.js", "./features/msn-local/hosted-transport.js", "./features/msn-local/animation.mjs"] },
   onDemandEntries: {
     maxInactiveAge: 60 * 1000,
