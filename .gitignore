@@ -62,3 +62,11 @@ yarn-error.log*
 
 # Local Netlify folder
 .netlify
+
+# Local MSN media and job state
+/output/msn-local/
+
+# Local migration staging and verification evidence (never source code)
+/output/studio-migration/
+
+/output/studio-hosted-preview/

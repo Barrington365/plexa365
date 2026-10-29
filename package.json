@@ -27,7 +27,9 @@
     "install-ffmpeg-static": "node node_modules/ffmpeg-static/install.js",
     "puppeteer:install": "npx puppeteer browsers install chrome",
     "runway:image-gen": "npm run example --prefix tools/runway-image-gen",
-    "sync:f1-drivers": "node scripts/sync-f1-driver-images.mjs"
+    "sync:f1-drivers": "node scripts/sync-f1-driver-images.mjs",
+    "dev:msn-local": "node scripts/local-msn-studio.mjs",
+    "test:msn-local": "node --test features/msn-local/*.test.mjs"
   },
   "dependencies": {
     "@netlify/blobs": "^10.7.4",
@@ -37,8 +39,10 @@
     "deepl-node": "^1.27.0",
     "fast-xml-parser": "^5.7.2",
     "ffmpeg-static": "^5.2.0",
+    "music-metadata": "10.9.1",
     "netlify-plugin-fetch-feeds": "file:netlify/plugins/fetch-feeds",
     "next": "^15.2.4",
+    "onnxruntime-web": "1.31.1",
     "puppeteer": "^24.4.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

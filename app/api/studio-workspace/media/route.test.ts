@@ -1,0 +1,11 @@
+import {beforeEach,it,expect,vi} from 'vitest';
+const mocked=vi.hoisted(()=>({authorized:true,role:'viewer',openFile:vi.fn(),snapshot:vi.fn()}));
+vi.mock('@/app/lib/auth/guards',()=>({requireUser:async()=>mocked.authorized?{user:{role:mocked.role}}:{response:new Response(null,{status:401})}}));
+vi.mock('@/app/lib/studio-workspace/store',()=>({hostedWorkspace:()=>mocked}));
+import {GET} from './route';
+beforeEach(()=>{vi.clearAllMocks();mocked.authorized=true;mocked.role='viewer';mocked.openFile.mockImplementation(async()=>({entry:{asset:'videos/test.mp4',bytes:6},range:{start:2,end:4,status:206},stream:(async function*(){yield new Uint8Array([2,3,4]);})()}));});
+const request=(suffix='',range='bytes=2-4')=>new Request('https://planetsport.studio/api/studio-workspace/media?asset=videos%2Ftest.mp4'+suffix,{headers:{range}});
+it('private MP4s cannot be downloaded without sign-in',async()=>{mocked.authorized=false;expect((await GET(request())).status).toBe(401);expect(mocked.openFile).not.toHaveBeenCalled();});
+it('range responses carry exact playable bytes and support attachment downloads',async()=>{const response=await GET(request('&download=1'));expect(response.status).toBe(206);expect(response.headers.get('content-range')).toBe('bytes 2-4/6');expect(response.headers.get('content-length')).toBe('3');expect(response.headers.get('content-type')).toBe('video/mp4');expect(response.headers.get('content-disposition')).toContain('attachment');expect([...new Uint8Array(await response.arrayBuffer())]).toEqual([2,3,4]);});
+it('invalid ranges return 416, not an HTML page or a fake video',async()=>{mocked.openFile.mockRejectedValue(Error('Invalid byte range'));mocked.snapshot.mockResolvedValue({state:{assets:{'videos/test.mp4':{bytes:6}}}});const response=await GET(request('','bytes=99-'));expect(response.status).toBe(416);expect(response.headers.get('content-range')).toBe('bytes */6');});
+it('storage failures remain visible and do not claim an empty successful file',async()=>{mocked.openFile.mockRejectedValue(Error('storage unavailable'));const response=await GET(request());expect(response.status).toBe(503);expect(await response.json()).toHaveProperty('error');});

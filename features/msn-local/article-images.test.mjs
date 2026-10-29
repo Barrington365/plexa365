@@ -1,0 +1,21 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import sharp from 'sharp';
+import {imageLibrary} from './images.mjs';
+test('article originals and edits persist independently with source lineage',async t=>{
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'plexa-images-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));
+ const bytes=await sharp({create:{width:10,height:10,channels:3,background:'#ff0000'}}).jpeg().toBuffer();
+ const lib=imageLibrary(root,root),url='https://www.football365.com/news/example';
+ const original=await lib.upload(bytes,'Original',url);
+ const before=await fs.readFile(lib.file(original));
+ const edited=await lib.upload(bytes,'Edited','',original.id);
+ const saved=await imageLibrary(root,root).list();
+ assert.equal(saved.length,2);assert.equal(edited.kind,'edited');assert.equal(edited.parentId,original.id);assert.equal(edited.sourceUrl,url);
+ assert.deepEqual(await fs.readFile(lib.file(original)),before);
+ assert.deepEqual(await fs.readFile(path.join(root,'images/original-files',original.id+'.bin')),bytes);
+ await assert.rejects(lib.upload(bytes,'Invalid','',edited.id));
+ assert.equal((await lib.list()).length,2);
+});

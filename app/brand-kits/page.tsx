@@ -1,0 +1,2 @@
+import Link from 'next/link';
+export default function BrandKitsPage(){return <section><div className="mb-4 flex items-center justify-between"><h1 className="text-3xl font-bold">Brand kits</h1><Link href="/templates">Back to templates</Link></div><iframe title="Plexa Brand Kit editor" src="/brand-kit/index.html" className="w-full rounded-xl border" style={{height:'85vh',minHeight:700}} /></section>;}

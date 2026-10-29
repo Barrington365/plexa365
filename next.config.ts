@@ -9,6 +9,7 @@ const basePath =
       : `/${rawBase.replace(/\/$/, "")}`;
 
 const nextConfig: NextConfig = {
+  env: { STUDIO_RELEASE_COMMIT: process.env.COMMIT_REF || "local" },
   ...(basePath ? { basePath } : {}),
   distDir: process.env.NEXT_DIST_DIR || ".next",
   /** Dev: allow 127.0.0.1 vs localhost / ::1 host mix so `/_next/*` is not treated as cross-site. */
@@ -17,7 +18,10 @@ const nextConfig: NextConfig = {
   // `./vendor-chunks/@supabase.js` when the dev bundle graph is interrupted or mismatched.
   // Do not use outputFileTracingIncludes for ffmpeg-static here — it bloats ___netlify-server-handler
   // past Netlify's 250 MB limit. Background functions ship the binary via netlify.toml included_files.
-  serverExternalPackages: ["puppeteer", "@sparticuz/chromium", "ffmpeg-static", "@supabase/supabase-js"],
+  serverExternalPackages: ["puppeteer", "@sparticuz/chromium", "ffmpeg-static", "@supabase/supabase-js", "onnxruntime-web"],
+  // Runtime drafts, migration backups and local provider settings are never deployment assets.
+  outputFileTracingExcludes: { "/*": ["./output/**/*", "./data/local/**/*"] },
+  outputFileTracingIncludes: { "/api/studio-workspace/[...path]": ["./features/msn-local/models/*", "./features/brand-kits/seeds.json", "./node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.wasm", "./node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.mjs"], "/workspace/[[...path]]": ["./features/msn-local/*.html", "./features/msn-local/navigation.js", "./features/msn-local/hosted-transport.js", "./features/msn-local/animation.mjs"] },
   onDemandEntries: {
     maxInactiveAge: 60 * 1000,
     pagesBufferLength: 8,

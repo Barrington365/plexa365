@@ -296,7 +296,7 @@ export default async function TemplatesHubPage() {
       </Section>
 
       <section className="space-y-4">
-        <h2 className="ds-section-heading">Brands</h2>
+        <h2 className="ds-section-heading">Brands</h2><Link href="/brand-kits" className="font-semibold underline">Manage Brand Kits</Link>
         <p className="max-w-2xl text-sm text-[color:var(--text-secondary)]">
           Dedicated packs per brand will land here. Where a pipeline already exists, we link to it; otherwise{" "}
           <strong className="font-semibold text-[color:var(--text-primary)]">Coming soon</strong>.

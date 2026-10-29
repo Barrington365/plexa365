@@ -60,3 +60,8 @@
 
 # Long video builds use netlify/functions/build-short-background.mts (15 minute background limit).
 # Do not use pages/api experimental-background routes — @netlify/plugin-nextjs v5 rejects them.
+
+[functions."studio-workspace-build-background"]
+  external_node_modules = ["ffmpeg-static", "sharp"]
+  included_files = ["node_modules/ffmpeg-static/ffmpeg", "assets/fonts/news-shorts/*.ttf"]
+  timeout = 900

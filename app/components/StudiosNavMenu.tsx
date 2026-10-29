@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import {
   STUDIOS_MENU_VIDEO_EXTRAS,
@@ -34,7 +36,7 @@ export function StudiosNavMenu() {
   const grouped = studiosGroupedForNavMenu();
 
   return (
-    <details className="relative z-[60] group/studios">
+    <details className="relative z-[60] group/studios" onClick={(event) => { if ((event.target as HTMLElement).closest("a")) event.currentTarget.open = false; }}>
       <summary
         className="app-nav-link flex cursor-pointer list-none items-center gap-1 rounded-full px-3 py-2 text-sm transition [&::-webkit-details-marker]:hidden"
         style={{ color: "var(--text-secondary)" }}
@@ -57,6 +59,7 @@ export function StudiosNavMenu() {
           <p className="mt-0.5 text-xs text-[color:var(--text-muted)]">Start with a format, then move through source, preview and export.</p>
         </div>
         <div className="max-h-[min(70vh,28rem)] space-y-4 overflow-y-auto pr-1">
+          <Link href="/workspace" className="block rounded-md px-2 py-2 font-semibold text-[color:var(--accent)]">Upgraded Studio · projects, video and images</Link>
           {grouped.map(({ group, label, items }) => {
             if (items.length === 0) return null;
             const extras = group === "video" ? STUDIOS_MENU_VIDEO_EXTRAS : [];

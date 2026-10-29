@@ -75,10 +75,10 @@ export default function HomePage() {
           </div>
           <div className="flex flex-wrap gap-3">
             <Link
-              href="/#studios"
+              href="/workspace"
               className="rounded-full bg-[color:var(--accent)] px-5 py-3 text-sm font-black text-[color:var(--accent-foreground)] transition hover:bg-[color:var(--accent-hover)]"
             >
-              Browse studios
+              Open upgraded Studio
             </Link>
             <Link
               href="/library"

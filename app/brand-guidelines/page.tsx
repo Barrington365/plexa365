@@ -22,7 +22,7 @@ export default function BrandGuidelinesPage() {
           .
         </p>
       </div>
-      <BrandGuidelinesTab />
+      <p><Link href="/brand-kits" className="font-semibold underline">Open visual Brand Kits — logos, colours, typography and voices</Link></p><BrandGuidelinesTab />
     </div>
   );
 }
