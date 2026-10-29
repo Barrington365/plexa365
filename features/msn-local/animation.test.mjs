@@ -9,12 +9,13 @@ test('wave deforms image pixels in a decodable render and captions retain chosen
  const sharp=(await import('sharp')).default;const {run}=await import('./engine.mjs');const {buildCaptionsAss}=await import('./scene-renderer.mjs');
  const root=await fs.mkdtemp(path.join(ASSET_ROOT,'wave-render-'));
  try{
-  await sharp(Buffer.from('<svg width="160" height="80"><rect x="10" y="20" width="140" height="40" fill="cyan"/></svg>')).png().toFile(path.join(root,'logo.png'));
+  await sharp(Buffer.from('<svg width="160" height="80"><rect x="10" y="0" width="140" height="80" fill="cyan"/></svg>')).png().toFile(path.join(root,'logo.png'));
   const model={width:320,height:180,fps:10,captionPreset:'bold',captionTextColor:'#ffffff',captionHighlightColor:'#00e8f0',metadata:{tags:['Football365']},srt:'1\n00:00:00,000 --> 00:00:01,000\nFootball365 news\n',scenes:[{duration:1,background:'#000000',layers:[{type:'image',asset:'logo.png',x:80,y:30,width:160,height:80,animation:{continuous:{...step('wave',1),intensity:70}}}]}]};
   const ass=await buildCaptionsAss(validateSceneModel(model));assert.match(ass,/c&H00f0e800&/);assert.match(ass,/c&H00ffffff&/);
   const r=await renderScenes(model,{root});await run(['-v','error','-i',r.file,'-f','null','-']);
   for(const [time,name] of [['0.2','a'],['0.7','b']])await run(['-y','-i',r.file,'-ss',time,'-frames:v','1',path.join(root,name+'.png')]);
   assert.notDeepEqual(await fs.readFile(path.join(root,'a.png')),await fs.readFile(path.join(root,'b.png')));
+  for(const name of ['a','b']){const {data,info}=await sharp(path.join(root,name+'.png')).extract({left:80,top:8,width:160,height:124}).raw().toBuffer({resolveWithObject:true});let cyan=0;for(let i=0;i<data.length;i+=info.channels)if(data[i]<70&&data[i+1]>150&&data[i+2]>150)cyan++;assert.ok(cyan>140*80*.97,'Wave must preserve image content at both vertical edges');}
   const {createProjectStore}=await import('./projects.mjs');const store=createProjectStore(root);const p=await store.create('player-club');await store.save(p.id,{captionTextColor:'#ffffff',captionHighlightColor:'#00e8f0'});assert.equal((await store.get(p.id)).captionHighlightColor,'#00e8f0');
  }finally{await fs.rm(root,{recursive:true,force:true});}
 });
