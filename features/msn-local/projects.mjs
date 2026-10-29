@@ -16,7 +16,7 @@ const articleDefaults = {
   audio: { asset: '', volume: 1 }, audioLabel: '', srt: '', script: '', sourceUrl: '',
   sourceCheckedAt: null, cutoutAssetId: '',
   scenes: [], music: { asset: '', start: 0, end: 0, timelineStart: 0, volume: 0.12, fadeIn: 0, fadeOut: 0 },
-  burnCaptions: true, captionPreset: 'standard', voice: '', elevenlabsVoiceId: '',
+  burnCaptions: true, captionPreset: 'standard', captionTextColor:'#ffffff', captionHighlightColor:'#00ffff', voice: '', elevenlabsVoiceId: '',
 };
 const fields = new Set([...Object.keys(articleDefaults), 'metadata']);
 const queues = new Map();
@@ -175,7 +175,7 @@ function applyPatch(previous, patch) {
   const result = clone(previous);
   for (const [key, value] of Object.entries(patch)) {
     if (!fields.has(key)) throw Error(`Unsupported project field: ${key}`);
-    if (['version', 'width', 'height', 'fps', 'captionPreset', 'voice', 'title'].includes(key)) result[key] = sceneModelSchema.shape[key].parse(value);
+    if (['version', 'width', 'height', 'fps', 'captionPreset', 'captionTextColor', 'captionHighlightColor', 'voice', 'title'].includes(key)) result[key] = sceneModelSchema.shape[key].parse(value);
     else if (key === 'metadata') result.metadata = metadata(value, result.metadata);
     else if (key === 'scenes') result.scenes = scenes(value);
     else if (key === 'audio' || key === 'music') result[key] = track(value, key === 'music');

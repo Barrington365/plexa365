@@ -72,6 +72,7 @@ export const sceneModelSchema = z.object({
   }).strict().optional(),
   srt: z.string().max(200000).default(''), burnCaptions: z.boolean().default(false),
   captionPreset: z.enum(['standard', 'bold', 'boxed']).default('standard'),
+  captionTextColor: colour.default('#ffffff'), captionHighlightColor: colour.default('#00ffff'),
   voice: z.string().max(200).optional(),
   metadata: z.object({ description: z.string().max(10000).default(''), tags: z.array(z.string().max(200)).max(100).default([]),
     sourceUrl: z.string().max(4096).default(''), language: z.string().max(100).default(''),
@@ -148,7 +149,9 @@ export async function buildCaptionsAss(model) {
   const tags = [...new Set((model.metadata?.tags ?? []).map(t => t.trim()).filter(Boolean))].sort((a, b) => b.length - a.length);
   const escapeRegex = text => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const pattern = tags.length ? new RegExp(`(?<![\\p{L}\\p{N}])(?:${tags.map(escapeRegex).join('|')})(?![\\p{L}\\p{N}])`, 'giu') : null;
-  const highlight = text => preset.bold && pattern ? text.replace(pattern, match => `{\\c&H00FFFF00&}${match}{\\c&H00FFFFFF&}`) : text;
+  const assColour=c=>c.slice(5,7)+c.slice(3,5)+c.slice(1,3);
+  const textColour=assColour(model.captionTextColor||'#ffffff'),highlightColour=assColour(model.captionHighlightColor||'#00ffff');
+  const highlight = text => preset.bold && pattern ? text.replace(pattern, match => `{\\c&H00${highlightColour}&}${match}{\\c&H00${textColour}&}`) : text;
   const events = [];
   for (const cue of parseSrt(model.srt)) {
     let lines = [cue.text], widest = await measure(cue.text);
@@ -167,7 +170,7 @@ export async function buildCaptionsAss(model) {
     const text = lines.map(highlight).join('\\N');
     events.push(`Dialogue: 0,${stamp(cue.start)},${stamp(cue.end)},Default,,0,0,0,,{\\fs${fitted.toFixed(2)}}${text}`);
   }
-  return `[Script Info]\nScriptType: v4.00+\nPlayResX: ${model.width}\nPlayResY: ${model.height}\nWrapStyle: 2\nScaledBorderAndShadow: yes\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: Default,Roboto Condensed,${size},&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,${preset.bold ? -1 : 0},0,0,0,100,100,0,0,${preset.boxed ? 3 : 1},${2 * scale},0,2,${marginX},${marginX},${marginV},1\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n${events.join('\n')}\n`;
+  return `[Script Info]\nScriptType: v4.00+\nPlayResX: ${model.width}\nPlayResY: ${model.height}\nWrapStyle: 2\nScaledBorderAndShadow: yes\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: Default,Roboto Condensed,${size},&H00${textColour},&H00${textColour},&H00000000,&H80000000,${preset.bold ? -1 : 0},0,0,0,100,100,0,0,${preset.boxed ? 3 : 1},${2 * scale},0,2,${marginX},${marginX},${marginV},1\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n${events.join('\n')}\n`;
 }
 
 // Fit complete text inside saved boxes; never crop away the bottom line.
