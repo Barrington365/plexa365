@@ -34,3 +34,5 @@ MSN feed integration/publishing is planning only. Player links remain authentica
 - Live legacy Eddie Howe file `news-1793101127041-short.mp4` downloaded and fully decoded: 53.3 seconds, 1920x1080 H.264 / AAC. Browser playback and seeking verified.
 - New live account voice API returned 35 provider voices, including custom Sam `2yqdQ7uuPQDBMgFA8dgu`; no premade fallback added.
 - Migration remains pending the hosting regression release and must be verified before declaring the upgrade ready.
+
+- Worker archive smoke test reproduces the old `next/server` ESM startup failure and passes after changing auth guards to standard Web Responses. The isolated zipped worker loads and rejects unauthenticated POSTs; no credentials or job execution are used by the smoke test. Import UI supports re-verifying an already uploaded manifest without re-uploading unchanged media.
