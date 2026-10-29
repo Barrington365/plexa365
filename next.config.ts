@@ -22,7 +22,10 @@ const nextConfig: NextConfig = {
   // Runtime drafts and provider settings are never deployment assets. Brand manuals
   // are static CDN downloads, not server dependencies; avoid duplicating them in Lambda.
   outputFileTracingExcludes: { "/*": ["./output/**/*", "./data/local/**/*", "./public/brand-manuals/*.pdf", "./public/brand-manuals/*.pptx"] },
-  outputFileTracingIncludes: { "/api/studio-workspace/[...path]": ["./features/msn-local/models/*", "./features/brand-kits/seeds.json", "./node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.wasm", "./node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.mjs"], "/workspace/[[...path]]": ["./features/msn-local/*.html", "./features/msn-local/navigation.js", "./features/msn-local/hosted-transport.js", "./features/msn-local/animation.mjs"] },
+  // A global trace glob is intentional: bracketed catch-all route names are
+  // interpreted as glob character classes, so route-specific patterns missed
+  // dynamically read browser modules in the deployed server package.
+  outputFileTracingIncludes: { "/*": ["./features/msn-local/models/*", "./features/brand-kits/seeds.json", "./node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.wasm", "./node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.mjs", "./features/msn-local/*.html", "./features/msn-local/navigation.js", "./features/msn-local/hosted-transport.js", "./features/msn-local/animation.mjs"] },
   onDemandEntries: {
     maxInactiveAge: 60 * 1000,
     pagesBufferLength: 8,

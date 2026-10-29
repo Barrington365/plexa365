@@ -1,3 +1,4 @@
+import {isWorkspaceSameOrigin} from '@/app/lib/studio-workspace/origin';
 import {NextResponse} from 'next/server';
 import {requireUser} from '@/app/lib/auth/guards';
 import {hostedWorkspace} from '@/app/lib/studio-workspace/store';
@@ -13,7 +14,7 @@ export async function GET(request:Request){
 export async function POST(request:Request){
  const auth=await requireUser(request);if('response' in auth)return auth.response;
  if(!['admin','editor'].includes(auth.user.role))return NextResponse.json({error:'Editing access required'},{status:403});
- if(request.headers.get('origin')!==new URL(request.url).origin)return NextResponse.json({error:'Same-origin request required'},{status:403});
+ if(!isWorkspaceSameOrigin(request))return NextResponse.json({error:'Same-origin request required'},{status:403});
  try{
   const raw=await request.text();if(raw.length>2_000_000)return NextResponse.json({error:'Project exceeds request limit'},{status:413});
   const body=JSON.parse(raw);if(!body||typeof body!=='object'||Array.isArray(body))throw Error('Invalid project request');

@@ -25,3 +25,12 @@ New drafts default to burned captions; existing choices remain editable and unch
 Record exact deployed commit and successful Netlify status. Activate the prepared manifest using the signed-in admin import page, then verify counts, original projects/media, Library replay/download/seek, background removal, a no-charge existing-media build, complete voice response and Sam selection. Check responsive editor/navigation. Local evidence above must not be described as live verification.
 
 MSN feed integration/publishing is planning only. Player links remain authenticated. No eight-video batch, database operation, credential change or subscription change is included.
+
+## Hosting regression checks
+
+- 279 application tests passed (one existing test skipped) after the deployment-origin fix; type/lint/production build passed.
+- Netlify offline production package passed; `node scripts/check-studio-package.mjs` checks the exact served page/module bytes plus background-removal model and WASM. Catch-all tracing globs previously omitted `animation.mjs` (confirmed ENOENT in production logs).
+- Mutation validation and worker/media URLs use configured deployment origins instead of the internally reconstructed request address. Cross-origin, missing-origin and spoofed-forwarding tests remain rejecting.
+- Live legacy Eddie Howe file `news-1793101127041-short.mp4` downloaded and fully decoded: 53.3 seconds, 1920x1080 H.264 / AAC. Browser playback and seeking verified.
+- New live account voice API returned 35 provider voices, including custom Sam `2yqdQ7uuPQDBMgFA8dgu`; no premade fallback added.
+- Migration remains pending the hosting regression release and must be verified before declaring the upgrade ready.
