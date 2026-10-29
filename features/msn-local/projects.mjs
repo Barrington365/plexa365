@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
+import {deliveryBriefSchema} from './article-script.mjs';
 import { sceneModelSchema, validateSceneModel } from './scene-renderer.mjs';
 
 const definitions = [
@@ -14,7 +15,7 @@ const articleDefaults = {
   version: 1, width: 1920, height: 1080, fps: 30,
   title: '', heading: '', subheading: '', status: '', background: '#060d15',
   audio: { asset: '', volume: 1 }, audioLabel: '', srt: '', script: '', sourceUrl: '',
-  sourceCheckedAt: null, cutoutAssetId: '',
+  sourceCheckedAt: null, cutoutAssetId: '', deliveryBrief:null,
   scenes: [], music: { asset: '', start: 0, end: 0, timelineStart: 0, volume: 0.12, fadeIn: 0, fadeOut: 0 },
   burnCaptions: true, captionPreset: 'standard', captionTextColor:'#ffffff', captionHighlightColor:'#00ffff', voice: '', elevenlabsVoiceId: '',
 };
@@ -176,6 +177,7 @@ function applyPatch(previous, patch) {
   for (const [key, value] of Object.entries(patch)) {
     if (!fields.has(key)) throw Error(`Unsupported project field: ${key}`);
     if (['version', 'width', 'height', 'fps', 'captionPreset', 'captionTextColor', 'captionHighlightColor', 'voice', 'title'].includes(key)) result[key] = sceneModelSchema.shape[key].parse(value);
+    else if (key === 'deliveryBrief') result.deliveryBrief=value===null?null:deliveryBriefSchema.parse(value);
     else if (key === 'metadata') result.metadata = metadata(value, result.metadata);
     else if (key === 'scenes') result.scenes = scenes(value);
     else if (key === 'audio' || key === 'music') result[key] = track(value, key === 'music');

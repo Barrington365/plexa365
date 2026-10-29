@@ -12,15 +12,15 @@ import {removeBackground} from './background-removal.mjs';
 const mediaURL=asset=>'/api/studio-workspace/media?asset='+encodeURIComponent(asset);
 const mime=asset=>({png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',webp:'image/webp',mp4:'video/mp4',mp3:'audio/mpeg',wav:'audio/wav',m4a:'audio/mp4',flac:'audio/flac',ogg:'audio/ogg'}[asset.split('.').at(-1)?.toLowerCase()]);
 export async function workspaceRead(workspace,route){
- if(route==='state')await expireWorkspaceJobs(workspace);
+ if(['state','article-inbox'].includes(route))await expireWorkspaceJobs(workspace);
  const {state}=await workspace.snapshot();
  switch(route){
   case 'images':return state.images;
   case 'studio-assets':return {assets:Object.values(state.assets).filter(f=>mime(f.asset)).map(f=>({asset:f.asset,name:f.name||path.basename(f.asset),type:mime(f.asset).split('/')[0],url:mediaURL(f.asset),updatedAt:f.updatedAt||state.images.find(i=>'images/'+i.id+'.png'===f.asset)?.updatedAt||null}))};
   case 'state':return {jobs:state.jobs,active:state.jobs.find(j=>['queued','running','saving'].includes(j.status))?.id,assets:workspaceClips(state).map(c=>({...c,url:mediaURL(c.asset)}))};
   case 'library-trash':return state.trash;
-  case 'article-inbox':return {...(state.inbox||{articles:[],history:[],lastSuccessfulImportAt:null}),articles:(state.inbox?.articles||[]).map(a=>({...a,images:state.images.filter(i=>i.sourceUrl===a.sourceUrl).map(i=>({...i,url:mediaURL('images/'+i.id+'.png')}))}))};
-  case 'studio-articles':return {articles:(state.inbox?.articles||[]).map(a=>({id:a.id,title:a.title,sourceUrl:a.sourceUrl,script:a.text,updatedAt:a.updatedAt,sourceCheckedAt:a.sourceCheckedAt||null,hasNarration:false}))};
+  case 'article-inbox':return {...(state.inbox||{articles:[],history:[],lastSuccessfulImportAt:null}),articles:(state.inbox?.articles||[]).map(a=>({...a,scriptPreparation:(()=>{const j=state.jobs.find(j=>j.id===a.scriptPreparation?.jobId);return j?.status==='failed'?{...a.scriptPreparation,status:'failed',error:j.stage,updatedAt:j.updatedAt}:a.scriptPreparation;})(),images:state.images.filter(i=>i.sourceUrl===a.sourceUrl).map(i=>({...i,url:mediaURL('images/'+i.id+'.png')}))}))};
+  case 'studio-articles':return {articles:(state.inbox?.articles||[]).map(a=>({id:a.id,title:a.title,sourceUrl:a.sourceUrl,script:a.spokenDraft?.status==='ready'&&a.spokenDraft.sourceFingerprint===a.fingerprint?a.spokenDraft.script:a.text,updatedAt:a.updatedAt,sourceCheckedAt:a.sourceCheckedAt||null,hasNarration:false}))};
   case 'brand-kits':return state.kits||JSON.parse(await fs.readFile(path.join(process.cwd(),'features/brand-kits/seeds.json'),'utf8'));
   default:throw Error('Studio route not found');
  }

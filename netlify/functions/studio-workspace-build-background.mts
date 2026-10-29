@@ -32,6 +32,10 @@ export default async (request:Request)=>{
       await patchWorkspaceJob(workspace,body.jobId,{status:'failed',stage:error instanceof Error?error.message:'Import failed'});
       throw error;
     }
+  }else if(job.request?.kind==='article-script'){
+    const {getServerSecretAsync}=await import('../../app/lib/server-secrets');
+    const {runArticleScript}=await import('../../features/msn-local/article-script.mjs');
+    await runArticleScript(workspace,body.jobId,await getServerSecretAsync('OPENAI_API_KEY')||'');
   }else if(job.request?.kind==='voice-review'){
     const {getServerSecretAsync}=await import('../../app/lib/server-secrets');
     const {runVoiceReview}=await import('../../features/msn-local/voice-review.mjs');
