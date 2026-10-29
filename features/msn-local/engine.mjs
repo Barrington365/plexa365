@@ -1,9 +1,8 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {spawn} from 'node:child_process';
-import {createRequire} from 'node:module';
-const require=createRequire(import.meta.url);
-export const ffmpeg=require('ffmpeg-static');
+import ffmpeg from 'ffmpeg-static';
+export {ffmpeg};
 export function run(args,{signal,onProgress}={}){return new Promise((resolve,reject)=>{const child=spawn(ffmpeg,args,{stdio:['ignore','ignore','pipe'],signal});let log='';child.stderr.on('data',b=>{log=(log+b).slice(-20000);onProgress?.(String(b));});child.on('error',reject);child.on('close',code=>code===0?resolve(log):reject(new Error('Media processing failed: '+log.slice(-1500))));});}
 export async function probe(file){let text;try{text=await run(['-hide_banner','-i',file]);}catch(e){text=e.message;}const d=text.match(/Duration: (\d+):(\d+):([\d.]+)/);if(!d)throw Error('Cannot read video duration');const size=text.match(/Video:.*?\b(\d{2,5})x(\d{2,5})\b/);if(!size)throw Error('No video stream');return {duration:Number(d[1])*3600+Number(d[2])*60+Number(d[3]),width:Number(size[1]),height:Number(size[2]),audio:/Audio:/.test(text)};}
 export function validate(request,catalogue){if(!request||!Array.isArray(request.clips)||!request.clips.length||request.clips.length>30)throw Error('Choose between 1 and 30 clips.');let total=0;const clips=request.clips.map(c=>{const asset=catalogue.find(a=>a.id===c.id);if(!asset)throw Error('Clip is not in the local Library.');if(!Number.isFinite(c.start)||!Number.isFinite(c.end)||c.start<0||c.end-c.start<.2||c.end>asset.duration+.01)throw Error('Each trim must be within its source and at least 0.2 seconds.');total+=c.end-c.start;return {...c,muted:!!c.muted,asset};});if(total>1200)throw Error('Maximum assembly duration is 20 minutes.');return {clips,total,title:String(request.title||'MSN assembly').trim().slice(0,120)||'MSN assembly'};}
