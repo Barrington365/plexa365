@@ -75,7 +75,7 @@ Call this every 5 minutes. It checks saved cron jobs and only runs jobs whose sc
 
 - Vercel uses `vercel.json` to call this path every 5 minutes.
 - Local `npm run start` also polls this path every minute.
-- Netlify does not use `vercel.json` crons. Schedule this path with an external cron service or Netlify Scheduled Functions.
+- Netlify does not use `vercel.json` crons. `language-imports-scheduled` calls this path every 15 minutes. It sends `Authorization: Bearer <CRON_SECRET>` when that variable is set. A saved Football365 cron is added on the next Language Studio read if none exists. Manual Import feed still runs immediately.
 
 When `CRON_SECRET` is set, send `Authorization: Bearer <CRON_SECRET>`.
 

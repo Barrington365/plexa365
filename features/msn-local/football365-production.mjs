@@ -21,7 +21,7 @@ export async function prepareFootball365(w,p,{root,key,fetcher=fetch,jobId,signa
  const coverage=new Map();for(const s of p.scenes){if(s.video?.asset)coverage.set(s.video.asset,await probe(await media(s.video.asset)));for(const l of s.layers||[])if(l.asset)await media(l.asset);}
  for(const story of p.broadcast?.stories||[])for(const asset of story.rightAssets)await media(asset);
  let state=(await w.snapshot()).state;
- let record=(state.voiceCandidates||[]).find(c=>c.projectId===p.id&&(c.tagEdit||c.deliveryEdit||c.tempoEdit)&&c.asset===p.audio?.asset&&c.script===script&&c.voiceId===preset.voiceId&&c.model===preset.model&&state.voiceEditorialEvents?.some(e=>e.type==='candidate-applied'&&e.candidateId===c.id)) || (state.voiceCandidates||[]).find(c=>c.script===script&&c.voiceId===preset.voiceId&&c.model===preset.model&&c.trial==='subtle'&&c.settings.speed===.9&&c.settings.stability===.5&&c.settings.style===.15&&c.settings.pause===0);
+ let record=(state.voiceCandidates||[]).find(c=>c.projectId===p.id&&(c.tagEdit||c.deliveryEdit||c.tempoEdit||c.briefComparison)&&c.asset===p.audio?.asset&&c.script===script&&c.voiceId===(c.briefComparison?p.elevenlabsVoiceId:preset.voiceId)&&c.model===preset.model&&state.voiceEditorialEvents?.some(e=>e.type==='candidate-applied'&&e.candidateId===c.id)) || (state.voiceCandidates||[]).find(c=>c.script===script&&c.voiceId===preset.voiceId&&c.model===preset.model&&c.trial==='subtle'&&c.settings.speed===.9&&c.settings.stability===.5&&c.settings.style===.15&&c.settings.pause===0);
  if(!record){
   if(signal?.aborted)throw Error('Cancelled');
   const voice=(await accountVoices(key,fetcher)).find(v=>v.id===preset.voiceId);if(!voice)throw Error('Selected Football365 voice is unavailable to the connected account. No voice substitution made.');
@@ -40,7 +40,7 @@ export async function prepareFootball365(w,p,{root,key,fetcher=fetch,jobId,signa
  if(!p.music.loop&&plan.duration+(p.music.start||0)>musicDuration+.01)throw Error('Backing track is shorter than narration. Choose longer music; generated audio is retained.');
  const music={...p.music,end:(p.music.start||0)+plan.duration,timelineStart:0,fadeIn:Math.min(1.5,plan.duration/2),fadeOut:Math.min(4,plan.duration/2)};
  // Save with optimistic concurrency, retaining source/intro distinction in the editor.
- const saved=await w.projects.save(p.id,{script,scenes:plan.scenes,audio:{asset:record.asset,volume:1},audioLabel:preset.voiceName+' · subtle tags · '+record.createdAt,voice:record.voiceName,elevenlabsVoiceId:preset.voiceId,srt:plan.srt,music},p.updatedAt);
+ const saved=await w.projects.save(p.id,{script,scenes:plan.scenes,audio:{asset:record.asset,volume:1},audioLabel:preset.voiceName+' · subtle tags · '+record.createdAt,voice:record.voiceName,elevenlabsVoiceId:record.voiceId||preset.voiceId,srt:record.briefComparison?record.srt:plan.srt,music},p.updatedAt);
  await w.update(s=>{const job=s.jobs.find(j=>j.id===jobId);job.request.project=structuredClone(saved);job.updatedAt=new Date().toISOString();return true;});
  return saved;
 }

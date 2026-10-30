@@ -12,6 +12,15 @@ export async function POST(request:Request,{params}:Context){
  if(!isWorkspaceSameOrigin(request))return Response.json({error:'Same-origin request required'},{status:403});
  try{const raw=await request.text();if(raw.length>2_000_000)return Response.json({error:'Request too large'},{status:413});const body=JSON.parse(raw);if(!body||typeof body!=='object'||Array.isArray(body))throw Error('Invalid request');const route=(await params).path.join('/');const workspace=hostedWorkspace();
  if(route==='article-inbox/rewrite'){return Response.json(await prepareScript(request,workspace,body.id,auth.user.id),{headers:{'Cache-Control':'no-store'}});}
+ if(route==='article-inbox/from-language-studio'){
+ const {readLanguageStudioData}=await import('@/app/lib/language-studio/store');
+ const {bringLanguageArticles,languageInboxPayloads}=await import('@/features/msn-local/language-inbox-bridge.mjs');
+ const data=await readLanguageStudioData();
+ const snap=await workspace.snapshot();
+ const existing=(snap.state.inbox?.articles||[]).map((article:{sourceUrl?:string})=>article.sourceUrl||'');
+ const result=await bringLanguageArticles(languageInboxPayloads(data.articles),existing,(raw)=>workspaceWrite(workspace,'article-inbox/import',raw));
+ return Response.json(result,{headers:{'Cache-Control':'no-store'}});
+ }
  if(route==='article-inbox/import-url'){
  const {fetchPublisherArticle,fetchPublisherImage,retryImportConflict}=await import('@/features/msn-local/article-url.mjs');
  const article=await fetchPublisherArticle(body.sourceUrl,body.brand||'Football365');

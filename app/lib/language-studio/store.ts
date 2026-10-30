@@ -369,18 +369,68 @@ function seedGovernance(data: LanguageStudioData): LanguageStudioData {
   }
   ensureJournalistKnowledgeFiles(data);
   seedDefaultArticleAutomations(data);
+  ensureFootball365Cron(data);
   return data;
+}
+
+function ensureFootball365Cron(data: LanguageStudioData): void {
+  const brand = data.sourceBrands["source-football365"];
+  if (!brand?.active || !brand.feedUrl) return;
+  const saved = Object.values(data.cronJobs).some(
+    (job) => job.sourceBrand === brand.name || job.sourceUrl === brand.feedUrl,
+  );
+  if (saved) return;
+  const stamp = "2026-10-30T00:00:00.000Z";
+  data.cronJobs["cron-football365-partner-feed"] = {
+    id: "cron-football365-partner-feed",
+    name: "Football365 partner feed",
+    active: true,
+    clientIds: [],
+    sourceBrand: brand.name,
+    sourceLanguage: "en",
+    sourceUrl: brand.feedUrl,
+    parserType: brand.parserType,
+    frequency: "minutes",
+    intervalMinutes: 15,
+    timezone: "Europe/London",
+    processImages: true,
+    importFullArticles: true,
+    notifyOnFailure: false,
+    incrementalFeedImport: true,
+    consecutiveFailures: 0,
+    createdAt: stamp,
+    updatedAt: stamp,
+  };
 }
 
 export function newLanguageId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function hasFootball365Cron(stored: Partial<LanguageStudioData> | null): boolean {
+  return Object.values(stored?.cronJobs ?? {}).some(
+    (job) => job?.sourceBrand === "Football365" || job?.sourceUrl === "https://www.football365.com/partner-media-content-feed",
+  );
+}
+
+async function finishRead(stored: Partial<LanguageStudioData> | null, allowPersist: boolean): Promise<LanguageStudioData> {
+  const hadFootball = hasFootball365Cron(stored);
+  const data = seedGovernance({ ...emptyData(), ...(stored ?? {}) });
+  if (allowPersist && stored && !hadFootball && data.cronJobs["cron-football365-partner-feed"]) {
+    try {
+      await writeLanguageStudioData(data);
+    } catch {
+      // The in-memory job remains for this request. The next successful read retries the save.
+    }
+  }
+  return data;
+}
+
 export async function readLanguageStudioData(): Promise<LanguageStudioData> {
   if (shouldUseNetlifyBlobStore()) {
     try {
-      const data = (await getStore(BLOB_STORE_NAME).get(BLOB_STORE_KEY, { type: "json" })) as Partial<LanguageStudioData> | null;
-      return seedGovernance({ ...emptyData(), ...(data ?? {}) });
+      const stored = (await getStore(BLOB_STORE_NAME).get(BLOB_STORE_KEY, { type: "json" })) as Partial<LanguageStudioData> | null;
+      return finishRead(stored, true);
     } catch {
       return seedGovernance(emptyData());
     }
@@ -389,7 +439,7 @@ export async function readLanguageStudioData(): Promise<LanguageStudioData> {
   try {
     const raw = await fs.readFile(STORE_FILE, "utf-8");
     const parsed = JSON.parse(raw) as Partial<LanguageStudioData>;
-    return seedGovernance({ ...emptyData(), ...parsed });
+    return finishRead(parsed, true);
   } catch {
     return seedGovernance(emptyData());
   }

@@ -75,7 +75,7 @@ function nextHourlyRun(job: LanguageCronJob, after: Date): Date {
   const interval = Math.max(1, Math.round((job.intervalMinutes ?? DEFAULT_INTERVAL_MINUTES) / 60));
   const next = new Date(after);
   next.setUTCMinutes(job.minute ?? 0, 0, 0);
-  next.setUTCHours(next.getUTCHours() + 1);
+  if (next.getTime() <= after.getTime()) next.setUTCHours(next.getUTCHours() + 1);
   const offset = next.getUTCHours() % interval;
   if (offset !== 0) next.setUTCHours(next.getUTCHours() + interval - offset);
   return next;
