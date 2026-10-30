@@ -61,7 +61,7 @@ export async function queueVoiceReview(w,body,userId){
   s.jobs.push(j);event(s,'audition-requested',userId,{projectId:p.id,jobId:j.id,profile,settings,factsReviewed:true,sourceScript:p.script,reviewedScript:script});return j;
  });
 }
-async function generate(w,request,key,fetcher,jobId){
+export async function generateVoiceSource(w,request,key,fetcher,jobId){
  const hash=digest(request);let record=(await w.snapshot()).state.voiceGenerationRecords?.[hash];if(record)return record;
  await w.update(s=>{s.narrationRequests??={};if(s.narrationRequests[hash])throw Error('Previous generation outcome is unresolved. Check provider history before retrying; no automatic paid retry.');s.narrationRequests[hash]={jobId,requestedAt:timestamp()};return true;});
  const r=await fetcher('https://api.elevenlabs.io/v1/text-to-speech/'+encodeURIComponent(request.voiceId)+'/with-timestamps',{method:'POST',headers:{'xi-api-key':key,'Content-Type':'application/json'},body:JSON.stringify(request.payload),signal:AbortSignal.timeout(120000)});
@@ -110,7 +110,7 @@ export async function runVoiceReview(w,id,key,fetcher=fetch){
   if(q.trial){payload.model_id='eleven_v3';payload.text=trialText(text,q.trial);payload.seed=365;payload.voice_settings={speed:settings.speed,stability:.5,style:settings.style,similarity_boost:.75,use_speaker_boost:false};delete payload.pronunciation_dictionary_locators;}
   if(parent){payload.previous_text=parent.segments.slice(0,q.sentenceIndex).map(s=>s.text).join('');payload.next_text=parent.segments.slice(q.sentenceIndex+1).map(s=>s.text).join('');}
   await patchWorkspaceJob(w,id,{stage:'Generating audition; production voice unchanged',progress:20});
-  const record=await generate(w,{voiceId:q.voiceId,payload,...(q.trial?{trial:q.trial}:{})},key,fetcher,id);
+  const record=await generateVoiceSource(w,{voiceId:q.voiceId,payload,...(q.trial?{trial:q.trial}:{})},key,fetcher,id);
   let segments;if(q.trial){const alignment=cleanTrialAlignment(text,record.alignment);timedPlan(text,alignment,record.duration,[{duration:1}],30);segments=[{text,asset:record.asset,start:0,end:record.duration,settings:{...settings,pause:0},profile:q.profile,alignment}];}else if(parent){segments=structuredClone(parent.segments);const replacement=partsFrom(record,text,settings,q.profile);if(replacement.length!==1)throw Error('Use one sentence for sentence regeneration. Audio retained.');segments[q.sentenceIndex]=replacement[0];}else{segments=partsFrom(record,text,settings,q.profile);if(q.deliveryBrief){if(segments.length!==q.deliveryBrief.sentences.length)throw Error('Delivery cues no longer match sentence boundaries. Audio retained.');segments=segments.map((s,i)=>{const cue=q.deliveryBrief.sentences[i];if(s.text.trim()!==cue.text.trim())throw Error('Delivery cue text does not match audio.');return {...s,settings:{...s.settings,pause:cue.pauseAfterSeconds},direction:cue.direction,suggestedDelivery:cue.delivery};});}}
   if((await w.snapshot()).state.jobs.find(j=>j.id===id)?.cancelRequestedAt)throw Error('Audition cancelled; generated source retained');
   await patchWorkspaceJob(w,id,{stage:'Preparing audio preview and caption timing',progress:70});

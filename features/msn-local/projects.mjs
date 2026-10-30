@@ -1,4 +1,5 @@
 /** Local draft persistence. No rendering, networking, or publication side effects. */
+import {FOOTBALL365_PROFILE,FOOTBALL365_TEMPLATE,football365Defaults} from './football365-profile.mjs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -15,7 +16,7 @@ const articleDefaults = {
   version: 1, width: 1920, height: 1080, fps: 30,
   title: '', heading: '', subheading: '', status: '', background: '#060d15',
   audio: { asset: '', volume: 1 }, audioLabel: '', srt: '', script: '', sourceUrl: '',
-  sourceCheckedAt: null, cutoutAssetId: '', deliveryBrief:null,
+  productionProfile:'', sourceCheckedAt: null, cutoutAssetId: '', deliveryBrief:null,
   scenes: [], music: { asset: '', start: 0, end: 0, timelineStart: 0, volume: 0.12, fadeIn: 0, fadeOut: 0 },
   burnCaptions: true, captionPreset: 'standard', captionTextColor:'#ffffff', captionHighlightColor:'#00ffff', voice: '', elevenlabsVoiceId: '',
 };
@@ -177,6 +178,7 @@ function applyPatch(previous, patch) {
   for (const [key, value] of Object.entries(patch)) {
     if (!fields.has(key)) throw Error(`Unsupported project field: ${key}`);
     if (['version', 'width', 'height', 'fps', 'captionPreset', 'captionTextColor', 'captionHighlightColor', 'voice', 'title'].includes(key)) result[key] = sceneModelSchema.shape[key].parse(value);
+    else if (key === 'productionProfile') result.productionProfile=z.enum(['',FOOTBALL365_PROFILE]).parse(value);
     else if (key === 'deliveryBrief') result.deliveryBrief=value===null?null:deliveryBriefSchema.parse(value);
     else if (key === 'metadata') result.metadata = metadata(value, result.metadata);
     else if (key === 'scenes') result.scenes = scenes(value);
@@ -289,7 +291,7 @@ export function createProjectStore(directory, { now = () => new Date(), persiste
     return p;
   }
   return {
-    async listTemplates() { return [...listTemplates(), ...(await operation()).templates]; },
+    async listTemplates() { return [...listTemplates(), ...(await operation()).templates.map(t=>t.id==='custom-98ba5413-c3cd-49bd-aca7-e2de4f18d130'?{...t,name:t.name+' · legacy layout'}:t)]; },
     async list({ trash = false } = {}) {
       return (await operation()).projects.filter(p => Boolean(p.trashedAt) === trash);
     },
@@ -300,7 +302,9 @@ export function createProjectStore(directory, { now = () => new Date(), persiste
       return operation((projects, stamp, data) => {
         const template = [...listTemplates(), ...data.templates].find(t => t.id === templateId);
         if (!template) throw Error('Unknown template');
-        const content = applyPatch(template.defaults, snapshot);
+        const defaults=clone(template.defaults);
+        if(templateId===FOOTBALL365_TEMPLATE||defaults.productionProfile===FOOTBALL365_PROFILE){Object.assign(defaults,football365Defaults(),{title:'New Football365 story',script:'',srt:'',audio:{asset:'',volume:1},audioLabel:'',deliveryBrief:null,sourceUrl:'',sourceCheckedAt:null,metadata:{description:'',tags:['Football365'],sourceUrl:'',language:'en-GB',seo:{title:'',description:'',tags:[]}}});}
+        const content = applyPatch(defaults, snapshot);
         const p = { ...content, id: randomUUID(), templateId, createdAt: stamp, updatedAt: stamp, trashedAt: null };
         projects.push(p);
         return p;
