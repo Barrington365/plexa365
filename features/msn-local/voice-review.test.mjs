@@ -36,11 +36,49 @@ test('v3 A/B auditions share settings, preserve whole audio and project, and can
  const fetcher=async(u,o)=>{if(String(u).includes('/v2/voices'))return f(u,o);const r=await f(u,o),d=await r.json();d.alignment.character_start_times_seconds=d.alignment.characters.map((_,i)=>i*.02);d.alignment.character_end_times_seconds=d.alignment.characters.map((_,i)=>(i+1)*.02);return Response.json(d);};
  const a=await make(w,p,fetcher,{trial:'plain',settings:{speed:.9}}),b=await make(w,p,fetcher,{trial:'subtle',settings:{speed:.9}});
  assert.equal(requests.length,2);assert.equal(requests[0].model_id,'eleven_v3');assert.equal(requests[1].model_id,'eleven_v3');assert.deepEqual(requests[0].voice_settings,requests[1].voice_settings);assert.equal(requests[0].seed,requests[1].seed);
- for(const c of [a,b]){assert.equal(c.script,p.script);assert.equal(c.segments.length,1);assert.ok(!c.srt.includes('['));assert.ok(parseSrt(c.srt).at(-1).end<=c.duration);assert.equal(c.settings.pause,0);await assert.rejects(selectVoicePreset(w,{projectId:p.id,candidateId:c.id},'editor'),/review-only/);await assert.rejects(applyVoiceCandidate(w,{projectId:p.id,candidateId:c.id},'editor'),/review-only/);}
+ for(const c of [a,b]){assert.equal(c.script,p.script);assert.equal(c.segments.length,2);assert.ok(!c.srt.includes('['));assert.ok(parseSrt(c.srt).at(-1).end<=c.duration);assert.equal(c.settings.pause,0);await assert.rejects(selectVoicePreset(w,{projectId:p.id,candidateId:c.id},'editor'),/review-only/);await assert.rejects(applyVoiceCandidate(w,{projectId:p.id,candidateId:c.id},'editor'),/review-only/);}
  assert.deepEqual(await w.projects.get(p.id),original);
 }));
 test('v3 invalid alignment retains paid source and retry uses cache rather than charging again',()=>fixture(async(w,p,f,requests)=>{
  const broken=async(u,o)=>{const r=await f(u,o);if(String(u).includes('/v2/voices'))return r;const d=await r.json();d.alignment.characters[0]='X';return Response.json(d);};
  for(let i=0;i<2;i++)await assert.rejects(make(w,p,broken,{trial:'plain'}),/differs/);
  assert.equal(requests.length,1);assert.equal(Object.keys((await w.snapshot()).state.voiceGenerationRecords).length,1);assert.equal((await readVoiceReview(w,p.id)).candidates.length,0);
+}));
+
+test('v3 sentence tags produce a separate timed candidate; Apply preserves defaults and is explicit',()=>fixture(async(w,p,f,requests,root)=>{
+ const fetcher=async(u,o)=>{const r=await f(u,o);if(String(u).includes('/v2/voices'))return r;const d=await r.json();d.alignment.character_start_times_seconds=d.alignment.characters.map((_,i)=>i*.02);d.alignment.character_end_times_seconds=d.alignment.characters.map((_,i)=>(i+1)*.02);return Response.json(d);};
+ const original=await w.projects.get(p.id),b=await make(w,p,fetcher,{trial:'subtle',settings:{speed:.9}});
+ assert.equal(b.segments.length,2);assert.deepEqual(b.segments[0].tags,['slowly']);
+ const edited=await make(w,p,fetcher,{parentId:b.id,sentenceIndex:1,sentenceText:'Next.',tagEdit:true,sentenceTags:'[softly] [short pause]',settings:{speed:.9}});
+ await assert.rejects(make(w,p,fetcher,{parentId:b.id,sentenceIndex:1,sentenceText:'Next.',tagEdit:true,sentenceTags:'[unsupported]'}),/supported bracketed/);
+ assert.equal(requests.length,2);assert.equal(requests[1].model_id,'eleven_v3');assert.equal(requests[1].text,'[softly] [short pause] Next.');assert.equal(requests[1].previous_text,undefined);
+ assert.deepEqual(edited.segments[0],b.segments[0]);assert.deepEqual(edited.segments[1].tags,['softly','short pause']);assert.equal(edited.script,p.script);assert.ok(!edited.srt.includes('['));assert.deepEqual(await w.projects.get(p.id),original);
+ await assert.rejects(applyVoiceCandidate(w,{projectId:p.id,candidateId:edited.id,expectedUpdatedAt:p.updatedAt},'editor'),/Review/);
+ await reviewVoiceCandidate(w,{projectId:p.id,candidateId:edited.id,ratings:{pronunciation:4,pacing:4,naturalness:4,clarity:4,emotion:4},notes:'Synthetic fixture only'},'editor');
+ await assert.rejects(selectVoicePreset(w,{projectId:p.id,candidateId:edited.id},'editor'),/defaults are unchanged/);
+ const saved=(await applyVoiceCandidate(w,{projectId:p.id,candidateId:edited.id,expectedUpdatedAt:p.updatedAt},'editor')).project;
+ assert.equal(saved.audio.asset,edited.asset);assert.equal(saved.srt,edited.srt);assert.equal(saved.burnCaptions,original.burnCaptions);assert.deepEqual((await readVoiceReview(w,p.id)).presets,[]);
+ const disk=createWorkspaceStore(diskObjectStore(root));assert.equal((await disk.projects.get(p.id)).audio.asset,edited.asset);assert.ok((await disk.getFile(b.asset)).bytes.length>0);
+ assert.ok((await readVoiceReview(w,p.id)).events.some(e=>e.type==='audition-generated'&&e.tags?.includes('softly')));
+}));
+test('invalid tags, incompatible model and stale edits never consume generation credits',()=>fixture(async(w,p,f,requests)=>{
+ const c=await make(w,p,f);
+ await assert.rejects(make(w,p,f,{parentId:c.id,sentenceIndex:0,sentenceText:'Hello.',tagEdit:true,sentenceTags:'[calm]'}),/Eleven v3/);
+ assert.equal(requests.length,1);
+}));
+
+import {parseExpressiveTags} from './voice-review.mjs';
+test('tag parsing rejects unsupported tags and free text before generation',()=>{
+ assert.deepEqual(parseExpressiveTags(''),[]);assert.deepEqual(parseExpressiveTags('[calm] [short pause]'),['calm','short pause']);
+ for(const value of ['speak calmly','[not a tag]','[calm','[calm] extra','[calm] '.repeat(5)])assert.throws(()=>parseExpressiveTags(value));
+});
+
+test('v3 sentence timing failure retains the paid response, and retry never charges again',()=>fixture(async(w,p,f,requests)=>{
+ const good=async(u,o)=>{const r=await f(u,o);if(String(u).includes('/v2/voices'))return r;const d=await r.json();d.alignment.character_start_times_seconds=d.alignment.characters.map((_,i)=>i*.02);d.alignment.character_end_times_seconds=d.alignment.characters.map((_,i)=>(i+1)*.02);return Response.json(d);};
+ const b=await make(w,p,good,{trial:'subtle'});const bad=async(u,o)=>{const r=await good(u,o);if(String(u).includes('/v2/voices'))return r;const d=await r.json();d.alignment.characters[d.alignment.characters.indexOf('N')]='X';return Response.json(d);};
+ const edit={parentId:b.id,sentenceIndex:1,sentenceText:'Next.',tagEdit:true,sentenceTags:'[softly]'};
+ for(let i=0;i<2;i++)await assert.rejects(make(w,p,bad,edit),/differs/);
+ assert.equal(requests.length,2);assert.deepEqual(await w.projects.get(p.id),p);
+ const changed=await w.projects.save(p.id,{script:'Changed facts.'},p.updatedAt);
+ await assert.rejects(make(w,changed,good,edit),/script changed/);assert.equal(requests.length,2);
 }));

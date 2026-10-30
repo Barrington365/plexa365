@@ -25,7 +25,19 @@ function event(s,type,userId,details){s.voiceEditorialEvents??=[];s.voiceEditori
 function projectOf(s,id){const p=s.projects.find(p=>p.id===id&&!p.trashedAt);if(!p)throw Error('Project unavailable');return p;}
 function candidateOf(s,id,projectId){const c=s.voiceCandidates?.find(c=>c.id===id&&c.projectId===projectId);if(!c)throw Error('Narration candidate unavailable');return c;}
 export function sentenceSpans(script){return [...new Intl.Segmenter('en-GB',{granularity:'sentence'}).segment(script)].map(x=>({text:x.segment,start:x.index,end:x.index+x.segment.length}));}
-export async function readVoiceReview(w,projectId){const {state:s}=await w.snapshot();projectOf(s,projectId);return {candidates:(s.voiceCandidates||[]).filter(c=>c.projectId===projectId).map(({alignment,...c})=>c),presets:s.voiceBrandPresets||[],events:(s.voiceEditorialEvents||[]).filter(e=>e.projectId===projectId)};}
+export const expressiveTags=['slowly','calm','short pause','long pause','softly','whispering','excited','curious','thoughtful','serious','chuckling','sighing'];
+export function parseExpressiveTags(value){
+ if(typeof value!=='string'||value.length>200)throw Error('Use up to four bracketed delivery tags');
+ const tags=[...value.matchAll(/\[([^\[\]]+)\]/g)].map(x=>x[1]);
+ if(tags.length>4||value.replace(/\[[^\[\]]+\]/g,'').trim()||tags.some(t=>!expressiveTags.includes(t)))throw Error('Choose supported bracketed delivery tags, or leave blank for neutral speech');
+ return tags;
+}
+function editableSegments(c){
+ if(c.model!=='eleven_v3'||c.tagEdit)return c.segments;
+ const parts=partsFrom({asset:c.asset,duration:c.duration,alignment:c.alignment},c.script,{...c.settings,pause:0},c.profile);
+ return parts.map((s,i)=>({...s,timelineStart:s.start,tags:c.trial==='subtle'?(i===0?['slowly']:i===Math.floor(parts.length/2)?['short pause']:i===parts.length-1?['calm']:[]):[]}));
+}
+export async function readVoiceReview(w,projectId){const {state:s}=await w.snapshot();projectOf(s,projectId);return {candidates:(s.voiceCandidates||[]).filter(c=>c.projectId===projectId).map(c=>{const {alignment,...publicCandidate}=c;return {...publicCandidate,segments:editableSegments(c)};}),presets:s.voiceBrandPresets||[],events:(s.voiceEditorialEvents||[]).filter(e=>e.projectId===projectId)};}
 export function trialText(script,mode){
  if(!['plain','subtle'].includes(mode))throw Error('Unknown tag trial');
  if(/[\[\]<>]/.test(script))throw Error('Use clean spoken text for the comparison');
@@ -34,10 +46,10 @@ export function trialText(script,mode){
  const spans=sentenceSpans(script);
  return spans.map((s,i)=>(i===0?'[slowly] ':i===Math.floor(spans.length/2)?'[short pause] ':i===spans.length-1?'[calm] ':'')+s.text).join('');
 }
-export function cleanTrialAlignment(script,alignment){
+export function cleanTrialAlignment(script,alignment,allowedTags=['slowly','short pause','calm']){
  if(!alignment||!Array.isArray(alignment.characters))throw Error('Missing trial timing; generated audio retained');
  const raw=alignment.characters,keep=[];let inTag=false,tag='';
- for(let i=0;i<raw.length;i++){if(raw[i]==='['){if(inTag)throw Error('Invalid provider tag timing');inTag=true;tag='';continue;}if(inTag){if(raw[i]===']'){if(!['slowly','short pause','calm'].includes(tag))throw Error('Unexpected provider tag; audio retained for review');inTag=false;}else tag+=raw[i];continue;}keep.push(i);}
+ for(let i=0;i<raw.length;i++){if(raw[i]==='['){if(inTag)throw Error('Invalid provider tag timing');inTag=true;tag='';continue;}if(inTag){if(raw[i]===']'){if(!allowedTags.includes(tag))throw Error('Unexpected provider tag; audio retained for review');inTag=false;}else tag+=raw[i];continue;}keep.push(i);}
  if(inTag)throw Error('Incomplete provider tag timing');
  const out={characters:[],character_start_times_seconds:[],character_end_times_seconds:[]};let at=0;
  for(const c of script){while(at<keep.length&&raw[keep[at]]!==c&&/\s/.test(raw[keep[at]]))at++;const i=keep[at++];if(i===undefined||raw[i]!==c)throw Error('Trial transcript differs from the clean script. Audio retained; timing needs review');out.characters.push(c);out.character_start_times_seconds.push(alignment.character_start_times_seconds[i]);out.character_end_times_seconds.push(alignment.character_end_times_seconds[i]);}
@@ -52,12 +64,13 @@ export async function queueVoiceReview(w,body,userId){
   if(body.factsReviewed!==true)throw Error('Review the script against the source before generation');
   const script=(body.script??p.script)?.trim();if(typeof script!=='string'||!script.trim()||script.length>10000)throw Error('Use a script of 1–10,000 characters');
   if(sentenceSpans(script).length>100)throw Error('Use at most 100 sentences per audition');
+  if(body.tagEdit===true&&(!body.parentId||body.trial))throw Error('Select a v3 sentence candidate for tag editing');
   if(body.trial){trialText(script,body.trial);if(body.parentId)throw Error('Trial sentence regeneration is not available');}
   const settings=voiceReviewSettings.parse(body.settings||{});if(body.trial){if(settings.dictionaries.length)throw Error('Pronunciation dictionaries are not enabled for this v3 trial');settings.stability=.5;settings.pause=0;}const profile=body.profile||'journalist';if(!Object.hasOwn(deliveryProfiles,profile))throw Error('Unknown delivery profile');
   let brief=null;if(body.useDeliveryBrief&&!body.parentId&&!body.trial){brief=p.deliveryBrief;if(!brief||brief.script!==script)throw Error('Script changed since the OpenAI delivery brief. Review cues or turn off imported directions before generating');}
   let parent;
-  if(body.parentId){parent=candidateOf(s,body.parentId,p.id);if(parent.trial)throw Error('Trial sentence regeneration is not available');if(!Number.isInteger(body.sentenceIndex)||!parent.segments[body.sentenceIndex])throw Error('Select a sentence');if(body.voiceId!==parent.voiceId)throw Error('Keep the same voice when regenerating a sentence');if(typeof body.sentenceText!=='string'||!body.sentenceText.trim()||body.sentenceText.length>2000)throw Error('Enter the reviewed sentence');if(sentenceSpans(body.sentenceText.trim()).length!==1)throw Error('Regenerate one sentence at a time');}
-  const now=timestamp(),j={id:randomUUID(),createdBy:userId,createdAt:now,updatedAt:now,status:'queued',stage:'Voice audition queued',progress:0,request:{kind:'voice-review',projectId:p.id,projectRevision:p.updatedAt,title:p.title,script,sourceScript:p.script,voiceId:body.voiceId,settings,profile,trial:body.trial||null,deliveryBrief:brief,...(parent?{parentId:parent.id,sentenceIndex:body.sentenceIndex,sentenceText:body.sentenceText}:{} )}};
+  if(body.parentId){parent=candidateOf(s,body.parentId,p.id);if(body.tagEdit===true){if(parent.sourceScript?.trim()!==p.script.trim()&&parent.script.trim()!==p.script.trim())throw Error('Project script changed since this candidate; create a fresh audition');if(parent.model!=='eleven_v3')throw Error('Sentence tags require an Eleven v3 candidate');parseExpressiveTags(body.sentenceTags);if(/[\[\]<>]/.test(body.sentenceText||''))throw Error('Keep spoken text clean; put tags in the delivery field');if(settings.dictionaries.length)throw Error('Pronunciation dictionaries are not enabled for v3 tags');settings.stability=.5;settings.pause=0;parent={...parent,segments:editableSegments(parent)};}else if(parent.trial||parent.tagEdit)throw Error('Use v3 sentence tag editing for this candidate');if(!Number.isInteger(body.sentenceIndex)||!parent.segments[body.sentenceIndex])throw Error('Select a sentence');if(body.voiceId!==parent.voiceId)throw Error('Keep the same voice when regenerating a sentence');if(typeof body.sentenceText!=='string'||!body.sentenceText.trim()||body.sentenceText.length>2000)throw Error('Enter the reviewed sentence');if(sentenceSpans(body.sentenceText.trim()).length!==1)throw Error('Regenerate one sentence at a time');}
+  const now=timestamp(),j={id:randomUUID(),createdBy:userId,createdAt:now,updatedAt:now,status:'queued',stage:'Voice audition queued',progress:0,request:{kind:'voice-review',projectId:p.id,projectRevision:p.updatedAt,title:p.title,script,sourceScript:p.script,voiceId:body.voiceId,settings,profile,trial:body.trial||null,deliveryBrief:brief,...(parent?{parentId:parent.id,sentenceIndex:body.sentenceIndex,sentenceText:body.sentenceText,tagEdit:body.tagEdit===true,sentenceTags:body.tagEdit===true?parseExpressiveTags(body.sentenceTags):[]}:{} )}};
   s.jobs.push(j);event(s,'audition-requested',userId,{projectId:p.id,jobId:j.id,profile,settings,factsReviewed:true,sourceScript:p.script,reviewedScript:script});return j;
  });
 }
@@ -104,18 +117,19 @@ export async function runVoiceReview(w,id,key,fetcher=fetch){
  const job=await w.update(s=>{const j=s.jobs.find(j=>j.id===id);if(!j||j.status!=='queued')throw Error('Voice job already claimed');j.status='running';j.startedAt=timestamp();j.updatedAt=timestamp();return j;});
  try{
   const q=job.request,voice=(await accountVoices(key,fetcher)).find(v=>v.id===q.voiceId);if(!voice)throw Error('Voice unavailable to connected account');
-  const state=(await w.snapshot()).state,parent=q.parentId?candidateOf(state,q.parentId,q.projectId):null;
-  const text=parent?q.sentenceText+(parent.segments[q.sentenceIndex].text.match(/\s+$/)?.[0]||' '):q.script;
+  const state=(await w.snapshot()).state;let parent=q.parentId?candidateOf(state,q.parentId,q.projectId):null;if(parent&&q.tagEdit)parent={...parent,segments:editableSegments(parent)};
+  const text=parent?q.sentenceText+(parent.segments[q.sentenceIndex].text.match(/\s+$/)?.[0]||''):q.script;
   const settings=q.settings,payload={text,model_id:'eleven_multilingual_v2',voice_settings:{speed:settings.speed,stability:settings.stability,style:settings.style,similarity_boost:.75,use_speaker_boost:false},pronunciation_dictionary_locators:settings.dictionaries};
   if(q.trial){payload.model_id='eleven_v3';payload.text=trialText(text,q.trial);payload.seed=365;payload.voice_settings={speed:settings.speed,stability:.5,style:settings.style,similarity_boost:.75,use_speaker_boost:false};delete payload.pronunciation_dictionary_locators;}
-  if(parent){payload.previous_text=parent.segments.slice(0,q.sentenceIndex).map(s=>s.text).join('');payload.next_text=parent.segments.slice(q.sentenceIndex+1).map(s=>s.text).join('');}
+  if(q.tagEdit){payload.model_id='eleven_v3';payload.text=q.sentenceTags.map(t=>'['+t+'] ').join('')+text;payload.seed=365;delete payload.pronunciation_dictionary_locators;}
+  if(parent&&!q.tagEdit){payload.previous_text=parent.segments.slice(0,q.sentenceIndex).map(s=>s.text).join('');payload.next_text=parent.segments.slice(q.sentenceIndex+1).map(s=>s.text).join('');}
   await patchWorkspaceJob(w,id,{stage:'Generating audition; production voice unchanged',progress:20});
-  const record=await generateVoiceSource(w,{voiceId:q.voiceId,payload,...(q.trial?{trial:q.trial}:{})},key,fetcher,id);
-  let segments;if(q.trial){const alignment=cleanTrialAlignment(text,record.alignment);timedPlan(text,alignment,record.duration,[{duration:1}],30);segments=[{text,asset:record.asset,start:0,end:record.duration,settings:{...settings,pause:0},profile:q.profile,alignment}];}else if(parent){segments=structuredClone(parent.segments);const replacement=partsFrom(record,text,settings,q.profile);if(replacement.length!==1)throw Error('Use one sentence for sentence regeneration. Audio retained.');segments[q.sentenceIndex]=replacement[0];}else{segments=partsFrom(record,text,settings,q.profile);if(q.deliveryBrief){if(segments.length!==q.deliveryBrief.sentences.length)throw Error('Delivery cues no longer match sentence boundaries. Audio retained.');segments=segments.map((s,i)=>{const cue=q.deliveryBrief.sentences[i];if(s.text.trim()!==cue.text.trim())throw Error('Delivery cue text does not match audio.');return {...s,settings:{...s.settings,pause:cue.pauseAfterSeconds},direction:cue.direction,suggestedDelivery:cue.delivery};});}}
+  const record=await generateVoiceSource(w,{voiceId:q.voiceId,payload,...(q.trial||q.tagEdit?{trial:q.trial||'sentence-tags'}:{})},key,fetcher,id);
+  let segments;if(q.tagEdit){const alignment=cleanTrialAlignment(text,record.alignment,q.sentenceTags);const replacement=partsFrom({...record,alignment},text,settings,q.profile);if(replacement.length!==1)throw Error('Use one sentence; generated audio retained');segments=structuredClone(parent.segments);segments[q.sentenceIndex]={...replacement[0],tags:q.sentenceTags};}else if(q.trial){const alignment=cleanTrialAlignment(text,record.alignment);timedPlan(text,alignment,record.duration,[{duration:1}],30);segments=[{text,asset:record.asset,start:0,end:record.duration,settings:{...settings,pause:0},profile:q.profile,alignment}];}else if(parent){segments=structuredClone(parent.segments);const replacement=partsFrom(record,text,settings,q.profile);if(replacement.length!==1)throw Error('Use one sentence for sentence regeneration. Audio retained.');segments[q.sentenceIndex]=replacement[0];}else{segments=partsFrom(record,text,settings,q.profile);if(q.deliveryBrief){if(segments.length!==q.deliveryBrief.sentences.length)throw Error('Delivery cues no longer match sentence boundaries. Audio retained.');segments=segments.map((s,i)=>{const cue=q.deliveryBrief.sentences[i];if(s.text.trim()!==cue.text.trim())throw Error('Delivery cue text does not match audio.');return {...s,settings:{...s.settings,pause:cue.pauseAfterSeconds},direction:cue.direction,suggestedDelivery:cue.delivery};});}}
   if((await w.snapshot()).state.jobs.find(j=>j.id===id)?.cancelRequestedAt)throw Error('Audition cancelled; generated source retained');
   await patchWorkspaceJob(w,id,{stage:'Preparing audio preview and caption timing',progress:70});
-  const candidateId=randomUUID(),audio=await assembleCandidate(w,segments,candidateId),candidate={id:candidateId,projectId:q.projectId,projectRevision:q.projectRevision,sourceScript:q.sourceScript,profile:parent?.profile||q.profile,settings:parent?.settings||settings,voiceId:q.voiceId,voiceName:voice.name,model:payload.model_id,trial:q.trial||null,directedText:q.trial?payload.text:null,...audio,parentId:q.parentId||null,createdAt:timestamp(),status:'awaiting-editor'};
-  await w.update(s=>{s.voiceCandidates??=[];s.voiceCandidates.push(candidate);event(s,'audition-generated',job.createdBy,{projectId:q.projectId,candidateId,profile:q.profile,parentId:q.parentId||null,sentenceIndex:q.sentenceIndex??null});return true;});
+  const candidateId=randomUUID(),audio=await assembleCandidate(w,segments,candidateId),candidate={id:candidateId,projectId:q.projectId,projectRevision:q.projectRevision,sourceScript:q.sourceScript,profile:parent?.profile||q.profile,settings:parent?.settings||settings,voiceId:q.voiceId,voiceName:voice.name,model:payload.model_id,trial:q.trial||null,tagEdit:q.tagEdit===true,directedText:q.trial?payload.text:null,...audio,parentId:q.parentId||null,createdAt:timestamp(),status:'awaiting-editor'};
+  await w.update(s=>{s.voiceCandidates??=[];s.voiceCandidates.push(candidate);event(s,'audition-generated',job.createdBy,{projectId:q.projectId,candidateId,profile:q.profile,parentId:q.parentId||null,sentenceIndex:q.sentenceIndex??null,tags:q.sentenceTags||[],previousTags:parent?.segments[q.sentenceIndex]?.tags||[]});return true;});
   await patchWorkspaceJob(w,id,{status:'complete',progress:100,stage:'Audition ready for editorial review; production voice unchanged',result:{candidateId,projectId:q.projectId}});
  }catch(e){await patchWorkspaceJob(w,id,{status:'failed',stage:e.message});throw e;}
 }
@@ -125,18 +139,19 @@ export async function reviewVoiceCandidate(w,body,userId){
  return w.update(s=>{projectOf(s,body.projectId);const c=candidateOf(s,body.candidateId,body.projectId);c.review={notes:body.notes,ratings,reviewedBy:userId,updatedAt:timestamp()};event(s,'audition-reviewed',userId,{projectId:c.projectId,candidateId:c.id,...c.review});return c.review;});
 }
 export async function selectVoicePreset(w,body,userId){
- return w.update(s=>{projectOf(s,body.projectId);const c=candidateOf(s,body.candidateId,body.projectId);if(c.trial)throw Error('This v3 trial is review-only; production remains unchanged');if(!c.review)throw Error('Compare pronunciation, pacing, naturalness, clarity and emotion before selecting');
+ return w.update(s=>{projectOf(s,body.projectId);const c=candidateOf(s,body.candidateId,body.projectId);if(c.tagEdit)throw Error('Sentence edits apply to this project; Football365 defaults are unchanged');if(c.trial)throw Error('This v3 trial is review-only; production remains unchanged');if(!c.review)throw Error('Compare pronunciation, pacing, naturalness, clarity and emotion before selecting');
   const preset={id:'football365',name:'Football365 · '+deliveryProfiles[c.profile].label,voiceId:c.voiceId,voiceName:c.voiceName,settings:c.settings,candidateId:c.id,selectedBy:userId,updatedAt:timestamp()};s.voiceBrandPresets=(s.voiceBrandPresets||[]).filter(p=>p.id!=='football365');s.voiceBrandPresets.push(preset);event(s,'brand-preset-selected',userId,{projectId:c.projectId,candidateId:c.id,preset});return preset;
  });
 }
 export async function applyVoiceCandidate(w,body,userId){
  return w.update(async state=>{const p=projectOf(state,body.projectId),c=candidateOf(state,body.candidateId,p.id);
  if(c.trial)throw Error('This v3 trial is review-only; production remains unchanged');
- if(!c.review||!state.voiceBrandPresets?.some(x=>x.candidateId===c.id))throw Error('Review and select this candidate before applying');
+ if(!c.review||(!c.tagEdit&&!state.voiceBrandPresets?.some(x=>x.candidateId===c.id)))throw Error('Review and select this candidate before applying');
+ if(c.tagEdit&&p.script!==c.sourceScript)throw Error('Project script changed since this audition. Create a fresh preview before applying');
  if(p.updatedAt!==body.expectedUpdatedAt)throw Error('Project changed. Reload before applying');
  const plan=timedPlan(c.script,c.alignment,c.duration,p.scenes,p.fps);
  if(p.scenes.some((s,i)=>s.video?.asset&&plan.scenes[i].duration>s.duration+.001))throw Error('This narration needs longer background footage. Extend scene coverage before applying; no frozen frames are added.');
- let music=p.music;if(music?.asset){const available=Math.min(music.end-music.start,plan.duration-(music.timelineStart||0));if(available<=0)throw Error('Music starts after the new ending. Adjust its timing first.');music={...music,end:music.start+available,fadeIn:Math.min(music.fadeIn||0,available/2),fadeOut:Math.min(music.fadeOut||0,available/2),ducking:true};}
+ let music=p.music;if(music?.asset){const available=Math.min(music.end-music.start,plan.duration-(music.timelineStart||0));if(available<=0)throw Error('Music starts after the new ending. Adjust its timing first.');music={...music,end:music.start+available,fadeIn:Math.min(music.fadeIn||0,available/2),fadeOut:Math.min(music.fadeOut||0,available/2),ducking:c.tagEdit?music.ducking:true};}
  const projectStore=createProjectStore('/unused',{persistence:{read:async()=>state,update:async fn=>fn(state)}});
  const saved=await projectStore.save(p.id,{script:c.script,voice:c.voiceName,elevenlabsVoiceId:c.voiceId,audioLabel:'Editor selected · '+c.createdAt,audio:{asset:c.asset,volume:1},srt:c.srt,scenes:plan.scenes,music},p.updatedAt);
  event(state,'candidate-applied',userId,{projectId:p.id,candidateId:c.id,previousAudio:p.audio,previousScript:p.script,previousSrt:p.srt,projectUpdatedAt:saved.updatedAt});return {project:saved,rebuildRequired:true};});
