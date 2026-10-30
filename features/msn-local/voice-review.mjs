@@ -26,6 +26,24 @@ function projectOf(s,id){const p=s.projects.find(p=>p.id===id&&!p.trashedAt);if(
 function candidateOf(s,id,projectId){const c=s.voiceCandidates?.find(c=>c.id===id&&c.projectId===projectId);if(!c)throw Error('Narration candidate unavailable');return c;}
 export function sentenceSpans(script){return [...new Intl.Segmenter('en-GB',{granularity:'sentence'}).segment(script)].map(x=>({text:x.segment,start:x.index,end:x.index+x.segment.length}));}
 export async function readVoiceReview(w,projectId){const {state:s}=await w.snapshot();projectOf(s,projectId);return {candidates:(s.voiceCandidates||[]).filter(c=>c.projectId===projectId).map(({alignment,...c})=>c),presets:s.voiceBrandPresets||[],events:(s.voiceEditorialEvents||[]).filter(e=>e.projectId===projectId)};}
+export function trialText(script,mode){
+ if(!['plain','subtle'].includes(mode))throw Error('Unknown tag trial');
+ if(/[\[\]<>]/.test(script))throw Error('Use clean spoken text for the comparison');
+ if(script.length>4500)throw Error('Use at most 4,500 characters for the v3 trial');
+ if(mode==='plain')return script;
+ const spans=sentenceSpans(script);
+ return spans.map((s,i)=>(i===0?'[slowly] ':i===Math.floor(spans.length/2)?'[short pause] ':i===spans.length-1?'[calm] ':'')+s.text).join('');
+}
+export function cleanTrialAlignment(script,alignment){
+ if(!alignment||!Array.isArray(alignment.characters))throw Error('Missing trial timing; generated audio retained');
+ const raw=alignment.characters,keep=[];let inTag=false,tag='';
+ for(let i=0;i<raw.length;i++){if(raw[i]==='['){if(inTag)throw Error('Invalid provider tag timing');inTag=true;tag='';continue;}if(inTag){if(raw[i]===']'){if(!['slowly','short pause','calm'].includes(tag))throw Error('Unexpected provider tag; audio retained for review');inTag=false;}else tag+=raw[i];continue;}keep.push(i);}
+ if(inTag)throw Error('Incomplete provider tag timing');
+ const out={characters:[],character_start_times_seconds:[],character_end_times_seconds:[]};let at=0;
+ for(const c of script){while(at<keep.length&&raw[keep[at]]!==c&&/\s/.test(raw[keep[at]]))at++;const i=keep[at++];if(i===undefined||raw[i]!==c)throw Error('Trial transcript differs from the clean script. Audio retained; timing needs review');out.characters.push(c);out.character_start_times_seconds.push(alignment.character_start_times_seconds[i]);out.character_end_times_seconds.push(alignment.character_end_times_seconds[i]);}
+ if(keep.slice(at).some(i=>!/\s/.test(raw[i])))throw Error('Unexpected spoken text in trial timing');
+ return out;
+}
 export async function queueVoiceReview(w,body,userId){
  return w.update(s=>{
   const p=projectOf(s,body.projectId);if(p.updatedAt!==body.expectedUpdatedAt)throw Error('Project changed. Reload before auditioning.');
@@ -34,11 +52,12 @@ export async function queueVoiceReview(w,body,userId){
   if(body.factsReviewed!==true)throw Error('Review the script against the source before generation');
   const script=(body.script??p.script)?.trim();if(typeof script!=='string'||!script.trim()||script.length>10000)throw Error('Use a script of 1–10,000 characters');
   if(sentenceSpans(script).length>100)throw Error('Use at most 100 sentences per audition');
-  const settings=voiceReviewSettings.parse(body.settings||{}),profile=body.profile||'journalist';if(!Object.hasOwn(deliveryProfiles,profile))throw Error('Unknown delivery profile');
-  let brief=null;if(body.useDeliveryBrief&&!body.parentId){brief=p.deliveryBrief;if(!brief||brief.script!==script)throw Error('Script changed since the OpenAI delivery brief. Review cues or turn off imported directions before generating');}
+  if(body.trial){trialText(script,body.trial);if(body.parentId)throw Error('Trial sentence regeneration is not available');}
+  const settings=voiceReviewSettings.parse(body.settings||{});if(body.trial){if(settings.dictionaries.length)throw Error('Pronunciation dictionaries are not enabled for this v3 trial');settings.stability=.5;settings.pause=0;}const profile=body.profile||'journalist';if(!Object.hasOwn(deliveryProfiles,profile))throw Error('Unknown delivery profile');
+  let brief=null;if(body.useDeliveryBrief&&!body.parentId&&!body.trial){brief=p.deliveryBrief;if(!brief||brief.script!==script)throw Error('Script changed since the OpenAI delivery brief. Review cues or turn off imported directions before generating');}
   let parent;
-  if(body.parentId){parent=candidateOf(s,body.parentId,p.id);if(!Number.isInteger(body.sentenceIndex)||!parent.segments[body.sentenceIndex])throw Error('Select a sentence');if(body.voiceId!==parent.voiceId)throw Error('Keep the same voice when regenerating a sentence');if(typeof body.sentenceText!=='string'||!body.sentenceText.trim()||body.sentenceText.length>2000)throw Error('Enter the reviewed sentence');if(sentenceSpans(body.sentenceText.trim()).length!==1)throw Error('Regenerate one sentence at a time');}
-  const now=timestamp(),j={id:randomUUID(),createdBy:userId,createdAt:now,updatedAt:now,status:'queued',stage:'Voice audition queued',progress:0,request:{kind:'voice-review',projectId:p.id,projectRevision:p.updatedAt,title:p.title,script,sourceScript:p.script,voiceId:body.voiceId,settings,profile,deliveryBrief:brief,...(parent?{parentId:parent.id,sentenceIndex:body.sentenceIndex,sentenceText:body.sentenceText}:{} )}};
+  if(body.parentId){parent=candidateOf(s,body.parentId,p.id);if(parent.trial)throw Error('Trial sentence regeneration is not available');if(!Number.isInteger(body.sentenceIndex)||!parent.segments[body.sentenceIndex])throw Error('Select a sentence');if(body.voiceId!==parent.voiceId)throw Error('Keep the same voice when regenerating a sentence');if(typeof body.sentenceText!=='string'||!body.sentenceText.trim()||body.sentenceText.length>2000)throw Error('Enter the reviewed sentence');if(sentenceSpans(body.sentenceText.trim()).length!==1)throw Error('Regenerate one sentence at a time');}
+  const now=timestamp(),j={id:randomUUID(),createdBy:userId,createdAt:now,updatedAt:now,status:'queued',stage:'Voice audition queued',progress:0,request:{kind:'voice-review',projectId:p.id,projectRevision:p.updatedAt,title:p.title,script,sourceScript:p.script,voiceId:body.voiceId,settings,profile,trial:body.trial||null,deliveryBrief:brief,...(parent?{parentId:parent.id,sentenceIndex:body.sentenceIndex,sentenceText:body.sentenceText}:{} )}};
   s.jobs.push(j);event(s,'audition-requested',userId,{projectId:p.id,jobId:j.id,profile,settings,factsReviewed:true,sourceScript:p.script,reviewedScript:script});return j;
  });
 }
@@ -55,7 +74,7 @@ async function generate(w,request,key,fetcher,jobId){
  record={asset:entry.asset,duration,alignment,generatedAt};
  await w.update(s=>{s.assets[entry.asset]=entry;s.voiceGenerationRecords??={};s.voiceGenerationRecords[hash]=record;delete s.narrationRequests[hash];return true;});
  // Validate only after persisting the paid response; mismatches must never cause another charge.
- timedPlan(request.payload.text,alignment,duration,request.payload.text.trim().split(/\n\s*\n/).map(()=>({duration:1})),30);
+ if(!request.trial)timedPlan(request.payload.text,alignment,duration,request.payload.text.trim().split(/\n\s*\n/).map(()=>({duration:1})),30);
  return record;
 }
 function partsFrom(record,script,settings,profile){
@@ -88,13 +107,14 @@ export async function runVoiceReview(w,id,key,fetcher=fetch){
   const state=(await w.snapshot()).state,parent=q.parentId?candidateOf(state,q.parentId,q.projectId):null;
   const text=parent?q.sentenceText+(parent.segments[q.sentenceIndex].text.match(/\s+$/)?.[0]||' '):q.script;
   const settings=q.settings,payload={text,model_id:'eleven_multilingual_v2',voice_settings:{speed:settings.speed,stability:settings.stability,style:settings.style,similarity_boost:.75,use_speaker_boost:false},pronunciation_dictionary_locators:settings.dictionaries};
+  if(q.trial){payload.model_id='eleven_v3';payload.text=trialText(text,q.trial);payload.seed=365;payload.voice_settings={speed:settings.speed,stability:.5,style:settings.style,similarity_boost:.75,use_speaker_boost:false};delete payload.pronunciation_dictionary_locators;}
   if(parent){payload.previous_text=parent.segments.slice(0,q.sentenceIndex).map(s=>s.text).join('');payload.next_text=parent.segments.slice(q.sentenceIndex+1).map(s=>s.text).join('');}
   await patchWorkspaceJob(w,id,{stage:'Generating audition; production voice unchanged',progress:20});
-  const record=await generate(w,{voiceId:q.voiceId,payload},key,fetcher,id);
-  let segments;if(parent){segments=structuredClone(parent.segments);const replacement=partsFrom(record,text,settings,q.profile);if(replacement.length!==1)throw Error('Use one sentence for sentence regeneration. Audio retained.');segments[q.sentenceIndex]=replacement[0];}else{segments=partsFrom(record,text,settings,q.profile);if(q.deliveryBrief){if(segments.length!==q.deliveryBrief.sentences.length)throw Error('Delivery cues no longer match sentence boundaries. Audio retained.');segments=segments.map((s,i)=>{const cue=q.deliveryBrief.sentences[i];if(s.text.trim()!==cue.text.trim())throw Error('Delivery cue text does not match audio.');return {...s,settings:{...s.settings,pause:cue.pauseAfterSeconds},direction:cue.direction,suggestedDelivery:cue.delivery};});}}
+  const record=await generate(w,{voiceId:q.voiceId,payload,...(q.trial?{trial:q.trial}:{})},key,fetcher,id);
+  let segments;if(q.trial){const alignment=cleanTrialAlignment(text,record.alignment);timedPlan(text,alignment,record.duration,[{duration:1}],30);segments=[{text,asset:record.asset,start:0,end:record.duration,settings:{...settings,pause:0},profile:q.profile,alignment}];}else if(parent){segments=structuredClone(parent.segments);const replacement=partsFrom(record,text,settings,q.profile);if(replacement.length!==1)throw Error('Use one sentence for sentence regeneration. Audio retained.');segments[q.sentenceIndex]=replacement[0];}else{segments=partsFrom(record,text,settings,q.profile);if(q.deliveryBrief){if(segments.length!==q.deliveryBrief.sentences.length)throw Error('Delivery cues no longer match sentence boundaries. Audio retained.');segments=segments.map((s,i)=>{const cue=q.deliveryBrief.sentences[i];if(s.text.trim()!==cue.text.trim())throw Error('Delivery cue text does not match audio.');return {...s,settings:{...s.settings,pause:cue.pauseAfterSeconds},direction:cue.direction,suggestedDelivery:cue.delivery};});}}
   if((await w.snapshot()).state.jobs.find(j=>j.id===id)?.cancelRequestedAt)throw Error('Audition cancelled; generated source retained');
   await patchWorkspaceJob(w,id,{stage:'Preparing audio preview and caption timing',progress:70});
-  const candidateId=randomUUID(),audio=await assembleCandidate(w,segments,candidateId),candidate={id:candidateId,projectId:q.projectId,projectRevision:q.projectRevision,sourceScript:q.sourceScript,profile:parent?.profile||q.profile,settings:parent?.settings||settings,voiceId:q.voiceId,voiceName:voice.name,...audio,parentId:q.parentId||null,createdAt:timestamp(),status:'awaiting-editor'};
+  const candidateId=randomUUID(),audio=await assembleCandidate(w,segments,candidateId),candidate={id:candidateId,projectId:q.projectId,projectRevision:q.projectRevision,sourceScript:q.sourceScript,profile:parent?.profile||q.profile,settings:parent?.settings||settings,voiceId:q.voiceId,voiceName:voice.name,model:payload.model_id,trial:q.trial||null,directedText:q.trial?payload.text:null,...audio,parentId:q.parentId||null,createdAt:timestamp(),status:'awaiting-editor'};
   await w.update(s=>{s.voiceCandidates??=[];s.voiceCandidates.push(candidate);event(s,'audition-generated',job.createdBy,{projectId:q.projectId,candidateId,profile:q.profile,parentId:q.parentId||null,sentenceIndex:q.sentenceIndex??null});return true;});
   await patchWorkspaceJob(w,id,{status:'complete',progress:100,stage:'Audition ready for editorial review; production voice unchanged',result:{candidateId,projectId:q.projectId}});
  }catch(e){await patchWorkspaceJob(w,id,{status:'failed',stage:e.message});throw e;}
@@ -105,12 +125,13 @@ export async function reviewVoiceCandidate(w,body,userId){
  return w.update(s=>{projectOf(s,body.projectId);const c=candidateOf(s,body.candidateId,body.projectId);c.review={notes:body.notes,ratings,reviewedBy:userId,updatedAt:timestamp()};event(s,'audition-reviewed',userId,{projectId:c.projectId,candidateId:c.id,...c.review});return c.review;});
 }
 export async function selectVoicePreset(w,body,userId){
- return w.update(s=>{projectOf(s,body.projectId);const c=candidateOf(s,body.candidateId,body.projectId);if(!c.review)throw Error('Compare pronunciation, pacing, naturalness, clarity and emotion before selecting');
+ return w.update(s=>{projectOf(s,body.projectId);const c=candidateOf(s,body.candidateId,body.projectId);if(c.trial)throw Error('This v3 trial is review-only; production remains unchanged');if(!c.review)throw Error('Compare pronunciation, pacing, naturalness, clarity and emotion before selecting');
   const preset={id:'football365',name:'Football365 · '+deliveryProfiles[c.profile].label,voiceId:c.voiceId,voiceName:c.voiceName,settings:c.settings,candidateId:c.id,selectedBy:userId,updatedAt:timestamp()};s.voiceBrandPresets=(s.voiceBrandPresets||[]).filter(p=>p.id!=='football365');s.voiceBrandPresets.push(preset);event(s,'brand-preset-selected',userId,{projectId:c.projectId,candidateId:c.id,preset});return preset;
  });
 }
 export async function applyVoiceCandidate(w,body,userId){
  return w.update(async state=>{const p=projectOf(state,body.projectId),c=candidateOf(state,body.candidateId,p.id);
+ if(c.trial)throw Error('This v3 trial is review-only; production remains unchanged');
  if(!c.review||!state.voiceBrandPresets?.some(x=>x.candidateId===c.id))throw Error('Review and select this candidate before applying');
  if(p.updatedAt!==body.expectedUpdatedAt)throw Error('Project changed. Reload before applying');
  const plan=timedPlan(c.script,c.alignment,c.duration,p.scenes,p.fps);

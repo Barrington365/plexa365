@@ -22,3 +22,25 @@ test('OpenAI pause metadata reaches audio assembly without being spoken, and sta
  const brief={sourceArticleId:'article',sourceFingerprint:'fingerprint',script:p.script,profile:'journalist',sentences:[{text:'Hello.',pauseAfterSeconds:.6,delivery:'neutral',direction:'Pause before the next fact.'},{text:'Next.',pauseAfterSeconds:0,delivery:'reflective',direction:'Stay measured.'}],pronunciationChecks:[],provider:'OpenAI',model:'gpt-4o-mini',promptVersion:'test',updatedAt:new Date().toISOString()};
  p=await w.projects.save(p.id,{deliveryBrief:brief},p.updatedAt);const c=await make(w,p,f,{useDeliveryBrief:true});assert.equal(requests[0].text,'Hello. Next.');assert.ok(!requests[0].text.includes('Pause'));assert.equal(c.segments[0].settings.pause,.6);assert.equal(c.segments[0].direction,'Pause before the next fact.');assert.ok(c.segments[1].timelineStart>1);await assert.rejects(queueVoiceReview(w,{...body(p),script:'Changed script.',useDeliveryBrief:true},'editor'),/Script changed/);
 }));
+
+import {trialText,cleanTrialAlignment} from './voice-review.mjs';
+test('subtle trial preserves every word; captions remove directions and retain provider timing',()=>{
+ const script='Carrick is committed. Bruno remains captain. United face Chelsea.';
+ const directed=trialText(script,'subtle');assert.equal(directed.replace(/\[[^\]]+\] /g,''),script);assert.equal(trialText(script,'plain'),script);
+ const chars=[...directed],a={characters:chars,character_start_times_seconds:chars.map((_,i)=>i*.02),character_end_times_seconds:chars.map((_,i)=>(i+1)*.02)};
+ const clean=cleanTrialAlignment(script,a);assert.equal(clean.characters.join(''),script);assert.equal(clean.character_start_times_seconds[0],directed.indexOf('Carrick')*.02);
+ assert.throws(()=>cleanTrialAlignment('Changed facts.',a),/differs/);assert.throws(()=>trialText('[laughing] News','subtle'),/clean/);
+});
+test('v3 A/B auditions share settings, preserve whole audio and project, and cannot change production',()=>fixture(async(w,p,f,requests)=>{
+ const original=await w.projects.get(p.id);
+ const fetcher=async(u,o)=>{if(String(u).includes('/v2/voices'))return f(u,o);const r=await f(u,o),d=await r.json();d.alignment.character_start_times_seconds=d.alignment.characters.map((_,i)=>i*.02);d.alignment.character_end_times_seconds=d.alignment.characters.map((_,i)=>(i+1)*.02);return Response.json(d);};
+ const a=await make(w,p,fetcher,{trial:'plain',settings:{speed:.9}}),b=await make(w,p,fetcher,{trial:'subtle',settings:{speed:.9}});
+ assert.equal(requests.length,2);assert.equal(requests[0].model_id,'eleven_v3');assert.equal(requests[1].model_id,'eleven_v3');assert.deepEqual(requests[0].voice_settings,requests[1].voice_settings);assert.equal(requests[0].seed,requests[1].seed);
+ for(const c of [a,b]){assert.equal(c.script,p.script);assert.equal(c.segments.length,1);assert.ok(!c.srt.includes('['));assert.ok(parseSrt(c.srt).at(-1).end<=c.duration);assert.equal(c.settings.pause,0);await assert.rejects(selectVoicePreset(w,{projectId:p.id,candidateId:c.id},'editor'),/review-only/);await assert.rejects(applyVoiceCandidate(w,{projectId:p.id,candidateId:c.id},'editor'),/review-only/);}
+ assert.deepEqual(await w.projects.get(p.id),original);
+}));
+test('v3 invalid alignment retains paid source and retry uses cache rather than charging again',()=>fixture(async(w,p,f,requests)=>{
+ const broken=async(u,o)=>{const r=await f(u,o);if(String(u).includes('/v2/voices'))return r;const d=await r.json();d.alignment.characters[0]='X';return Response.json(d);};
+ for(let i=0;i<2;i++)await assert.rejects(make(w,p,broken,{trial:'plain'}),/differs/);
+ assert.equal(requests.length,1);assert.equal(Object.keys((await w.snapshot()).state.voiceGenerationRecords).length,1);assert.equal((await readVoiceReview(w,p.id)).candidates.length,0);
+}));
