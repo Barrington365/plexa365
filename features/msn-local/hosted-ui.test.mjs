@@ -3,3 +3,5 @@ test('hosted UI mounts editor and API routes while retaining external article UR
 test('only named source pages can be served',()=>{assert.equal(workspacePage('projects'),'studio.html');assert.equal(workspacePage('../provider-config.mjs'),null);assert.equal(workspacePage('constructor'),null);});
 
 test('screen mapping browser module is explicitly included in the hosted deployment',async()=>{const fs=await import('node:fs/promises');const config=await fs.readFile(new URL('../../next.config.ts',import.meta.url),'utf8');assert.ok(config.includes('"./features/msn-local/screen-mapping.mjs"'));assert.equal(workspacePage('studio-screen-mapping.mjs'),'screen-mapping.mjs');});
+
+test('Automations is an authenticated workspace page with workspace navigation',()=>{assert.equal(workspacePage('automations'),'automations.html');assert.match(hostedUI("<a href='/automations'>Automations</a>"),/href='\/workspace\/automations'/);});
