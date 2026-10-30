@@ -51,3 +51,10 @@ test('production rebuild uses explicitly applied expression-only narration witho
  j=await queueWorkspaceRender(w,{projectId:p.id,factsReviewed:true},'editor');await runWorkspaceRender(w,j.id,{fetcher:()=>{throw Error('Applied delivery must not regenerate');}});
  assert.equal((await w.projects.get(p.id)).audio.asset,c.asset);assert.equal(calls.length,2);assert.equal(calls[1].voice_settings.style,.35);assert.equal(calls[1].voice_settings.speed,.9);
 }));
+
+test('Football365 keeps an explicitly applied 1.25x tempo during rebuild without paid regeneration',()=>fixture(async({w,p,fetcher,calls,media})=>{
+ await media();let j=await queueWorkspaceRender(w,{projectId:p.id,factsReviewed:true},'editor');await runWorkspaceRender(w,j.id,{key:'test',fetcher});p=await w.projects.get(p.id);const parent=(await w.snapshot()).state.voiceCandidates[0];
+ const noProvider=()=>{throw Error('Tempo must reuse audio');};const q=await queueVoiceReview(w,{projectId:p.id,expectedUpdatedAt:p.updatedAt,voiceId:parent.voiceId,factsReviewed:true,parentId:parent.id,tempoEdit:true,tempo:1.25},'editor');await runVoiceReview(w,q.id,'',noProvider);
+ const c=(await w.snapshot()).state.voiceCandidates.at(-1);p=(await applyVoiceCandidate(w,{projectId:p.id,candidateId:c.id,expectedUpdatedAt:p.updatedAt,editorApproval:true},'editor')).project;
+ j=await queueWorkspaceRender(w,{projectId:p.id,factsReviewed:true},'editor');await runWorkspaceRender(w,j.id,{fetcher:noProvider});assert.equal((await w.projects.get(p.id)).audio.asset,c.asset);assert.equal(calls.length,1);
+}));

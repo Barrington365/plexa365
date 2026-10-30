@@ -113,3 +113,12 @@ test('upbeat directions replace restrained delivery while preserving words and p
  assert.equal(next,'[excited] Opening.\n\n[excited] Second story. [short pause] More news.\n\n[excited] Closing.');
  assert.equal(next.replace(/\[[^\]]+\]\s*/g,''),original.replace(/\[[^\]]+\]\s*/g,''));
 });
+
+test('1.25x tempo uses existing audio only, retimes captions and never compounds a previous tempo',()=>fixture(async(w,p,f,requests)=>{
+ const source=await make(w,p,f);const noProvider=()=>{throw Error('Tempo must not call ElevenLabs');};
+ const faster=await make(w,p,noProvider,{parentId:source.id,tempoEdit:true,tempo:1.25});
+ assert.equal(requests.length,1);assert.equal(faster.tempo,1.25);assert.equal(faster.script,source.script);assert.ok(Math.abs(faster.duration-source.duration/1.25)<.15);const saved=(await w.snapshot()).state.voiceCandidates;assert.equal(saved.find(c=>c.id===faster.id).alignment.character_start_times_seconds[4],saved.find(c=>c.id===source.id).alignment.character_start_times_seconds[4]/1.25);
+ const reset=await make(w,p,noProvider,{parentId:faster.id,tempoEdit:true,tempo:1});assert.ok(Math.abs(reset.duration-source.duration)<.15);assert.equal(reset.tempoSourceId,source.id);
+ await assert.rejects(make(w,p,noProvider,{parentId:source.id,tempoEdit:true,tempo:3}));
+ const applied=await applyVoiceCandidate(w,{projectId:p.id,candidateId:faster.id,expectedUpdatedAt:p.updatedAt,editorApproval:true},'editor');assert.equal(applied.project.audio.asset,faster.asset);assert.equal(applied.project.script,p.script);
+}));
