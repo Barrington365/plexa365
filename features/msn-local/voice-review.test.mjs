@@ -99,7 +99,17 @@ test('delivery-only regeneration changes expressiveness but preserves model, wor
  assert.equal(c.deliveryEdit,true);assert.equal(c.trial,null);assert.equal(c.settings.style,.35);assert.equal(c.settings.speed,.9);assert.equal(c.settings.pause,0);assert.equal(c.settings.stability,.5);
  assert.equal(requests[1].text,requests[0].text);assert.equal(requests[1].model_id,requests[0].model_id);assert.deepEqual(requests[1].voice_settings,{...requests[0].voice_settings,style:.35});
  assert.equal(c.script,p.script);assert.deepEqual(await w.projects.get(p.id),p);
+ const upbeat=await make(w,p,provider,{parentId:c.id,deliveryEdit:true,deliveryTone:'upbeat',settings:{style:.35}});assert.match(requests[2].text,/\[excited\]/);assert.ok(!requests[2].text.includes('[slowly]'));assert.deepEqual(requests[2].voice_settings,requests[1].voice_settings);assert.equal(upbeat.script,p.script);assert.ok(!upbeat.srt.includes('['));
  await assert.rejects(applyVoiceCandidate(w,{projectId:p.id,candidateId:c.id,expectedUpdatedAt:p.updatedAt},'editor'),/Review/);
  await assert.rejects(selectVoicePreset(w,{projectId:p.id,candidateId:c.id},'editor'),/defaults are unchanged/);
  const applied=await applyVoiceCandidate(w,{projectId:p.id,candidateId:c.id,expectedUpdatedAt:p.updatedAt,editorApproval:true},'editor');assert.equal(applied.project.audio.asset,c.asset);assert.equal(applied.project.script,p.script);
 }));
+
+import {upbeatDeliveryText} from './voice-review.mjs';
+test('upbeat directions replace restrained delivery while preserving words and pause cues',()=>{
+ const original='[slowly] Opening.\n\nSecond story. [short pause] More news.\n\n[calm] Closing.';
+ const next=upbeatDeliveryText(original);
+ assert.equal(upbeatDeliveryText(next),next);
+ assert.equal(next,'[excited] Opening.\n\n[excited] Second story. [short pause] More news.\n\n[excited] Closing.');
+ assert.equal(next.replace(/\[[^\]]+\]\s*/g,''),original.replace(/\[[^\]]+\]\s*/g,''));
+});
