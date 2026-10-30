@@ -3,16 +3,17 @@ import {FOOTBALL365 as preset,FOOTBALL365_PROFILE,isFootball365Production,produc
 import {accountVoices,timedPlan} from './elevenlabs.mjs';
 import {trialText,cleanTrialAlignment,generateVoiceSource,assembleCandidate} from './voice-review.mjs';
 import {probe,run} from './engine.mjs';
-export function validateFootball365(p){
+export function validateFootball365(p,state){
  if(!isFootball365Production(p))throw Error('Choose Football365 News Studio automation');
  if(p.width!==1920||p.height!==1080||p.fps!==30)throw Error('Football365 News Studio requires 1920 × 1080 at 30 fps');
  if(!p.script?.trim())throw Error('Add and review the new article script before building');
  trialText(p.script.trim(),'subtle');
- if(p.script.trim().split(/\n\s*\n/).length!==p.scenes.length)throw Error('Use one narration paragraph per scene');
+ const continuousBrief=p.scenes.length===1&&!p.broadcast&&state?.voiceCandidates?.some(c=>c.projectId===p.id&&c.briefComparison&&c.asset===p.audio?.asset&&c.script===p.script.trim()&&state.voiceEditorialEvents?.some(e=>e.type==='candidate-applied'&&e.candidateId===c.id));
+ if(!continuousBrief&&p.script.trim().split(/\n\s*\n/).length!==p.scenes.length)throw Error('Use one narration paragraph per scene');
  if(!p.music?.asset)throw Error('Choose a backing track for Football365 News Studio');
 }
 export async function prepareFootball365(w,p,{root,key,fetcher=fetch,jobId,signal,onProgress}){
- validateFootball365(p);const preset=productionRecipe(p);const script=p.script.trim(),local=new Map();
+ let state=(await w.snapshot()).state;validateFootball365(p,state);const preset=productionRecipe(p);const script=p.script.trim(),local=new Map();
  async function media(asset){if(local.has(asset))return local.get(asset);const f=path.join(root,asset);await fs.mkdir(path.dirname(f),{recursive:true});await fs.writeFile(f,(await w.getFile(asset)).bytes);local.set(asset,f);return f;}
  // Resolve required media before any paid generation. Never silently omit branding.
  for(const clip of [preset.intro,preset.outro]){const meta=await probe(await media(clip.asset));if(meta.duration+.01<clip.duration)throw Error('Football365 intro/outro is too short');}
@@ -20,7 +21,7 @@ export async function prepareFootball365(w,p,{root,key,fetcher=fetch,jobId,signa
  const md=musicLog.match(/Duration: (\d+):(\d+):([\d.]+)/);if(!md||!musicLog.includes('Audio:'))throw Error('Backing music is unreadable');const musicDuration=Number(md[1])*3600+Number(md[2])*60+Number(md[3]);
  const coverage=new Map();for(const s of p.scenes){if(s.video?.asset)coverage.set(s.video.asset,await probe(await media(s.video.asset)));for(const l of s.layers||[])if(l.asset)await media(l.asset);}
  for(const story of p.broadcast?.stories||[])for(const asset of story.rightAssets)await media(asset);
- let state=(await w.snapshot()).state;
+ state=(await w.snapshot()).state;
  let record=(state.voiceCandidates||[]).find(c=>c.projectId===p.id&&(c.tagEdit||c.deliveryEdit||c.tempoEdit||c.briefComparison)&&c.asset===p.audio?.asset&&c.script===script&&c.voiceId===(c.briefComparison?p.elevenlabsVoiceId:preset.voiceId)&&c.model===preset.model&&state.voiceEditorialEvents?.some(e=>e.type==='candidate-applied'&&e.candidateId===c.id)) || (state.voiceCandidates||[]).find(c=>c.script===script&&c.voiceId===preset.voiceId&&c.model===preset.model&&c.trial==='subtle'&&c.settings.speed===.9&&c.settings.stability===.5&&c.settings.style===.15&&c.settings.pause===0);
  if(!record){
   if(signal?.aborted)throw Error('Cancelled');
@@ -35,7 +36,7 @@ export async function prepareFootball365(w,p,{root,key,fetcher=fetch,jobId,signa
  }
  if(signal?.aborted)throw Error('Cancelled');
  await media(record.asset);
- const plan=timedPlan(script,record.alignment,record.duration,p.scenes,p.fps);
+ const plan=timedPlan(script,record.alignment,record.duration,p.scenes,p.fps,{continuousScene:record.briefComparison&&!p.broadcast});
  for(const s of plan.scenes)if(s.video?.asset&&!s.video.loop&&s.duration+(s.video.start||0)>coverage.get(s.video.asset).duration+.01)throw Error('Narration exceeds background footage. Extend scene coverage; generated audio is retained.');
  if(!p.music.loop&&plan.duration+(p.music.start||0)>musicDuration+.01)throw Error('Backing track is shorter than narration. Choose longer music; generated audio is retained.');
  const music={...p.music,end:(p.music.start||0)+plan.duration,timelineStart:0,fadeIn:Math.min(1.5,plan.duration/2),fadeOut:Math.min(4,plan.duration/2)};

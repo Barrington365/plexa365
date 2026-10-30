@@ -22,7 +22,7 @@ export async function accountVoices(key,fetcher=fetch){
  return [...found.values()];
 }
 const stamp=t=>{const n=Math.round(t*1000);return `${String(Math.floor(n/3600000)).padStart(2,'0')}:${String(Math.floor(n/60000)%60).padStart(2,'0')}:${String(Math.floor(n/1000)%60).padStart(2,'0')},${String(n%1000).padStart(3,'0')}`;};
-export function timedPlan(script,alignment,duration,scenes,fps=30){
+export function timedPlan(script,alignment,duration,scenes,fps=30,{continuousScene=false}={}){
  const a=alignment;if(!a||!Array.isArray(a.characters)||a.characters.join('')!==script)throw Error('Provider timing does not match the script. Audio retained; review alignment before retrying.');
  const starts=a.character_start_times_seconds,ends=a.character_end_times_seconds;
  if(starts?.length!==a.characters.length||ends?.length!==starts.length)throw Error('Incomplete narration timestamps.');
@@ -33,8 +33,9 @@ export function timedPlan(script,alignment,duration,scenes,fps=30){
  if(cue)cues.push(cue);if(!cues.length||cues.some(c=>c.end<=c.start))throw Error('Missing timed speech.');
  for(let i=1;i<cues.length;i++)if(cues[i].start<cues[i-1].end)cues[i-1].end=cues[i].start;
  const paragraphs=[...script.matchAll(/\S[^]*?(?=\n\s*\n|$)/g)];
- if(paragraphs.length!==scenes.length)throw Error('Use one script paragraph per scene before generating.');
- const totalFrames=Math.ceil((duration+.25)*fps),boundaries=[0,...paragraphs.slice(1).map(m=>Math.round(starts[m.index]*fps)),totalFrames];
+ const continuous=continuousScene&&scenes.length===1;
+ if(!continuous&&paragraphs.length!==scenes.length)throw Error('Use one script paragraph per scene before generating.');
+ const totalFrames=Math.ceil((duration+.25)*fps),boundaries=[0,...(continuous?[]:paragraphs.slice(1).map(m=>Math.round(starts[m.index]*fps))),totalFrames];
  const next=scenes.map((s,i)=>({...s,duration:(boundaries[i+1]-boundaries[i])/fps}));
  if(next.some(s=>s.duration<.2||s.duration>1200))throw Error('Narration produced an unsupported scene duration.');
  return {scenes:next,srt:cues.map((c,i)=>`${i+1}\n${stamp(c.start)} --> ${stamp(c.end)}\n${c.text}`).join('\n\n'),duration:totalFrames/fps};

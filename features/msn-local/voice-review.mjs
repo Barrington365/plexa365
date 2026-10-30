@@ -189,8 +189,8 @@ export async function applyVoiceCandidate(w,body,userId){
  if((c.tagEdit||c.deliveryEdit||c.tempoEdit||c.briefComparison)&&p.script!==c.sourceScript)throw Error('Project script changed since this audition. Create a fresh preview before applying');
  if(p.updatedAt!==body.expectedUpdatedAt)throw Error('Project changed. Reload before applying');
  if(c.briefComparison&&p.broadcast&&c.script!==p.script)throw Error('Update the broadcast story scripts to match the reviewed brief before applying');
- if(c.briefComparison&&c.narrationBrief.script.split(/\n\s*\n/).length!==p.scenes.length)throw Error('Map one scene per brief paragraph before applying narration');
- const plan=timedPlan(c.script,c.alignment,c.duration,p.scenes,p.fps);
+ if(c.briefComparison&&!(p.scenes.length===1&&!p.broadcast)&&c.narrationBrief.script.split(/\n\s*\n/).length!==p.scenes.length)throw Error('Map one scene per brief paragraph before applying narration');
+ const plan=timedPlan(c.script,c.alignment,c.duration,p.scenes,p.fps,{continuousScene:c.briefComparison&&!p.broadcast});
  if(p.scenes.some((s,i)=>s.video?.asset&&!s.video.loop&&plan.scenes[i].duration>s.duration+.001))throw Error('This narration needs longer background footage. Extend scene coverage before applying; no frozen frames are added.');
  let music=p.music;if(music?.asset){const available=Math.min(music.end-music.start,plan.duration-(music.timelineStart||0));if(available<=0)throw Error('Music starts after the new ending. Adjust its timing first.');music={...music,end:music.start+available,fadeIn:Math.min(music.fadeIn||0,available/2),fadeOut:Math.min(music.fadeOut||0,available/2),ducking:c.tagEdit||c.deliveryEdit||c.tempoEdit||c.briefComparison?music.ducking:true};}
  const projectStore=createProjectStore('/unused',{persistence:{read:async()=>state,update:async fn=>fn(state)}});
