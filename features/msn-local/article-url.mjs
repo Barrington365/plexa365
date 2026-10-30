@@ -21,3 +21,6 @@ export async function fetchPublisherImage(url,fetcher=fetch){
  const r=await fetcher(u,{redirect:'error',signal:AbortSignal.timeout(15000)});if(!r.ok||!/^image\/(jpeg|png|webp)(;|$)/i.test(r.headers.get('content-type')||''))throw Error('Article image could not be fetched');
  const chunks=[];let size=0;for await(const chunk of r.body){size+=chunk.length;if(size>10_000_000)throw Error('Article image exceeds 10 MB');chunks.push(chunk);}return Buffer.concat(chunks);
 }
+
+/** Retry only rejected conditional writes; each attempt reads the latest saved state. */
+export async function retryImportConflict(operation){for(let attempt=0;attempt<4;attempt++){try{return await operation();}catch(error){if(attempt===3||!String(error.message).includes('Another editor'))throw error;}}}

@@ -1,3 +1,4 @@
+import {retryImportConflict} from './article-url.mjs';
 import fs from 'node:fs/promises';import os from 'node:os';import path from 'node:path';import {imageLibrary} from './images.mjs';import {assertAssetKey} from './workspace-store.mjs';
 /** Run existing image edits in an isolated scratch directory, then publish immutable results. */
 export async function workspaceImage(workspace,action,body){
@@ -14,7 +15,7 @@ export async function workspaceImage(workspace,action,body){
   else if(action==='edit')image=await library.edit(body);else throw Error('Unknown image action');
   const asset='images/'+image.id+'.png',entry=await workspace.putBytes(asset,await fs.readFile(library.file(image)),{name:image.name,updatedAt:image.updatedAt});
   let originalEntry;if(action==='import'){const originalAsset='images/original-files/'+image.id+'.bin';originalEntry=await workspace.putBytes(originalAsset,await fs.readFile(path.join(root,originalAsset)),{updatedAt:image.updatedAt});}
-  await workspace.update(s=>{s.assets[asset]=entry;if(originalEntry)s.assets[originalEntry.asset]=originalEntry;s.images.push(image);return true;});
+  await retryImportConflict(()=>workspace.update(s=>{s.assets[asset]=entry;if(originalEntry)s.assets[originalEntry.asset]=originalEntry;if(!s.images.some(i=>i.id===image.id))s.images.push(image);return true;}));
   return action==='import'?image:{image,asset};
  }finally{await fs.rm(root,{recursive:true,force:true});}
 }
