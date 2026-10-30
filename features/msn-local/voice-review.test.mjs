@@ -90,3 +90,15 @@ test('explicit Apply approves a sentence-tag candidate without inventing numeric
  const saved=await applyVoiceCandidate(w,{projectId:p.id,candidateId:c.id,expectedUpdatedAt:p.updatedAt,editorApproval:true},'editor');
  assert.equal(saved.project.audio.asset,c.asset);const candidate=(await readVoiceReview(w,p.id)).candidates.at(-1);assert.equal(candidate.review,undefined);assert.equal(candidate.approval.method,'explicit-apply');assert.equal(candidate.approval.approvedBy,'editor');
 }));
+
+test('delivery-only regeneration changes expressiveness but preserves model, words, tags, speed and pauses',()=>fixture(async(w,p,f,requests)=>{
+ const provider=async(u,o)=>{const r=await f(u,o);if(String(u).includes('/v2/voices'))return r;const d=await r.json();d.alignment.character_start_times_seconds=d.alignment.characters.map((_,i)=>i*.02);d.alignment.character_end_times_seconds=d.alignment.characters.map((_,i)=>(i+1)*.02);return Response.json(d);};
+ const b=await make(w,p,provider,{trial:'subtle',settings:{speed:.9,style:.15}});
+ const c=await make(w,p,provider,{parentId:b.id,deliveryEdit:true,settings:{style:.35,speed:1.2,pause:1,stability:.1}});
+ assert.equal(c.deliveryEdit,true);assert.equal(c.trial,null);assert.equal(c.settings.style,.35);assert.equal(c.settings.speed,.9);assert.equal(c.settings.pause,0);assert.equal(c.settings.stability,.5);
+ assert.equal(requests[1].text,requests[0].text);assert.equal(requests[1].model_id,requests[0].model_id);assert.deepEqual(requests[1].voice_settings,{...requests[0].voice_settings,style:.35});
+ assert.equal(c.script,p.script);assert.deepEqual(await w.projects.get(p.id),p);
+ await assert.rejects(applyVoiceCandidate(w,{projectId:p.id,candidateId:c.id,expectedUpdatedAt:p.updatedAt},'editor'),/Review/);
+ await assert.rejects(selectVoicePreset(w,{projectId:p.id,candidateId:c.id},'editor'),/defaults are unchanged/);
+ const applied=await applyVoiceCandidate(w,{projectId:p.id,candidateId:c.id,expectedUpdatedAt:p.updatedAt,editorApproval:true},'editor');assert.equal(applied.project.audio.asset,c.asset);assert.equal(applied.project.script,p.script);
+}));

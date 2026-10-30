@@ -42,3 +42,12 @@ test('three-minute finish preserves encoded body packets and complete branding w
   const body=await hashes(file),finished=new Set(await hashes(output.file));assert.equal(body.length,4410);assert.ok(body.every(h=>finished.has(h)),'Every compressed body packet survives unchanged');
  }finally{await fs.rm(root,{recursive:true,force:true});}
 });
+
+test('production rebuild uses explicitly applied expression-only narration without restoring old defaults',()=>fixture(async({w,p,fetcher,calls,media})=>{
+ await media();let j=await queueWorkspaceRender(w,{projectId:p.id,factsReviewed:true},'editor');await runWorkspaceRender(w,j.id,{key:'test',fetcher});
+ p=await w.projects.get(p.id);const parent=(await w.snapshot()).state.voiceCandidates[0];
+ const q=await queueVoiceReview(w,{projectId:p.id,expectedUpdatedAt:p.updatedAt,voiceId:parent.voiceId,factsReviewed:true,parentId:parent.id,deliveryEdit:true,settings:{style:.35}},'editor');await runVoiceReview(w,q.id,'test',fetcher);
+ const c=(await w.snapshot()).state.voiceCandidates.at(-1);p=(await applyVoiceCandidate(w,{projectId:p.id,candidateId:c.id,expectedUpdatedAt:p.updatedAt,editorApproval:true},'editor')).project;
+ j=await queueWorkspaceRender(w,{projectId:p.id,factsReviewed:true},'editor');await runWorkspaceRender(w,j.id,{fetcher:()=>{throw Error('Applied delivery must not regenerate');}});
+ assert.equal((await w.projects.get(p.id)).audio.asset,c.asset);assert.equal(calls.length,2);assert.equal(calls[1].voice_settings.style,.35);assert.equal(calls[1].voice_settings.speed,.9);
+}));

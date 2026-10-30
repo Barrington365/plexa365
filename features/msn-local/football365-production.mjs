@@ -21,7 +21,7 @@ export async function prepareFootball365(w,p,{root,key,fetcher=fetch,jobId,signa
  const coverage=new Map();for(const s of p.scenes){if(s.video?.asset)coverage.set(s.video.asset,await probe(await media(s.video.asset)));for(const l of s.layers||[])if(l.asset)await media(l.asset);}
  for(const story of p.broadcast?.stories||[])for(const asset of story.rightAssets)await media(asset);
  let state=(await w.snapshot()).state;
- let record=(state.voiceCandidates||[]).find(c=>c.projectId===p.id&&c.tagEdit&&c.asset===p.audio?.asset&&c.script===script&&c.voiceId===preset.voiceId&&c.model===preset.model&&state.voiceEditorialEvents?.some(e=>e.type==='candidate-applied'&&e.candidateId===c.id)) || (state.voiceCandidates||[]).find(c=>c.script===script&&c.voiceId===preset.voiceId&&c.model===preset.model&&c.trial==='subtle'&&c.settings.speed===.9&&c.settings.stability===.5&&c.settings.style===.15&&c.settings.pause===0);
+ let record=(state.voiceCandidates||[]).find(c=>c.projectId===p.id&&(c.tagEdit||c.deliveryEdit)&&c.asset===p.audio?.asset&&c.script===script&&c.voiceId===preset.voiceId&&c.model===preset.model&&state.voiceEditorialEvents?.some(e=>e.type==='candidate-applied'&&e.candidateId===c.id)) || (state.voiceCandidates||[]).find(c=>c.script===script&&c.voiceId===preset.voiceId&&c.model===preset.model&&c.trial==='subtle'&&c.settings.speed===.9&&c.settings.stability===.5&&c.settings.style===.15&&c.settings.pause===0);
  if(!record){
   if(signal?.aborted)throw Error('Cancelled');
   const voice=(await accountVoices(key,fetcher)).find(v=>v.id===preset.voiceId);if(!voice)throw Error('Selected Football365 voice is unavailable to the connected account. No voice substitution made.');
