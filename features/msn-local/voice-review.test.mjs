@@ -92,6 +92,7 @@ test('explicit Apply approves a sentence-tag candidate without inventing numeric
 }));
 
 test('delivery-only regeneration changes expressiveness but preserves model, words, tags, speed and pauses',()=>fixture(async(w,p,f,requests)=>{
+ p=await w.projects.save(p.id,{script:'Hello.\n\nNext.',scenes:[{id:'a',duration:2,background:'#000000',layers:[]},{id:'b',duration:2,background:'#000000',layers:[]}]},p.updatedAt);
  const provider=async(u,o)=>{const r=await f(u,o);if(String(u).includes('/v2/voices'))return r;const d=await r.json();d.alignment.character_start_times_seconds=d.alignment.characters.map((_,i)=>i*.02);d.alignment.character_end_times_seconds=d.alignment.characters.map((_,i)=>(i+1)*.02);return Response.json(d);};
  const b=await make(w,p,provider,{trial:'subtle',settings:{speed:.9,style:.15}});
  const c=await make(w,p,provider,{parentId:b.id,deliveryEdit:true,settings:{style:.35,speed:1.2,pause:1,stability:.1}});
