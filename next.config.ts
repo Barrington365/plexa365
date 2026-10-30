@@ -25,7 +25,7 @@ const nextConfig: NextConfig = {
   // A global trace glob is intentional: bracketed catch-all route names are
   // interpreted as glob character classes, so route-specific patterns missed
   // dynamically read browser modules in the deployed server package.
-  outputFileTracingIncludes: { "/*": ["./features/msn-local/models/*", "./features/brand-kits/seeds.json", "./node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.wasm", "./node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.mjs", "./features/msn-local/*.html", "./features/msn-local/navigation.js", "./features/msn-local/hosted-transport.js", "./features/msn-local/animation.mjs", "./features/msn-local/screen-mapping.mjs"] },
+  outputFileTracingIncludes: { "/*": ["./features/msn-local/models/*", "./features/brand-kits/seeds.json", "./node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.wasm", "./node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.mjs", "./features/msn-local/*.html", "./features/msn-local/navigation.js", "./features/msn-local/hosted-transport.js", "./features/msn-local/animation.mjs", "./features/msn-local/screen-mapping.mjs", "./features/msn-local/narration-brief.mjs", "./features/msn-local/narration-brief-editor.mjs"] },
   onDemandEntries: {
     maxInactiveAge: 60 * 1000,
     pagesBufferLength: 8,

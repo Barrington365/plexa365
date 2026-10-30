@@ -58,3 +58,15 @@ test('Football365 keeps an explicitly applied 1.25x tempo during rebuild without
  const c=(await w.snapshot()).state.voiceCandidates.at(-1);p=(await applyVoiceCandidate(w,{projectId:p.id,candidateId:c.id,expectedUpdatedAt:p.updatedAt,editorApproval:true},'editor')).project;
  j=await queueWorkspaceRender(w,{projectId:p.id,factsReviewed:true},'editor');await runWorkspaceRender(w,j.id,{fetcher:noProvider});assert.equal((await w.projects.get(p.id)).audio.asset,c.asset);assert.equal(calls.length,1);
 }));
+
+import {saveNarrationBrief} from './voice-review.mjs';
+test('approved brief audio and brand caption spelling survive a full Football365 rebuild without another provider call',()=>fixture(async({w,p,fetcher,calls,media})=>{
+ await media();p=await w.projects.save(p.id,{script:'Football three sixty-five.',music:{...p.music,end:10}},p.updatedAt);
+ const brief={script:p.script,direction:'Editorial only',pronunciation:'Check brand',source:'Fixture',performance:[{text:p.script,direction:'Neutral',tags:[]}],tempo:1};
+ const saved=await saveNarrationBrief(w,{projectId:p.id,expectedUpdatedAt:p.updatedAt,brief},'editor');
+ const q=await queueVoiceReview(w,{projectId:p.id,expectedUpdatedAt:p.updatedAt,voiceId:FOOTBALL365.voiceId,factsReviewed:true,script:p.script,briefVariant:'plain',briefUpdatedAt:saved.updatedAt,comparisonId:'production-brief-test'},'editor');await runVoiceReview(w,q.id,'test',fetcher);
+ const c=(await w.snapshot()).state.voiceCandidates.at(-1);await reviewVoiceCandidate(w,{projectId:p.id,candidateId:c.id,ratings:{pronunciation:4,pacing:4,naturalness:4,clarity:4,emotion:4},notes:'Fixture only'},'editor');
+ p=(await applyVoiceCandidate(w,{projectId:p.id,candidateId:c.id,expectedUpdatedAt:p.updatedAt,editorApproval:true,listeningChecked:true},'editor')).project;
+ const j=await queueWorkspaceRender(w,{projectId:p.id,factsReviewed:true},'editor');await runWorkspaceRender(w,j.id,{fetcher:()=>{throw Error('Approved brief must not regenerate')}});
+ const result=await w.projects.get(p.id);assert.equal(result.audio.asset,c.asset);assert.match(result.srt,/Football365/);assert.equal(result.music.volume,.2);assert.equal(result.burnCaptions,true);assert.equal(calls.length,1);assert.equal((await w.snapshot()).state.jobs.find(x=>x.id===j.id).status,'complete');
+}));

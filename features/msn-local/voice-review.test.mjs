@@ -122,3 +122,18 @@ test('1.25x tempo uses existing audio only, retimes captions and never compounds
  await assert.rejects(make(w,p,noProvider,{parentId:source.id,tempoEdit:true,tempo:3}));
  const applied=await applyVoiceCandidate(w,{projectId:p.id,candidateId:faster.id,expectedUpdatedAt:p.updatedAt,editorApproval:true},'editor');assert.equal(applied.project.audio.asset,faster.asset);assert.equal(applied.project.script,p.script);
 }));
+
+import {saveNarrationBrief} from './voice-review.mjs';
+test('matched brief previews preserve production, use continuous spoken input, require listening approval and persist captions',()=>fixture(async(w,p,f,requests)=>{
+ const original=await w.projects.get(p.id),brief={script:p.script,direction:'Never speak this instruction.',pronunciation:'Check names.',source:'Editorial source',performance:[{text:p.script,direction:'Measured curiosity',tags:['curious']}],tempo:1.25};
+ const saved=await saveNarrationBrief(w,{projectId:p.id,expectedUpdatedAt:p.updatedAt,brief},'editor');assert.deepEqual(await w.projects.get(p.id),original);
+ await assert.rejects(saveNarrationBrief(w,{projectId:p.id,expectedUpdatedAt:p.updatedAt,brief},'editor'),/Brief changed/);
+ const fetcher=async(u,o)=>{const r=await f(u,o);if(String(u).includes('/v2/voices'))return r;const d=await r.json();d.alignment.character_start_times_seconds=d.alignment.characters.map((_,i)=>i*.02);d.alignment.character_end_times_seconds=d.alignment.characters.map((_,i)=>(i+1)*.02);return Response.json(d);};
+ const opts={script:brief.script,briefUpdatedAt:saved.updatedAt,comparisonId:'brief-pair-test',settings:{style:.15}},a=await make(w,p,fetcher,{...opts,briefVariant:'plain'}),b=await make(w,p,fetcher,{...opts,briefVariant:'directed'});
+ assert.equal(requests.length,2);assert.equal(requests[0].text,p.script);assert.equal(requests[1].text,'[curious] '+p.script);assert.equal(requests[0].model_id,'eleven_v3');assert.deepEqual(requests[0].voice_settings,requests[1].voice_settings);assert.equal(requests[0].voice_settings.speed,undefined);assert.equal(a.tempo,1.25);assert.ok(b.duration<1.9);assert.deepEqual(await w.projects.get(p.id),original);assert.ok(parseSrt(b.srt).at(-1).end<=b.duration);
+ await assert.rejects(queueVoiceReview(w,{...body(p),...opts,settings:{style:.8},briefVariant:'plain'},'editor'),/inputs changed/);
+ await assert.rejects(applyVoiceCandidate(w,{projectId:p.id,candidateId:b.id,expectedUpdatedAt:p.updatedAt,editorApproval:true,listeningChecked:true},'editor'),/comparison/);
+ await reviewVoiceCandidate(w,{projectId:p.id,candidateId:b.id,ratings:{pronunciation:4,pacing:4,naturalness:4,clarity:4,emotion:4},notes:'Synthetic fixture only; real voice not evaluated.'},'editor');
+ await assert.rejects(applyVoiceCandidate(w,{projectId:p.id,candidateId:b.id,expectedUpdatedAt:p.updatedAt,listeningChecked:true},'editor'),/comparison/);
+ const result=await applyVoiceCandidate(w,{projectId:p.id,candidateId:b.id,expectedUpdatedAt:p.updatedAt,editorApproval:true,listeningChecked:true},'editor');assert.equal(result.project.audio.asset,b.asset);assert.equal(result.project.srt,b.srt);assert.equal(result.project.burnCaptions,false);assert.equal((await readVoiceReview(w,p.id)).narrationBrief.updatedAt,saved.updatedAt);
+}));

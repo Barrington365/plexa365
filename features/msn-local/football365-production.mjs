@@ -40,7 +40,7 @@ export async function prepareFootball365(w,p,{root,key,fetcher=fetch,jobId,signa
  if(!p.music.loop&&plan.duration+(p.music.start||0)>musicDuration+.01)throw Error('Backing track is shorter than narration. Choose longer music; generated audio is retained.');
  const music={...p.music,end:(p.music.start||0)+plan.duration,timelineStart:0,fadeIn:Math.min(1.5,plan.duration/2),fadeOut:Math.min(4,plan.duration/2)};
  // Save with optimistic concurrency, retaining source/intro distinction in the editor.
- const saved=await w.projects.save(p.id,{script,scenes:plan.scenes,audio:{asset:record.asset,volume:1},audioLabel:preset.voiceName+' · subtle tags · '+record.createdAt,voice:record.voiceName,elevenlabsVoiceId:record.voiceId||preset.voiceId,srt:record.briefComparison?record.srt:plan.srt,music},p.updatedAt);
+ const saved=await w.projects.save(p.id,{script,scenes:plan.scenes,audio:{asset:record.asset,volume:1},audioLabel:(record.voiceName||preset.voiceName)+(record.briefComparison?' · approved narration brief · ':' · subtle tags · ')+record.createdAt,voice:record.voiceName,elevenlabsVoiceId:record.voiceId||preset.voiceId,srt:record.briefComparison?record.srt:plan.srt,music},p.updatedAt);
  await w.update(s=>{const job=s.jobs.find(j=>j.id===jobId);job.request.project=structuredClone(saved);job.updatedAt=new Date().toISOString();return true;});
  return saved;
 }

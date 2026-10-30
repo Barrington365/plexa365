@@ -18,7 +18,7 @@ export async function POST(request:Request,{params}:Context){
  const data=await readLanguageStudioData();
  const snap=await workspace.snapshot();
  const existing=(snap.state.inbox?.articles||[]).map((article:{sourceUrl?:string})=>article.sourceUrl||'');
- const result=await bringLanguageArticles(languageInboxPayloads(data.articles),existing,(raw)=>workspaceWrite(workspace,'article-inbox/import',raw));
+ const result=await bringLanguageArticles(languageInboxPayloads(data.articles),existing,(raw:Record<string,unknown>)=>workspaceWrite(workspace,'article-inbox/import',raw));
  return Response.json(result,{headers:{'Cache-Control':'no-store'}});
  }
  if(route==='article-inbox/import-url'){

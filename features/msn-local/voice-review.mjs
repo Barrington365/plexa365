@@ -183,11 +183,12 @@ export async function selectVoicePreset(w,body,userId){
 export async function applyVoiceCandidate(w,body,userId){
  return w.update(async state=>{const p=projectOf(state,body.projectId),c=candidateOf(state,body.candidateId,p.id);
  if(c.trial)throw Error('This v3 trial is review-only; production remains unchanged');
- if(c.briefComparison&&(!c.review||!body.listeningChecked))throw Error('Save comparison notes and confirm the listening checks before applying');
+ if(c.briefComparison&&(!c.review||body.listeningChecked!==true||body.editorApproval!==true))throw Error('Save comparison notes and confirm the listening checks before applying');
  const explicitApproval=(c.tagEdit||c.deliveryEdit||c.tempoEdit||c.briefComparison)&&body.editorApproval===true;
  if((!c.review&&!explicitApproval)||(!c.tagEdit&&!c.deliveryEdit&&!c.tempoEdit&&!c.briefComparison&&!state.voiceBrandPresets?.some(x=>x.candidateId===c.id)))throw Error('Review and select this candidate before applying');
  if((c.tagEdit||c.deliveryEdit||c.tempoEdit||c.briefComparison)&&p.script!==c.sourceScript)throw Error('Project script changed since this audition. Create a fresh preview before applying');
  if(p.updatedAt!==body.expectedUpdatedAt)throw Error('Project changed. Reload before applying');
+ if(c.briefComparison&&p.broadcast&&c.script!==p.script)throw Error('Update the broadcast story scripts to match the reviewed brief before applying');
  if(c.briefComparison&&c.narrationBrief.script.split(/\n\s*\n/).length!==p.scenes.length)throw Error('Map one scene per brief paragraph before applying narration');
  const plan=timedPlan(c.script,c.alignment,c.duration,p.scenes,p.fps);
  if(p.scenes.some((s,i)=>s.video?.asset&&!s.video.loop&&plan.scenes[i].duration>s.duration+.001))throw Error('This narration needs longer background footage. Extend scene coverage before applying; no frozen frames are added.');

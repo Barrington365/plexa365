@@ -70,6 +70,7 @@ if(req.method==='POST'&&u.pathname==='/api/elevenlabs/connect'){const b=await bo
 if(req.method==='POST'&&u.pathname==='/api/elevenlabs/generate'){if(active||admitting)throw Error('Wait for the current video build to finish.');json(res,200,await elevenlabs.generate(await body(req)));return;}
 if(req.method==='GET'&&u.pathname==='/api/library-trash'){json(res,200,await trashStore.list());return;}
 if(req.method==='POST'&&u.pathname==='/api/library-trash'){const b=await body(req);json(res,200,await trashStore.set(b.key,b.trashed));return;}
+if(req.method==='GET'&&['/studio-narration-brief.mjs','/studio-narration-brief-editor.mjs'].includes(u.pathname)){res.writeHead(200,{'Content-Type':'text/javascript','Cache-Control':'no-store'});res.end(await fs.readFile(path.join(repo,'features/msn-local',u.pathname.slice(8))));return;}
 if(req.method==='GET'&&u.pathname==='/studio-screen-mapping.mjs'){res.writeHead(200,{'Content-Type':'text/javascript','Cache-Control':'no-store'});res.end(await fs.readFile(path.join(repo,'features/msn-local/screen-mapping.mjs')));return;}
 if(req.method==='GET'&&u.pathname==='/studio-animation.mjs'){res.writeHead(200,{'Content-Type':'text/javascript','Cache-Control':'no-store'});res.end(await fs.readFile(path.join(repo,'features/msn-local/animation.mjs')));return;}
 if(req.method==='GET'&&['/articles','/library','/social','/video'].includes(u.pathname)){res.writeHead(200,{'Content-Type':'text/html','Cache-Control':'no-store'});res.end(await fs.readFile(path.join(repo,'features/msn-local',u.pathname.slice(1)+'.html')));return;}
