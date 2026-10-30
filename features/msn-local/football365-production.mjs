@@ -46,8 +46,19 @@ export async function prepareFootball365(w,p,{root,key,fetcher=fetch,jobId,signa
 }
 export async function finishFootball365(story,p,{root,signal,onProgress}){
  onProgress({stage:'Adding Football365 intro and outro',progress:92});const files=[path.join(root,preset.intro.asset),story.file,path.join(root,preset.outro.asset)],durations=[preset.intro.duration,story.expectedDuration,preset.outro.duration];
- const filters=[];for(let i=0;i<3;i++){filters.push(`[${i}:v]trim=duration=${durations[i]},setpts=PTS-STARTPTS,scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,fps=30,setsar=1,format=yuv420p[v${i}]`);const meta=await probe(files[i]);filters.push(meta.audio?`[${i}:a]atrim=duration=${durations[i]},asetpts=PTS-STARTPTS,aresample=48000,aformat=channel_layouts=stereo,apad,atrim=duration=${durations[i]}[a${i}]`:`anullsrc=r=48000:cl=stereo,atrim=duration=${durations[i]}[a${i}]`);}
- filters.push('[v0][a0][v1][a1][v2][a2]concat=n=3:v=1:a=1[v][a]');const file=path.join(root,'football365-complete.mp4');await run(['-y','-filter_complex_threads','1',...files.flatMap(f=>['-i',f]),'-filter_complex',filters.join(';'),'-map','[v]','-map','[a]','-c:v','libx264','-preset','veryfast','-crf','23','-threads','2','-c:a','aac','-b:a','160k','-movflags','+faststart',file],{signal});
+ // Encode only the six seconds of branding. The body already has finished
+ // captions and audio; encoding it again can exhaust the background-worker limit.
+ const segments=[];
+ for(let i=0;i<3;i++){
+  if(i===1){segments.push(files[i]);continue;}
+  const meta=await probe(files[i]),clip=path.join(root,`football365-brand-${i}.mp4`);
+  const filters=[`[0:v]trim=duration=${durations[i]},setpts=PTS-STARTPTS,scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,fps=30,setsar=1,format=yuv420p[v]`,meta.audio?`[0:a]atrim=duration=${durations[i]},asetpts=PTS-STARTPTS,aresample=48000,aformat=channel_layouts=stereo,apad,atrim=duration=${durations[i]}[a]`:`anullsrc=r=48000:cl=stereo,atrim=duration=${durations[i]}[a]`];
+  await run(['-y','-filter_complex_threads','1','-i',files[i],'-filter_complex',filters.join(';'),'-map','[v]','-map','[a]','-c:v','libx264','-preset','veryfast','-crf','20','-threads','2','-pix_fmt','yuv420p','-c:a','aac','-b:a','192k','-movflags','+faststart',clip],{signal});segments.push(clip);
+ }
+ const manifest=path.join(root,'football365-concat.txt');
+ await fs.writeFile(manifest,segments.map((f,i)=>`file '${f.replace(/'/g,"'\\''")}'\nduration ${durations[i]}`).join('\n'));
+ const file=path.join(root,'football365-complete.mp4');
+ await run(['-y','-f','concat','-safe','0','-i',manifest,'-map','0:v:0','-map','0:a:0','-c','copy','-movflags','+faststart',file],{signal});
  const expectedDuration=durations.reduce((a,b)=>a+b,0),meta=await probe(file);if(meta.width!==1920||meta.height!==1080||!meta.audio||Math.abs(meta.duration-expectedDuration)>.15)throw Error('Full Football365 video validation failed');await run(['-v','error','-i',file,'-f','null','-'],{signal});
  return {...story,...meta,file,expectedDuration,productionProfile:p.productionProfile,introDuration:preset.intro.duration,outroDuration:preset.outro.duration,srt:fullVideoSrt(p.srt),updatedAt:new Date().toISOString()};
 }

@@ -182,3 +182,12 @@ test('music ducking attenuates music during narration and recovers in speech pau
  async function level(file,start,end){const log=await run(['-hide_banner','-i',file,'-af',`atrim=start=${start}:end=${end},bandpass=f=2000:t=h:w=100,volumedetect`,'-vn','-f','null','-']);return Number(log.match(/mean_volume: ([\d.-]+) dB/)[1]);}
  const original=await level(normal.file,.3,.8),during=await level(ducked.file,.3,.8),after=await level(ducked.file,2.5,2.9);assert.ok(during<original-5,`expected ducking: ${during} vs ${original}`);assert.ok(after>during+4,`expected recovery: ${after} vs ${during}`);
 }));
+
+test('captions retain global timing across scene cuts and disappear after the final cue',()=>fixture(async root=>{
+ const p={width:640,height:360,fps:30,scenes:[{duration:1,background:'#000000',layers:[]},{duration:1,background:'#000000',layers:[]}],burnCaptions:true,captionPreset:'bold',metadata:{tags:['Arsenal']},srt:'1\n00:00:00,700 --> 00:00:01,300\nArsenal cross the cut.\n\n2\n00:00:01,500 --> 00:00:01,800\nThe final sentence.'};
+ const result=await renderStudio({request:{project:p}},root);
+ for(const [time,present] of [[.4,false],[.9,true],[1.1,true],[1.4,false],[1.6,true],[1.9,false]]){
+  const frame=path.join(root,`cue-${time}.png`);await run(['-y','-ss',String(time),'-i',result.file,'-frames:v','1',frame]);
+  const data=await sharp(frame).raw().toBuffer();assert.equal(data.some(v=>v>120),present,`caption visibility at ${time}s`);
+ }
+}));

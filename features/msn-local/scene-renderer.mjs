@@ -218,6 +218,9 @@ export async function renderScenes(input, { signal, onProgress = () => {}, root:
   }
   const encode = ['-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20', '-threads', '2', '-pix_fmt', 'yuv420p'];
   try {
+    const converted = path.join(work, 'captions.ass');
+    if (model.burnCaptions) await fs.writeFile(converted, await buildCaptionsAss(model));
+    let sceneOffset = 0;
     for (const [i, scene] of model.scenes.entries()) {
       signal?.throwIfAborted();
       onProgress({ stage: `Rendering scene ${i + 1} of ${model.scenes.length}`, progress: Math.round(i / model.scenes.length * 75) });
@@ -257,8 +260,14 @@ export async function renderScenes(input, { signal, onProgress = () => {}, root:
         filters.push(`[${j+1}:v]${motion.filters}[motion${j}]`);
         filters.push(`[${previous}][motion${j}]overlay=x='${layer.x}+${motion.x}':y='${layer.y}+${motion.y}':enable='${motion.enable}':eval=frame:shortest=1[v${j}]`); previous = `v${j}`;
       }
+      // Burn at global cue time during the scene encode, then reset the scene clock.
+      if (model.burnCaptions) {
+        filters.push(`[${previous}]setpts=PTS+${sceneOffset}/TB,subtitles=filename='${filterPath(converted)}':fontsdir='${filterPath(renderFontsDirectory)}',setpts=PTS-STARTPTS[captioned]`);
+        previous = 'captioned';
+      }
       args.push('-filter_complex', filters.join(';'), '-map', `[${previous}]`, '-an', '-t', String(scene.duration), '-r', String(model.fps), ...encode, path.join(work, `scene-${i}.mp4`));
       await run(args, { signal });
+      sceneOffset += scene.duration;
     }
     await fs.writeFile(path.join(work, 'list.txt'), model.scenes.map((_, i) => `file 'scene-${i}.mp4'`).join('\n'));
     const joined = path.join(work, 'joined.mp4');
@@ -290,13 +299,8 @@ export async function renderScenes(input, { signal, onProgress = () => {}, root:
       mixLabels=['[voiceMix]','[ducked]'];
     }
     filters.push(`[silence]${mixLabels.join('')}amix=inputs=${mixLabels.length + 1}:duration=first:normalize=0:dropout_transition=0[a]`);
-    if (model.burnCaptions) {
-      const converted = path.join(work, 'captions.ass');
-      await fs.writeFile(converted, await buildCaptionsAss(model));
-      filters.push(`[0:v]subtitles=filename='${filterPath(converted)}':fontsdir='${filterPath(renderFontsDirectory)}'[v]`);
-    }
     const output = path.join(work, 'video.mp4');
-    args.push('-filter_complex', filters.join(';'), '-map', model.burnCaptions ? '[v]' : '0:v:0', '-map', '[a]', '-t', String(total), ...encode, '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', output);
+    args.push('-filter_complex', filters.join(';'), '-map', '0:v:0', '-map', '[a]', '-t', String(total), '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', output);
     await run(args, { signal });
     const meta = await probe(output);
     if (meta.width !== model.width || meta.height !== model.height || !meta.audio || Math.abs(meta.duration - total) > .15) throw Error('Scene output validation failed');

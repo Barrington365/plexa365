@@ -25,3 +25,20 @@ test('automatic Football365 rebuild retains explicitly applied sentence tags, vo
  const saved=await w.projects.get(p.id);assert.equal(saved.audio.asset,candidate.asset);assert.equal(saved.music.volume,.2);assert.equal(saved.productionProfile,FOOTBALL365_PROFILE);assert.equal(saved.burnCaptions,true);assert.equal(calls.length,2);
  assert.equal((await w.snapshot()).state.jobs.find(x=>x.id===j.id).status,'complete');
 }));
+
+import {finishFootball365} from './football365-production.mjs';
+test('three-minute finish preserves encoded body packets and complete branding without another body encode',async()=>{
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'f365-finish-'));
+ try{
+  for(const [i,clip] of [FOOTBALL365.intro,FOOTBALL365.outro].entries()){
+   const file=path.join(root,clip.asset);await fs.mkdir(path.dirname(file),{recursive:true});
+   await run(['-y','-f','lavfi','-i',`color=${i?'blue':'red'}:s=160x90:r=30`,'-t',String(clip.duration),'-c:v','libx264','-pix_fmt','yuv420p',file]);
+  }
+  const file=path.join(root,'body.mp4');
+  await run(['-y','-f','lavfi','-i','color=green:s=1920x1080:r=30','-f','lavfi','-i','sine=frequency=440:sample_rate=48000','-t','147','-c:v','libx264','-preset','veryfast','-threads','2','-pix_fmt','yuv420p','-c:a','aac','-ac','2',file]);
+  const output=await finishFootball365({file,expectedDuration:147},{productionProfile:FOOTBALL365_PROFILE,srt:'1\n00:02:25,000 --> 00:02:26,500\nFinal sentence.'},{root,onProgress:()=>{}});
+  assert.ok(Math.abs(output.duration-153)<.15);assert.equal(parseSrt(output.srt)[0].end,149);
+  const hashes=async f=>{const out=f+'.hash';await run(['-y','-i',f,'-map','0:v','-c:v','copy','-bsf:v','h264_mp4toannexb','-f','framehash',out]);return (await fs.readFile(out,'utf8')).split('\n').filter(x=>x&&!x.startsWith('#')).map(x=>x.split(',').at(-1).trim());};
+  const body=await hashes(file),finished=new Set(await hashes(output.file));assert.equal(body.length,4410);assert.ok(body.every(h=>finished.has(h)),'Every compressed body packet survives unchanged');
+ }finally{await fs.rm(root,{recursive:true,force:true});}
+});
