@@ -29,6 +29,10 @@
   # Keep heavy native binaries out of every function bundle (especially ___netlify-server-handler).
   external_node_modules = ["ffmpeg-static", "puppeteer", "@sparticuz/chromium"]
 
+# vercel.json is ignored on Netlify. This wakes saved Language Studio imports every 15 minutes.
+[functions."language-imports-scheduled"]
+  schedule = "*/15 * * * *"
+
 [functions."___netlify-server-handler"]
   external_node_modules = ["ffmpeg-static", "puppeteer", "@sparticuz/chromium"]
 
