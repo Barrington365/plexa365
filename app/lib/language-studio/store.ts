@@ -54,6 +54,11 @@ const STORE_FILE = path.join(projectRoot(), "data", "local", "language-studio.js
 const BLOB_STORE_NAME = "plexa-language-studio";
 const BLOB_STORE_KEY = "language-studio.json";
 
+/** Eventual blob reads were overwriting cron imports before the new articles were visible. */
+function languageStudioBlobs() {
+  return getStore({ name: BLOB_STORE_NAME, consistency: "strong" });
+}
+
 const DEFAULT_SOURCE_BRANDS: LanguageSourceBrand[] = [
   {
     id: "source-planetf1",
@@ -429,7 +434,7 @@ async function finishRead(stored: Partial<LanguageStudioData> | null, allowPersi
 export async function readLanguageStudioData(): Promise<LanguageStudioData> {
   if (shouldUseNetlifyBlobStore()) {
     try {
-      const stored = (await getStore(BLOB_STORE_NAME).get(BLOB_STORE_KEY, { type: "json" })) as Partial<LanguageStudioData> | null;
+      const stored = (await languageStudioBlobs().get(BLOB_STORE_KEY, { type: "json", consistency: "strong" })) as Partial<LanguageStudioData> | null;
       return finishRead(stored, true);
     } catch {
       return seedGovernance(emptyData());
@@ -450,7 +455,7 @@ export async function writeLanguageStudioData(data: LanguageStudioData): Promise
   normalizeLanguageStudioArticleAuthors(data);
 
   if (shouldUseNetlifyBlobStore()) {
-    await getStore(BLOB_STORE_NAME).setJSON(BLOB_STORE_KEY, data);
+    await languageStudioBlobs().setJSON(BLOB_STORE_KEY, data);
     return;
   }
 

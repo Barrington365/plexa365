@@ -4,7 +4,17 @@ import { sendEmail } from "@/app/lib/email/send-email";
 import { importLanguageFeed } from "@/app/lib/language-studio/import-feed";
 import { mergePublishWatermark } from "@/app/lib/language-studio/publish-date";
 import { newLanguageId, readLanguageStudioData, writeLanguageStudioData } from "@/app/lib/language-studio/store";
-import type { LanguageCronJob, LanguageCronRun } from "@/app/lib/language-studio/types";
+import type { LanguageArticle, LanguageCronJob, LanguageCronRun, LanguageImport, LanguageStudioData } from "@/app/lib/language-studio/types";
+
+function keepImportedArticles(data: LanguageStudioData, row: LanguageImport, articles: LanguageArticle[], clientIds: string[]): void {
+  const imported = data.imports[row.id] ?? row;
+  imported.clientIds = clientIds;
+  data.imports[imported.id] = imported;
+  for (const article of articles) {
+    const saved = data.articles[article.id] ?? article;
+    data.articles[saved.id] = { ...saved, clientIds };
+  }
+}
 
 export type CronRunTrigger = "scheduled" | "manual";
 
@@ -88,11 +98,7 @@ export async function runLanguageCronJob(jobId: string, trigger: CronRunTrigger)
     });
     const data = await readLanguageStudioData();
     const current = data.cronJobs[job.id] ?? job;
-    const imported = data.imports[result.import.id];
-    if (imported) imported.clientIds = job.clientIds;
-    for (const articleId of result.import.articleIds) {
-      if (data.articles[articleId]) data.articles[articleId].clientIds = job.clientIds;
-    }
+    keepImportedArticles(data, result.import, result.articles, job.clientIds);
     await writeLanguageStudioData(data);
     const automationResult = await runArticleAutomationsForImport({
       importId: result.import.id,
@@ -124,6 +130,7 @@ export async function runLanguageCronJob(jobId: string, trigger: CronRunTrigger)
 
     const finalData = await readLanguageStudioData();
     const finalCurrent = finalData.cronJobs[job.id] ?? current;
+    keepImportedArticles(finalData, result.import, result.articles, job.clientIds);
     finalData.cronRuns[run.id] = run;
     const watermark = mergePublishWatermark(finalCurrent.lastImportedPublishWatermark, result.articles);
     finalData.cronJobs[job.id] = {

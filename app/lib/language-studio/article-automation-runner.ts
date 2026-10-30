@@ -218,6 +218,9 @@ export async function runArticleAutomationsForImport(input: ArticleAutomationRun
   const source = imported ?? { sourceBrand: input.sourceBrand ?? "" };
   const clientIds = input.clientIds?.length ? input.clientIds : imported?.clientIds ?? [];
   const automations = matchingAutomations(data, source, clientIds);
+  if (automations.length === 0) {
+    return { automationCount: 0, checkedArticleCount: input.articleIds.length, createdTranslationCount: 0, skippedDuplicateCount: 0, details: [] };
+  }
   let createdTranslationCount = 0;
   let skippedDuplicateCount = 0;
   const details: ArticleAutomationRunResult["details"] = [];
