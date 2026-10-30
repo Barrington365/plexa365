@@ -12,6 +12,19 @@ export async function POST(request:Request,{params}:Context){
  if(!isWorkspaceSameOrigin(request))return Response.json({error:'Same-origin request required'},{status:403});
  try{const raw=await request.text();if(raw.length>2_000_000)return Response.json({error:'Request too large'},{status:413});const body=JSON.parse(raw);if(!body||typeof body!=='object'||Array.isArray(body))throw Error('Invalid request');const route=(await params).path.join('/');const workspace=hostedWorkspace();
  if(route==='article-inbox/rewrite'){return Response.json(await prepareScript(request,workspace,body.id,auth.user.id),{headers:{'Cache-Control':'no-store'}});}
+ if(route==='article-inbox/import-url'){
+ const {fetchPublisherArticle,fetchPublisherImage}=await import('@/features/msn-local/article-url.mjs');
+ const article=await fetchPublisherArticle(body.sourceUrl,body.brand||'Football365');
+ const result=await workspaceWrite(workspace,'article-inbox/import',article);
+ if(result.error)return Response.json(result,{status:400});
+ const current=(await workspace.snapshot()).state;
+ if(article.sourceImages[0]&&!current.images.some((i:{sourceUrl:string})=>i.sourceUrl===article.sourceUrl)){
+ try{const bytes=await fetchPublisherImage(article.sourceImages[0]);await workspaceWrite(workspace,'images/import',{name:article.title+' · article original',sourceUrl:article.sourceUrl,base64:bytes.toString('base64')});}catch(error){result.imageError=error instanceof Error?error.message:'Article image requires manual import';}
+ }
+
+ if(body.prepareScript!==false){try{result.scriptPreparation=await prepareScript(request,workspace,result.article.id,auth.user.id);}catch(error){result.rewriteError=error instanceof Error?error.message:'Script preparation unavailable';}}
+ return Response.json(result,{headers:{'Cache-Control':'no-store'}});
+ }
  const result=await workspaceWrite(workspace,route,body);
  if(route==='article-inbox/import'&&result.article&&!result.error&&body.prepareScript!==false){try{result.scriptPreparation=await prepareScript(request,workspace,result.article.id,auth.user.id);}catch(error){result.rewriteError=error instanceof Error?error.message:'Original article saved; script preparation unavailable';}}if(route==='images/preview')return new Response(new Uint8Array(result),{headers:{'Content-Type':'image/png','Cache-Control':'private, no-store'}});return Response.json(result,{status:result?.error?409:200,headers:{'Cache-Control':'private, no-store'}});}catch(error){const message=error instanceof Error?error.message:'Studio action failed';return Response.json({error:message},{status:/changed|Another editor/.test(message)?409:400});}
 }

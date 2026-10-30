@@ -1,3 +1,4 @@
+import {workspaceBroadcast} from './workspace-broadcast.mjs';
 import {expireWorkspaceJobs} from './workspace-job-expiry.mjs';
 import {publication} from './publishing.mjs';
 import {socialDraft} from './social-draft.mjs';
@@ -29,6 +30,7 @@ export async function workspaceWrite(workspace,route,body){
  const projects=workspace.projects;
  if(body.file){if(!['images/import','studio-assets/upload','article/audio'].includes(route)||!Array.isArray(body.file.chunks)||body.file.chunks.length>14||!Number.isSafeInteger(body.file.bytes)||body.file.bytes<1||body.file.bytes>14e6)throw Error('Invalid uploaded file');body={...body,base64:(await workspace.readFile(body.file)).toString('base64')};delete body.file;}
 
+ if(route.startsWith('broadcast/'))return workspaceBroadcast(workspace,route.split('/').at(-1),body);
  if(route.startsWith('article-inbox/'))return workspaceArticle(workspace,route.split('/').at(-1),body);
  switch(route){
   case 'studio-assets/upload':{
@@ -42,7 +44,7 @@ export async function workspaceWrite(workspace,route,body){
   case 'projects/assign-layer':return assignLayerAsset(projects,body);
   case 'cancel':return workspace.update(s=>{const j=s.jobs.find(j=>j.id===body.id);if(!j)throw Error('Build not found');j.cancelRequestedAt=new Date().toISOString();if(j.status==='queued')j.status='cancelled';return {ok:true};});
   case 'brand-kits':{const kits=await workspaceRead(workspace,'brand-kits');const previous=kits.find(k=>k.id===body.id);const kit={...validateKit(body,previous),updatedAt:new Date().toISOString()};return workspace.update(s=>{const current=(s.kits||kits).find(k=>k.id===body.id);if(JSON.stringify(current)!==JSON.stringify(previous))throw Error('Another editor saved changes. Reload brand kits.');s.kits=(s.kits||kits).map(k=>k.id===kit.id?kit:k);return kit;});}
-  case 'projects/from-article':{const result=await workspaceArticle(workspace,'project',{id:body.articleId,templateId:body.templateId});return projects.get(result.projectId);}
+  case 'projects/from-article':{if(body.templateId==='football365-live-studio-broadcast')return workspaceBroadcast(workspace,'create',{articleIds:[body.articleId]});const result=await workspaceArticle(workspace,'project',{id:body.articleId,templateId:body.templateId});return projects.get(result.projectId);}
   case 'projects/social':return projects.create('news-article',socialDraft(body));
   case 'publish':case 'unpublish':return workspace.update(state=>{const job=state.jobs.find(j=>j.id===body.id);const next=publication(job,body,route==='publish');job.publication={...next,scope:'authenticated-studio'};return job;});
   case 'projects/create':return projects.create(body.templateId,{title:body.title||'Untitled video'});

@@ -4,3 +4,9 @@ export const FOOTBALL365_TEMPLATE='custom-70ad1261-c283-460a-9987-a1a5bbb96fb0';
 export const FOOTBALL365={voiceId:'2yqdQ7uuPQDBMgFA8dgu',voiceName:'Planet F1 - Male - Sam',model:'eleven_v3',settings:{speed:.9,stability:.5,style:.15,pause:0,dictionaries:[]},intro:{asset:'uploads/9bea3251-1e9d-4e10-806e-fd2fc045e862.mp4',duration:2.5},outro:{asset:'uploads/cf445e70-d609-451a-ac04-e53261650d40.mp4',duration:3.5},music:'uploads/4841e64c-3d17-4fa4-86fd-53a6d362b258.mp3'};
 export function football365Defaults(){return {productionProfile:FOOTBALL365_PROFILE,voice:FOOTBALL365.voiceName,elevenlabsVoiceId:FOOTBALL365.voiceId,burnCaptions:true,captionPreset:'bold',captionTextColor:'#ffffff',captionHighlightColor:'#00e8f0',music:{asset:FOOTBALL365.music,start:0,end:0,timelineStart:0,volume:.2,fadeIn:0,fadeOut:0}};}
 export function fullVideoSrt(srt,offset=FOOTBALL365.intro.duration){return srt.replace(/(\d{2}):(\d{2}):(\d{2}),(\d{3})/g,(_,h,m,s,ms)=>{let n=Math.round((Number(h)*3600+Number(m)*60+Number(s)+offset)*1000+Number(ms));const hh=Math.floor(n/3600000);n%=3600000;const mm=Math.floor(n/60000);n%=60000;return [hh,mm,Math.floor(n/1000)].map(v=>String(v).padStart(2,'0')).join(':')+','+String(n%1000).padStart(3,'0');});}
+
+export const FOOTBALL365_BROADCAST_PROFILE='football365-live-broadcast-v1';
+export const AMELIA={...FOOTBALL365,voiceId:'ZF6FPAbjXT4488VcRRnw',voiceName:'Amelia - Enthusiastic and Expressive'};
+export const isFootball365Production=p=>[FOOTBALL365_PROFILE,FOOTBALL365_BROADCAST_PROFILE].includes(p.productionProfile);
+export const productionRecipe=p=>p.productionProfile===FOOTBALL365_BROADCAST_PROFILE?AMELIA:FOOTBALL365;
+export function football365BroadcastDefaults(){return {...football365Defaults(),productionProfile:FOOTBALL365_BROADCAST_PROFILE,voice:AMELIA.voiceName,elevenlabsVoiceId:AMELIA.voiceId,music:{...football365Defaults().music,ducking:true,loop:true}};}

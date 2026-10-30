@@ -1,3 +1,4 @@
+import {warpRgba,screenMatrix} from './screen-mapping.mjs';
 import {renderFont,renderFontsDirectory} from './render-fonts.mjs';
 /** Local-only saved-scene renderer. Coordinates/font sizes are pixels; times seconds.
  * renderStudio(job, root, signal, update) reads job.request.project. Null/empty
@@ -52,7 +53,8 @@ const asset = z.string().min(1).max(4096);
 const position = { x: z.number().int().min(0).max(4096), y: z.number().int().min(0).max(4096) };
 const size = { width: z.number().int().min(1).max(4096), height: z.number().int().min(1).max(4096) };
 const animationSchema=z.object(Object.fromEntries(Object.entries(motionChoices).map(([phase,effects])=>[phase,z.object({effect:z.enum(effects),duration:z.number().finite().min(.1).max(120),delay:seconds,intensity:z.number().finite().min(0).max(100),loop:z.boolean()}).strict().optional()]))).strict().optional();
-const picture = type => z.object({ animation:animationSchema, id: z.string().optional(), type: z.literal(type), asset, text: z.string().max(2000).optional(), fontSize: z.number().finite().optional(), color: colour.optional(), ...position, ...size, fit: z.enum(['contain', 'cover', 'fill']).default('contain') }).strict();
+const screen=z.array(z.tuple([z.number().min(0).max(1),z.number().min(0).max(1)])).length(4).refine(p=>{try{screenMatrix(p);return true;}catch{return false;}},'Invalid screen corners');
+const picture = type => z.object({ screenCorners:screen.optional(),screenBackground:colour.optional(), animation:animationSchema, id: z.string().optional(), type: z.literal(type), asset, text: z.string().max(2000).optional(), fontSize: z.number().finite().optional(), color: colour.optional(), ...position, ...size, fit: z.enum(['contain', 'cover', 'fill']).default('contain') }).strict();
 export const sceneModelSchema = z.object({
   version: z.literal(1).default(1), title: z.string().max(200).default('Scene render'),
   width: z.number().int().min(64).max(3840).multipleOf(2).default(1920),
@@ -60,14 +62,14 @@ export const sceneModelSchema = z.object({
   fps: z.number().int().min(1).max(60).default(30),
   scenes: z.array(z.object({
     id: z.string().optional(), duration: z.number().finite().min(.2).max(1200), background: colour.default('#000000'),
-    video: z.object({ asset, start: seconds.default(0) }).strict().optional(),
+    video: z.object({ asset, start: seconds.default(0), loop:z.boolean().optional() }).strict().optional(),
     layers: z.array(z.discriminatedUnion('type', [picture('image'), picture('logo'),
       z.object({ animation:animationSchema, id: z.string().optional(), width: size.width.optional(), height: size.height.optional(), type: z.literal('text'), asset: z.string().max(4096).optional(), text: z.string().min(1).max(2000), ...position,
         fontSize: z.number().int().min(8).max(300), fontFamily: z.string().regex(/^[a-zA-Z][a-zA-Z0-9 -]{0,79}$/).default('sans-serif'), color: colour.default('#ffffff') }).strict(),
     ])).max(50).default([]),
   }).strict()).min(1).max(100),
   audio: z.object({ asset, start: seconds.optional(), end: seconds.optional(), volume: z.number().finite().min(0).max(4).default(1) }).strict().optional(),
-  music: z.object({ ducking:z.boolean().optional(), asset, start: seconds.default(0), end: seconds, timelineStart: seconds.default(0),
+  music: z.object({ loop:z.boolean().optional(), ducking:z.boolean().optional(), asset, start: seconds.default(0), end: seconds, timelineStart: seconds.default(0),
     volume: z.number().finite().min(0).max(4).default(1), fadeIn: seconds.default(0), fadeOut: seconds.default(0),
   }).strict().optional(),
   srt: z.string().max(200000).default(''), burnCaptions: z.boolean().default(false),
@@ -224,8 +226,9 @@ export async function renderScenes(input, { signal, onProgress = () => {}, root:
       if (scene.video) {
         const file = await copyAsset(scene.video.asset, 'video');
         const duration = await mediaDuration(file, signal);
-        if (scene.video.start + scene.duration > duration + .01) throw Error('Video scene trim exceeds source duration');
-        args.push('-ss', String(scene.video.start), ...localInput(file, formats[path.extname(file)]));
+        if (!scene.video.loop && scene.video.start + scene.duration > duration + .01) throw Error('Video scene trim exceeds source duration');
+        if(scene.video.loop)args.push('-stream_loop','-1');
+        args.push('-ss', String(scene.video.loop?scene.video.start%duration:scene.video.start), ...localInput(file, formats[path.extname(file)]));
         base = `[0:v]setpts=PTS-STARTPTS,scale=${model.width}:${model.height}:force_original_aspect_ratio=decrease,pad=${model.width}:${model.height}:(ow-iw)/2:(oh-ih)/2:color=${scene.background},setsar=1,fps=${model.fps}[base]`;
       } else {
         args.push('-f', 'lavfi', '-i', `color=c=${scene.background}:s=${model.width}x${model.height}:r=${model.fps}`);
@@ -246,7 +249,8 @@ export async function renderScenes(input, { signal, onProgress = () => {}, root:
         } else {
           const source = await copyAsset(layer.asset, 'image');
           // Decode to raster first; untrusted media never becomes a filter expression.
-          await sharp(source, { limitInputPixels: 40000000 }).resize(layer.width, layer.height, { fit: layer.fit, background: '#00000000' }).png().toFile(file);
+          const raster=sharp(source, { limitInputPixels: 40000000 }).resize(layer.width, layer.height, { fit: layer.fit, background: layer.screenBackground||'#00000000' });
+          if(layer.screenCorners){const {data}=await raster.flatten({background:layer.screenBackground||'#07131f'}).ensureAlpha().raw().toBuffer({resolveWithObject:true});await sharp(warpRgba(data,layer.width,layer.height,layer.screenCorners),{raw:{width:layer.width,height:layer.height,channels:4}}).png().toFile(file);}else await raster.png().toFile(file);
         }
         args.push('-loop', '1', '-framerate', String(model.fps), ...localInput(file, 'image2'));
         const motion=motionFilters(layer.animation,scene.duration);
@@ -266,7 +270,7 @@ export async function renderScenes(input, { signal, onProgress = () => {}, root:
       const file = await copyAsset(track.asset, 'audio');
       const sourceDuration = await mediaDuration(file, signal);
       if (track === model.music) {
-        if (track.end > sourceDuration + .01) throw Error('Music trim exceeds source duration');
+        if (!track.loop && track.end > sourceDuration + .01) throw Error('Music trim exceeds source duration');
       } else {
         if (track.end === undefined && sourceDuration > total + .01) throw Error('Narration exceeds timeline; provide an explicit start/end trim');
         track.start ??= 0;
@@ -275,7 +279,7 @@ export async function renderScenes(input, { signal, onProgress = () => {}, root:
       }
       args.push(...localInput(file, formats[path.extname(file)]));
       const duration = track.end - track.start;
-      filters.push(`[${i + 2}:a]atrim=start=${track.start}:end=${track.end},asetpts=PTS-STARTPTS,aresample=48000,aformat=channel_layouts=stereo,volume=${track.volume},afade=t=in:d=${track.fadeIn},afade=t=out:st=${duration - track.fadeOut}:d=${track.fadeOut},adelay=${Math.round(track.timelineStart * 48000)}S:all=1[a${i}]`);
+      filters.push(`[${i + 2}:a]${track === model.music && track.loop ? `aresample=48000,aloop=loop=-1:size=${Math.round(sourceDuration*48000)},` : ''}atrim=start=${track.start}:end=${track.end},asetpts=PTS-STARTPTS,aresample=48000,aformat=channel_layouts=stereo,volume=${track.volume},afade=t=in:d=${track.fadeIn},afade=t=out:st=${duration - track.fadeOut}:d=${track.fadeOut},adelay=${Math.round(track.timelineStart * 48000)}S:all=1[a${i}]`);
     }
     let mixLabels=tracks.map((_,i)=>`[a${i}]`);
     if(model.music?.ducking&&model.audio){

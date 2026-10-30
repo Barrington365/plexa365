@@ -46,7 +46,7 @@ export default async (request:Request)=>{
     await runWorkspaceNarration(workspace,body.jobId,await getServerSecretAsync('ELEVENLABS_API_KEY')||'');
   }else{
     const {getServerSecretAsync}=await import('../../app/lib/server-secrets');
-    await runWorkspaceRender(workspace,body.jobId,{key:job.request?.project?.productionProfile==='football365-news-studio-v1'?await getServerSecretAsync('ELEVENLABS_API_KEY')||'':''});
+    await runWorkspaceRender(workspace,body.jobId,{key:['football365-news-studio-v1','football365-live-broadcast-v1'].includes(job.request?.project?.productionProfile)?await getServerSecretAsync('ELEVENLABS_API_KEY')||'':''});
   }
   return new Response(null,{status:200});
 };
