@@ -82,3 +82,11 @@ test('v3 sentence timing failure retains the paid response, and retry never char
  const changed=await w.projects.save(p.id,{script:'Changed facts.'},p.updatedAt);
  await assert.rejects(make(w,changed,good,edit),/script changed/);assert.equal(requests.length,2);
 }));
+test('explicit Apply approves a sentence-tag candidate without inventing numerical review ratings',()=>fixture(async(w,p,f)=>{
+ const fetcher=async(u,o)=>{const r=await f(u,o);if(String(u).includes('/v2/voices'))return r;const d=await r.json();d.alignment.character_start_times_seconds=d.alignment.characters.map((_,i)=>i*.02);d.alignment.character_end_times_seconds=d.alignment.characters.map((_,i)=>(i+1)*.02);return Response.json(d);};
+ const b=await make(w,p,fetcher,{trial:'subtle'}),c=await make(w,p,fetcher,{parentId:b.id,sentenceIndex:1,sentenceText:'Next.',tagEdit:true,sentenceTags:'[calm]'});
+ await assert.rejects(applyVoiceCandidate(w,{projectId:p.id,candidateId:c.id,expectedUpdatedAt:'stale',editorApproval:true},'editor'),/changed/);
+ assert.equal((await readVoiceReview(w,p.id)).candidates.at(-1).approval,undefined);
+ const saved=await applyVoiceCandidate(w,{projectId:p.id,candidateId:c.id,expectedUpdatedAt:p.updatedAt,editorApproval:true},'editor');
+ assert.equal(saved.project.audio.asset,c.asset);const candidate=(await readVoiceReview(w,p.id)).candidates.at(-1);assert.equal(candidate.review,undefined);assert.equal(candidate.approval.method,'explicit-apply');assert.equal(candidate.approval.approvedBy,'editor');
+}));

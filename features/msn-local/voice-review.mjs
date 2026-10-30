@@ -146,7 +146,8 @@ export async function selectVoicePreset(w,body,userId){
 export async function applyVoiceCandidate(w,body,userId){
  return w.update(async state=>{const p=projectOf(state,body.projectId),c=candidateOf(state,body.candidateId,p.id);
  if(c.trial)throw Error('This v3 trial is review-only; production remains unchanged');
- if(!c.review||(!c.tagEdit&&!state.voiceBrandPresets?.some(x=>x.candidateId===c.id)))throw Error('Review and select this candidate before applying');
+ const explicitApproval=c.tagEdit&&body.editorApproval===true;
+ if((!c.review&&!explicitApproval)||(!c.tagEdit&&!state.voiceBrandPresets?.some(x=>x.candidateId===c.id)))throw Error('Review and select this candidate before applying');
  if(c.tagEdit&&p.script!==c.sourceScript)throw Error('Project script changed since this audition. Create a fresh preview before applying');
  if(p.updatedAt!==body.expectedUpdatedAt)throw Error('Project changed. Reload before applying');
  const plan=timedPlan(c.script,c.alignment,c.duration,p.scenes,p.fps);
@@ -154,5 +155,6 @@ export async function applyVoiceCandidate(w,body,userId){
  let music=p.music;if(music?.asset){const available=Math.min(music.end-music.start,plan.duration-(music.timelineStart||0));if(available<=0)throw Error('Music starts after the new ending. Adjust its timing first.');music={...music,end:music.start+available,fadeIn:Math.min(music.fadeIn||0,available/2),fadeOut:Math.min(music.fadeOut||0,available/2),ducking:c.tagEdit?music.ducking:true};}
  const projectStore=createProjectStore('/unused',{persistence:{read:async()=>state,update:async fn=>fn(state)}});
  const saved=await projectStore.save(p.id,{script:c.script,voice:c.voiceName,elevenlabsVoiceId:c.voiceId,audioLabel:'Editor selected · '+c.createdAt,audio:{asset:c.asset,volume:1},srt:c.srt,scenes:plan.scenes,music},p.updatedAt);
+ if(explicitApproval){c.approval={approvedBy:userId,updatedAt:timestamp(),method:'explicit-apply'};event(state,'candidate-approved',userId,{projectId:p.id,candidateId:c.id,method:'explicit-apply'});}
  event(state,'candidate-applied',userId,{projectId:p.id,candidateId:c.id,previousAudio:p.audio,previousScript:p.script,previousSrt:p.srt,projectUpdatedAt:saved.updatedAt});return {project:saved,rebuildRequired:true};});
 }
