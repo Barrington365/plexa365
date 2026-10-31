@@ -7,6 +7,7 @@ export const metadata = {
 };
 
 const adminLinks = [
+  { title: "Agent Management", href: "/admin/agents", description: "Configure production and engineering agents, prepare tasks and review approvals. All agents remain paused.", status: "Admin" },
   {
     title: "Plexa Dev Gateway",
     href: "/dev-gateway",
