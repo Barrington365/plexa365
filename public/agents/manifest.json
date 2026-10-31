@@ -1,0 +1,370 @@
+[
+  {
+    "agent": "bob",
+    "pose": "explaining",
+    "url": "/agents/bob/explaining.webp",
+    "frames": 24,
+    "bytes": 1921508,
+    "source": "Plexa_Animated_Agents/Bob_Explaining.webp"
+  },
+  {
+    "agent": "bob",
+    "pose": "idle",
+    "url": "/agents/bob/idle.webp",
+    "frames": 24,
+    "bytes": 1569542,
+    "source": "Plexa_Animated_Agents/Bob_Idle.webp"
+  },
+  {
+    "agent": "bob",
+    "pose": "listening",
+    "url": "/agents/bob/listening.webp",
+    "frames": 24,
+    "bytes": 1702144,
+    "source": "Plexa_Animated_Agents/Bob_Listening.webp"
+  },
+  {
+    "agent": "bob",
+    "pose": "pointing",
+    "url": "/agents/bob/pointing.webp",
+    "frames": 24,
+    "bytes": 1772086,
+    "source": "Plexa_Animated_Agents/Bob_Pointing.webp"
+  },
+  {
+    "agent": "bob",
+    "pose": "sleeping",
+    "url": "/agents/bob/sleeping.webp",
+    "frames": 24,
+    "bytes": 1529380,
+    "source": "Plexa_Animated_Agents/Bob_Sleeping.webp"
+  },
+  {
+    "agent": "bob",
+    "pose": "success",
+    "url": "/agents/bob/success.webp",
+    "frames": 24,
+    "bytes": 2081130,
+    "source": "Plexa_Animated_Agents/Bob_Success.webp"
+  },
+  {
+    "agent": "bob",
+    "pose": "thinking",
+    "url": "/agents/bob/thinking.webp",
+    "frames": 24,
+    "bytes": 1781556,
+    "source": "Plexa_Animated_Agents/Bob_Thinking.webp"
+  },
+  {
+    "agent": "bob",
+    "pose": "working",
+    "url": "/agents/bob/working.webp",
+    "frames": 24,
+    "bytes": 1670598,
+    "source": "Plexa_Animated_Agents/Bob_Working.webp"
+  },
+  {
+    "agent": "fiddle",
+    "pose": "explaining",
+    "url": "/agents/fiddle/explaining.webp",
+    "frames": 24,
+    "bytes": 1909660,
+    "source": "Plexa_Animated_Agents/Fiddle_Explaining.webp"
+  },
+  {
+    "agent": "fiddle",
+    "pose": "idea",
+    "url": "/agents/fiddle/idea.webp",
+    "frames": 24,
+    "bytes": 2322550,
+    "source": "Plexa_Animated_Agents/Fiddle_Idea.webp"
+  },
+  {
+    "agent": "fiddle",
+    "pose": "idle",
+    "url": "/agents/fiddle/idle.webp",
+    "frames": 24,
+    "bytes": 1680264,
+    "source": "Plexa_Animated_Agents/Fiddle_Idle.webp"
+  },
+  {
+    "agent": "fiddle",
+    "pose": "searching",
+    "url": "/agents/fiddle/searching.webp",
+    "frames": 24,
+    "bytes": 1808242,
+    "source": "Plexa_Animated_Agents/Fiddle_Searching.webp"
+  },
+  {
+    "agent": "fiddle",
+    "pose": "sleeping",
+    "url": "/agents/fiddle/sleeping.webp",
+    "frames": 24,
+    "bytes": 1567860,
+    "source": "Plexa_Animated_Agents/Fiddle_Sleeping.webp"
+  },
+  {
+    "agent": "fiddle",
+    "pose": "success",
+    "url": "/agents/fiddle/success.webp",
+    "frames": 24,
+    "bytes": 2422730,
+    "source": "Plexa_Animated_Agents/Fiddle_Success.webp"
+  },
+  {
+    "agent": "fiddle",
+    "pose": "thinking",
+    "url": "/agents/fiddle/thinking.webp",
+    "frames": 24,
+    "bytes": 2049490,
+    "source": "Plexa_Animated_Agents/Fiddle_Thinking.webp"
+  },
+  {
+    "agent": "fiddle",
+    "pose": "working",
+    "url": "/agents/fiddle/working.webp",
+    "frames": 24,
+    "bytes": 1684858,
+    "source": "Plexa_Animated_Agents/Fiddle_Working.webp"
+  },
+  {
+    "agent": "banach",
+    "pose": "idle",
+    "url": "/agents/banach/idle.webp",
+    "frames": 8,
+    "bytes": 117296,
+    "source": "Plexa_Engineering_Agents/Banach_Idle.webp"
+  },
+  {
+    "agent": "banach",
+    "pose": "sleeping",
+    "url": "/agents/banach/sleeping.webp",
+    "frames": 8,
+    "bytes": 117638,
+    "source": "Plexa_Engineering_Agents/Banach_Sleeping.webp"
+  },
+  {
+    "agent": "banach",
+    "pose": "success",
+    "url": "/agents/banach/success.webp",
+    "frames": 8,
+    "bytes": 117296,
+    "source": "Plexa_Engineering_Agents/Banach_Success.webp"
+  },
+  {
+    "agent": "banach",
+    "pose": "thinking",
+    "url": "/agents/banach/thinking.webp",
+    "frames": 8,
+    "bytes": 118270,
+    "source": "Plexa_Engineering_Agents/Banach_Thinking.webp"
+  },
+  {
+    "agent": "banach",
+    "pose": "working",
+    "url": "/agents/banach/working.webp",
+    "frames": 8,
+    "bytes": 118270,
+    "source": "Plexa_Engineering_Agents/Banach_Working.webp"
+  },
+  {
+    "agent": "halley",
+    "pose": "idle",
+    "url": "/agents/halley/idle.webp",
+    "frames": 8,
+    "bytes": 121432,
+    "source": "Plexa_Engineering_Agents/Halley_Idle.webp"
+  },
+  {
+    "agent": "halley",
+    "pose": "sleeping",
+    "url": "/agents/halley/sleeping.webp",
+    "frames": 8,
+    "bytes": 121244,
+    "source": "Plexa_Engineering_Agents/Halley_Sleeping.webp"
+  },
+  {
+    "agent": "halley",
+    "pose": "success",
+    "url": "/agents/halley/success.webp",
+    "frames": 8,
+    "bytes": 121432,
+    "source": "Plexa_Engineering_Agents/Halley_Success.webp"
+  },
+  {
+    "agent": "halley",
+    "pose": "thinking",
+    "url": "/agents/halley/thinking.webp",
+    "frames": 8,
+    "bytes": 122082,
+    "source": "Plexa_Engineering_Agents/Halley_Thinking.webp"
+  },
+  {
+    "agent": "halley",
+    "pose": "working",
+    "url": "/agents/halley/working.webp",
+    "frames": 8,
+    "bytes": 122082,
+    "source": "Plexa_Engineering_Agents/Halley_Working.webp"
+  },
+  {
+    "agent": "hubble",
+    "pose": "idle",
+    "url": "/agents/hubble/idle.webp",
+    "frames": 8,
+    "bytes": 144656,
+    "source": "Plexa_Engineering_Agents/Hubble_Idle.webp"
+  },
+  {
+    "agent": "hubble",
+    "pose": "sleeping",
+    "url": "/agents/hubble/sleeping.webp",
+    "frames": 8,
+    "bytes": 144618,
+    "source": "Plexa_Engineering_Agents/Hubble_Sleeping.webp"
+  },
+  {
+    "agent": "hubble",
+    "pose": "success",
+    "url": "/agents/hubble/success.webp",
+    "frames": 8,
+    "bytes": 144656,
+    "source": "Plexa_Engineering_Agents/Hubble_Success.webp"
+  },
+  {
+    "agent": "hubble",
+    "pose": "thinking",
+    "url": "/agents/hubble/thinking.webp",
+    "frames": 8,
+    "bytes": 145496,
+    "source": "Plexa_Engineering_Agents/Hubble_Thinking.webp"
+  },
+  {
+    "agent": "hubble",
+    "pose": "working",
+    "url": "/agents/hubble/working.webp",
+    "frames": 8,
+    "bytes": 145496,
+    "source": "Plexa_Engineering_Agents/Hubble_Working.webp"
+  },
+  {
+    "agent": "huygens",
+    "pose": "idle",
+    "url": "/agents/huygens/idle.webp",
+    "frames": 8,
+    "bytes": 135808,
+    "source": "Plexa_Engineering_Agents/Huygens_Idle.webp"
+  },
+  {
+    "agent": "huygens",
+    "pose": "sleeping",
+    "url": "/agents/huygens/sleeping.webp",
+    "frames": 8,
+    "bytes": 135552,
+    "source": "Plexa_Engineering_Agents/Huygens_Sleeping.webp"
+  },
+  {
+    "agent": "huygens",
+    "pose": "success",
+    "url": "/agents/huygens/success.webp",
+    "frames": 8,
+    "bytes": 135808,
+    "source": "Plexa_Engineering_Agents/Huygens_Success.webp"
+  },
+  {
+    "agent": "huygens",
+    "pose": "thinking",
+    "url": "/agents/huygens/thinking.webp",
+    "frames": 8,
+    "bytes": 136532,
+    "source": "Plexa_Engineering_Agents/Huygens_Thinking.webp"
+  },
+  {
+    "agent": "huygens",
+    "pose": "working",
+    "url": "/agents/huygens/working.webp",
+    "frames": 8,
+    "bytes": 136532,
+    "source": "Plexa_Engineering_Agents/Huygens_Working.webp"
+  },
+  {
+    "agent": "james",
+    "pose": "idle",
+    "url": "/agents/james/idle.webp",
+    "frames": 8,
+    "bytes": 134492,
+    "source": "Plexa_Engineering_Agents/James_Idle.webp"
+  },
+  {
+    "agent": "james",
+    "pose": "sleeping",
+    "url": "/agents/james/sleeping.webp",
+    "frames": 8,
+    "bytes": 134718,
+    "source": "Plexa_Engineering_Agents/James_Sleeping.webp"
+  },
+  {
+    "agent": "james",
+    "pose": "success",
+    "url": "/agents/james/success.webp",
+    "frames": 8,
+    "bytes": 134492,
+    "source": "Plexa_Engineering_Agents/James_Success.webp"
+  },
+  {
+    "agent": "james",
+    "pose": "thinking",
+    "url": "/agents/james/thinking.webp",
+    "frames": 8,
+    "bytes": 134862,
+    "source": "Plexa_Engineering_Agents/James_Thinking.webp"
+  },
+  {
+    "agent": "james",
+    "pose": "working",
+    "url": "/agents/james/working.webp",
+    "frames": 8,
+    "bytes": 134862,
+    "source": "Plexa_Engineering_Agents/James_Working.webp"
+  },
+  {
+    "agent": "linnaeus",
+    "pose": "idle",
+    "url": "/agents/linnaeus/idle.webp",
+    "frames": 8,
+    "bytes": 152052,
+    "source": "Plexa_Engineering_Agents/Linnaeus_Idle.webp"
+  },
+  {
+    "agent": "linnaeus",
+    "pose": "sleeping",
+    "url": "/agents/linnaeus/sleeping.webp",
+    "frames": 8,
+    "bytes": 152120,
+    "source": "Plexa_Engineering_Agents/Linnaeus_Sleeping.webp"
+  },
+  {
+    "agent": "linnaeus",
+    "pose": "success",
+    "url": "/agents/linnaeus/success.webp",
+    "frames": 8,
+    "bytes": 152052,
+    "source": "Plexa_Engineering_Agents/Linnaeus_Success.webp"
+  },
+  {
+    "agent": "linnaeus",
+    "pose": "thinking",
+    "url": "/agents/linnaeus/thinking.webp",
+    "frames": 8,
+    "bytes": 153394,
+    "source": "Plexa_Engineering_Agents/Linnaeus_Thinking.webp"
+  },
+  {
+    "agent": "linnaeus",
+    "pose": "working",
+    "url": "/agents/linnaeus/working.webp",
+    "frames": 8,
+    "bytes": 153394,
+    "source": "Plexa_Engineering_Agents/Linnaeus_Working.webp"
+  }
+]
