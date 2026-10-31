@@ -17,7 +17,7 @@ export async function workspaceRead(workspace,route){
  const {state}=await workspace.snapshot();
  switch(route){
   case 'images':return state.images;
-  case 'studio-assets':return {assets:Object.values(state.assets).filter(f=>mime(f.asset)).map(f=>({asset:f.asset,name:f.name||path.basename(f.asset),type:mime(f.asset).split('/')[0],url:mediaURL(f.asset),updatedAt:f.updatedAt||state.images.find(i=>'images/'+i.id+'.png'===f.asset)?.updatedAt||null}))};
+  case 'studio-assets':return {assets:Object.values(state.assets).filter(f=>mime(f.asset)).map(f=>{const category=['presenter','studio','intro','outro','transition','background','graphics'].includes(f.category)?f.category:undefined;return {asset:f.asset,name:f.name||path.basename(f.asset),type:mime(f.asset).split('/')[0],url:mediaURL(f.asset),updatedAt:f.updatedAt||state.images.find(i=>'images/'+i.id+'.png'===f.asset)?.updatedAt||null,...(category?{category}:{})};})};
   case 'state':return {jobs:state.jobs,active:state.jobs.find(j=>['queued','running','saving'].includes(j.status))?.id,assets:workspaceClips(state).map(c=>({...c,url:mediaURL(c.asset)}))};
   case 'library-trash':return state.trash;
   case 'article-inbox':return {...(state.inbox||{articles:[],history:[],lastSuccessfulImportAt:null}),articles:(state.inbox?.articles||[]).map(a=>({...a,scriptPreparation:(()=>{const j=state.jobs.find(j=>j.id===a.scriptPreparation?.jobId);return j?.status==='failed'?{...a.scriptPreparation,status:'failed',error:j.stage,updatedAt:j.updatedAt}:a.scriptPreparation;})(),images:state.images.filter(i=>i.sourceUrl===a.sourceUrl).map(i=>({...i,url:mediaURL('images/'+i.id+'.png')}))}))};
@@ -36,7 +36,7 @@ export async function workspaceWrite(workspace,route,body){
   case 'studio-assets/upload':{
    const ext=path.extname(String(body.name)).toLowerCase(),type=mime(ext);if(!type||typeof body.base64!=='string'||body.base64.length>18e6||!/^[A-Za-z0-9+/=]+$/.test(body.base64))throw Error('Choose a supported image, audio or MP4 under 13 MB');const bytes=Buffer.from(body.base64,'base64');if(bytes.length>13e6)throw Error('Choose a file under 13 MB');
    if(type.startsWith('image/'))await sharp(bytes,{limitInputPixels:24000000}).metadata();else{const metadata=await parseBuffer(bytes,{mimeType:type},{duration:true});if(!Number.isFinite(metadata.format.duration)||metadata.format.duration<=0)throw Error('The uploaded media has no readable duration');}
-   const asset='uploads/'+randomUUID()+ext,updatedAt=new Date().toISOString(),name=String(body.name).slice(0,150),entry=await workspace.putBytes(asset,bytes,{name,updatedAt});await workspace.update(s=>{s.assets[asset]=entry;return true;});return {asset,name,type:type.split('/')[0],url:mediaURL(asset),updatedAt};
+   const category=['presenter','studio','intro','outro','transition','background','graphics'].includes(body.category)?body.category:undefined,asset='uploads/'+randomUUID()+ext,updatedAt=new Date().toISOString(),name=String(body.name).slice(0,150),entry=await workspace.putBytes(asset,bytes,{name,updatedAt,...(category?{category}:{})});await workspace.update(s=>{s.assets[asset]=entry;return true;});return {asset,name,type:type.split('/')[0],url:mediaURL(asset),updatedAt,...(category?{category}:{})};
   }
   case 'images/import':return workspaceImage(workspace,'import',body);
   case 'images/preview':return workspaceImage(workspace,'preview',body);
