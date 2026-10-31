@@ -5,3 +5,5 @@ test('only named source pages can be served',()=>{assert.equal(workspacePage('pr
 test('screen mapping browser module is explicitly included in the hosted deployment',async()=>{const fs=await import('node:fs/promises');const config=await fs.readFile(new URL('../../next.config.ts',import.meta.url),'utf8');assert.ok(config.includes('"./features/msn-local/screen-mapping.mjs"'));assert.equal(workspacePage('studio-screen-mapping.mjs'),'screen-mapping.mjs');});
 
 test('Automations is an authenticated workspace page with workspace navigation',()=>{assert.equal(workspacePage('automations'),'automations.html');assert.match(hostedUI("<a href='/automations'>Automations</a>"),/href='\/workspace\/automations'/);});
+
+test('Agents sidebar is only enabled for the current admin role',()=>{const source='if(/* STUDIO_ADMIN_NAV */ false)items.push({href:"/admin/agents"})';for(const role of ['editor','viewer','guest',undefined])assert.match(hostedUI(source,{role}),/^if\(false\)/);assert.match(hostedUI(source,{role:'admin'}),/^if\(true\).*href:"\/admin\/agents"/);});
