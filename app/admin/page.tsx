@@ -7,6 +7,7 @@ export const metadata = {
 };
 
 const adminLinks = [
+  {title:"Presenters & Profiles",href:"/admin/profiles",description:"Real users, fictional presenters and agents: linked assets, voices and access.",status:"Admin"},
   { title: "Agent Management", href: "/admin/agents", description: "Configure production and engineering agents, prepare tasks and review approvals. All agents remain paused.", status: "Admin" },
   {
     title: "Plexa Dev Gateway",

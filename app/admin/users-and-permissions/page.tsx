@@ -17,7 +17,8 @@ export default function UsersAndPermissionsPage() {
           Invite Planet Sport Studio users and assign access roles for meetings, audio tools, editing tools and admin.
         </p>
       </section>
-      <UserManagementPanel />
+      <nav className="flex gap-4"><a href="#real-users">Real users</a><Link href="/admin/profiles">Presenters &amp; profile directory</Link><Link href="/admin/agents">Agents &amp; permissions</Link></nav>
+      <div id="real-users"><UserManagementPanel /></div>
     </div>
   );
 }
