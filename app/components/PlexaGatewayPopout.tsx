@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { AgentArtwork } from "@/app/admin/agents/AgentArtwork";
+import { ApproveAgentTask } from "@/app/admin/agents/ApproveAgentTask";
+import { roles, type Command } from "@/app/lib/agents/model";
 import { createPortal } from "react-dom";
 import { AiProviderGatewayPanel } from "@/app/components/AiProviderGatewayPanel";
 import { R365Button } from "@/app/components/R365Button";
@@ -13,6 +16,7 @@ type Props = {
   floating?: boolean;
   defaultOpen?: boolean;
   embedded?: boolean;
+  initialAgentId?: string;
 };
 
 type Position = { x: number; y: number };
@@ -33,6 +37,7 @@ type ApiResponse = {
 type GatewayMode = "release_check" | "ask_openai" | "ask_cursor" | "build_cursor_task" | "review_cursor_plan" | "review_code" | "save_learning";
 type GatewayRunMode = "instant" | "thinking";
 type GatewayChatResponse = {
+  proposal?: {command:Command;version:number};
   summary: string;
   recommendation: string;
   steps: string[];
@@ -170,11 +175,12 @@ function escapeHtml(value: string): string {
 }
 
 export function PlexaGatewayPopout({
-  triggerLabel = "Plexa Gateway",
+  triggerLabel = "Plexa Agent",
   triggerClassName,
   floating = false,
   defaultOpen = false,
   embedded = false,
+  initialAgentId = "manager",
 }: Props) {
   const panelRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -186,6 +192,7 @@ export function PlexaGatewayPopout({
   const [open, setOpen] = useState(defaultOpen);
   const [position, setPosition] = useState<Position | null>(null);
   const [dragState, setDragState] = useState<DragState | null>(null);
+  const [agentId,setAgentId] = useState(initialAgentId);
   const [mode, setMode] = useState<GatewayMode>("ask_openai");
   const [runMode, setRunMode] = useState<GatewayRunMode>("instant");
   const [contextKeys, setContextKeys] = useState<string[]>([]);
@@ -230,7 +237,7 @@ export function PlexaGatewayPopout({
     const left = Math.max(0, Math.round((window.screen.width - width) / 2));
     const top = Math.max(0, Math.round((window.screen.height - height) / 2));
     const child = window.open(
-      studioApiPath("/dev-gateway/popout"),
+      studioApiPath(`/dev-gateway/popout?agent=${encodeURIComponent(agentId)}`),
       "plexa-dev-gateway",
       `popup=yes,width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`,
     );
@@ -330,13 +337,14 @@ export function PlexaGatewayPopout({
     setShowContextMenu(false);
     abortRef.current = new AbortController();
     try {
-      const res = await fetch(studioApiPath("/api/dev-gateway/chat"), {
+      const res = await fetch(studioApiPath(activeMode === "ask_openai" && !uploadedFiles.length ? "/api/admin/agents/chat" : "/api/dev-gateway/chat"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         signal: abortRef.current.signal,
         body: JSON.stringify({
           mode: activeMode,
+          agentId,
           userPrompt: `${conversationBlock}${userPrompt}${runModeBlock}${fileBlock}${sharedBlock}`,
           contextKeys,
           currentPage: typeof window !== "undefined" ? window.location.pathname : "",
@@ -606,7 +614,7 @@ export function PlexaGatewayPopout({
     win.document.write(`<!doctype html>
       <html>
         <head>
-          <title>Plexa Gateway R&D Evidence</title>
+          <title>Plexa Agent R&D Evidence</title>
           <style>
             body{font-family:Arial,sans-serif;margin:40px;color:#111;line-height:1.5}
             h1{font-size:24px;margin:0 0 8px}
@@ -618,8 +626,8 @@ export function PlexaGatewayPopout({
         </head>
         <body>
           <button onclick="window.print()">Save as PDF</button>
-          <h1>Plexa Gateway R&D Evidence</h1>
-          <p>Captured from Plexa Gateway. Use browser print to save as PDF.</p>
+          <h1>Plexa Agent R&D Evidence</h1>
+          <p>Captured from Plexa Agent. Use browser print to save as PDF.</p>
           <pre>${escapeHtml(content)}</pre>
         </body>
       </html>`);
@@ -689,7 +697,7 @@ export function PlexaGatewayPopout({
       }}
       role="dialog"
       aria-modal="false"
-      aria-label="Plexa Gateway"
+      aria-label="Plexa Agent"
     >
       <div
         className={`flex touch-none select-none items-center justify-between gap-3 border-b px-4 py-3 ${embedded ? "" : "cursor-move"}`}
@@ -703,8 +711,8 @@ export function PlexaGatewayPopout({
         onPointerCancel={embedded ? undefined : endDrag}
       >
         <div>
-          <p className="text-sm font-black text-[color:var(--text-primary)]">Plexa Gateway</p>
-          <p className="text-xs text-emerald-200">Mode: {currentModeLabel} · OpenAI thinking layer · Cursor builder handoff</p>
+          <p className="text-sm font-black text-[color:var(--text-primary)]">Plexa Agent</p>
+          <p className="text-xs text-emerald-200">Mode: {currentModeLabel} · OpenAI · Admin-approved task proposals</p>
         </div>
         <div className="flex items-center gap-2">
           {!embedded ? (
@@ -724,7 +732,7 @@ export function PlexaGatewayPopout({
             onPointerDown={(event) => event.stopPropagation()}
             className="grid size-8 place-items-center rounded-full border text-sm font-black text-[color:var(--text-secondary)]"
             style={{ borderColor: "rgba(255,255,255,0.18)" }}
-            aria-label="Close Plexa Gateway"
+            aria-label="Close Plexa Agent"
           >
             ×
           </button>
@@ -732,11 +740,14 @@ export function PlexaGatewayPopout({
       </div>
 
       <div className="flex-1 space-y-4 overflow-auto p-4">
+        <label className="block text-sm">Agent<select aria-label="Agent" value={agentId} disabled={busy} onChange={e=>{setAgentId(e.target.value);setMessages([]);setSharedContext([]);}} className="ml-3 rounded border bg-[color:var(--surface)] p-2"><option value="manager">Agent Manager</option>{roles.map(([id,name])=><option key={id} value={id}>{name}</option>)}</select></label>
+        {agentId!=="manager"&&<AgentArtwork id={agentId} name={roles.find(r=>r[0]===agentId)?.[1]??agentId}/>}
+
         {!messages.length && !result ? (
           <div className="rounded-3xl border bg-[color:var(--surface)] p-6 text-center" style={{ borderColor: "var(--border)" }}>
-            <p className="text-xl font-black text-[color:var(--text-primary)]">How can Plexa Gateway help?</p>
+            <p className="text-xl font-black text-[color:var(--text-primary)]">How can your Agent help?</p>
             <p className="mt-2 text-sm leading-6 text-[color:var(--text-secondary)]">
-              Ask OpenAI, create Cursor tasks, review plans or run release QA. Choose mode and context from the composer menu.
+              Send an instruction, inspect selected Studio context or propose a task for approval. Server execution is not connected. File attachments use the existing review chat.
             </p>
           </div>
         ) : null}
@@ -758,6 +769,7 @@ export function PlexaGatewayPopout({
                 <p className="mt-1 whitespace-pre-wrap">{message.content}</p>
                 {message.response ? (
                   <div className="mt-3 space-y-3">
+                    {message.response.proposal && <ApproveAgentTask proposal={message.response.proposal}/>}
                     {message.response.recommendation ? <p><strong>Recommendation:</strong> {message.response.recommendation}</p> : null}
                     {message.response.risks.length ? <p><strong>Risks:</strong> {message.response.risks.join("; ")}</p> : null}
                     {message.response.testPlan.length ? <p><strong>Test plan:</strong> {message.response.testPlan.join("; ")}</p> : null}
