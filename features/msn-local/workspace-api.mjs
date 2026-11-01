@@ -10,8 +10,11 @@ import {workspaceImage} from './workspace-images.mjs';
 import {assignLayerAsset} from './assign-layer.mjs';
 import path from 'node:path';import fs from 'node:fs/promises';import {randomUUID} from 'node:crypto';import sharp from 'sharp';
 import {removeBackground} from './background-removal.mjs';
+import {addStudioVideo,analyticsForVideos,applyPlayerPoster,approveThumbnail,createStudioPlaylist,deleteStudioPlaylist,libraryDetails,moveStudioVideo,removeStudioVideo,renameStudioPlaylist,resolveLibraryTarget,restoreThumbnail,videoLibraryView} from './video-library.mjs';
+import {captureVideoFrame,storeUploadedThumbnail,suggestVideoFrame} from './video-thumbnail.mjs';
 const mediaURL=asset=>'/api/studio-workspace/media?asset='+encodeURIComponent(asset);
-function playlistCatalogue(state){return {playlists:(state.playerPlaylists||[]).map(p=>({id:p.id,title:p.title,destinationId:p.destinationId,videoIds:[...p.videoIds]})),videos:(state.websiteVideos||[]).filter(v=>v.status==='published').map(v=>({id:v.id,jobId:v.jobId,title:v.title,destinationId:v.destinationId}))};}
+function playlistCatalogue(state){const view=videoLibraryView(state);return {playlists:view.playlists,videos:view.videos,studioPlaylists:view.studioPlaylists,finished:view.finished.map(video=>({jobId:video.jobId,title:video.title}))};}
+function storeThumbnailDraft(state,captured){state.thumbnailDrafts??={};state.thumbnailDrafts[captured.key]=captured.draft;for(const entry of captured.entries)state.assets[entry.asset]=entry;return {key:captured.key,draft:captured.draft,url:mediaURL(captured.draft.listAsset),originalUrl:mediaURL(captured.draft.asset)};}
 function playlistById(state,id){if(typeof id!=='string'||!id)throw Error('Choose a playlist');const playlist=state.playerPlaylists?.find(p=>p.id===id);if(!playlist)throw Error('Choose a playlist');playlist.videoIds??=[];return playlist;}
 const mime=asset=>({png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',webp:'image/webp',mp4:'video/mp4',mp3:'audio/mpeg',wav:'audio/wav',m4a:'audio/mp4',flac:'audio/flac',ogg:'audio/ogg'}[asset.split('.').at(-1)?.toLowerCase()]);
 export async function workspaceRead(workspace,route){
@@ -23,6 +26,7 @@ export async function workspaceRead(workspace,route){
   case 'state':return {jobs:state.jobs,active:state.jobs.find(j=>['queued','running','saving'].includes(j.status))?.id,assets:workspaceClips(state).map(c=>({...c,url:mediaURL(c.asset)}))};
   case 'library-trash':return state.trash;
   case 'playlists':return playlistCatalogue(state);
+  case 'video-library':return videoLibraryView(state);
   case 'article-inbox':return {...(state.inbox||{articles:[],history:[],lastSuccessfulImportAt:null}),articles:(state.inbox?.articles||[]).map(a=>({...a,scriptPreparation:(()=>{const j=state.jobs.find(j=>j.id===a.scriptPreparation?.jobId);return j?.status==='failed'?{...a.scriptPreparation,status:'failed',error:j.stage,updatedAt:j.updatedAt}:a.scriptPreparation;})(),images:state.images.filter(i=>i.sourceUrl===a.sourceUrl).map(i=>({...i,url:mediaURL('images/'+i.id+'.png')}))}))};
   case 'studio-articles':return {articles:(state.inbox?.articles||[]).map(a=>({id:a.id,title:a.title,sourceUrl:a.sourceUrl,script:a.spokenDraft?.status==='ready'&&a.spokenDraft.sourceFingerprint===a.fingerprint?a.spokenDraft.script:a.text,updatedAt:a.updatedAt,sourceCheckedAt:a.sourceCheckedAt||null,hasNarration:false}))};
   case 'brand-kits':return state.kits||JSON.parse(await fs.readFile(path.join(process.cwd(),'features/brand-kits/seeds.json'),'utf8'));
@@ -59,6 +63,19 @@ export async function workspaceWrite(workspace,route,body){
   case 'playlists/add':return workspace.update(s=>{const playlist=playlistById(s,body.playlistId);const video=(s.websiteVideos||[]).find(v=>v.jobId===body.jobId&&v.destinationId===playlist.destinationId&&v.status==='published');if(!video)throw Error('Publish this video to the player before adding it to a playlist');if(!playlist.videoIds.includes(video.id))playlist.videoIds.push(video.id);return playlistCatalogue(s);});
   case 'playlists/remove':return workspace.update(s=>{const playlist=playlistById(s,body.playlistId);if(typeof body.videoId!=='string')throw Error('Choose a video');playlist.videoIds=playlist.videoIds.filter(id=>id!==body.videoId);return playlistCatalogue(s);});
   case 'playlists/move':return workspace.update(s=>{const playlist=playlistById(s,body.playlistId);if(typeof body.videoId!=='string'||!['up','down'].includes(body.direction))throw Error('Choose a video');const index=playlist.videoIds.indexOf(body.videoId),next=index+(body.direction==='up'?-1:1);if(index<0||next<0||next>=playlist.videoIds.length)throw Error('That video cannot move further');const [item]=playlist.videoIds.splice(index,1);playlist.videoIds.splice(next,0,item);return playlistCatalogue(s);});
+  case 'thumbnails/capture':{const captured=await captureVideoFrame(workspace,body);return workspace.update(s=>storeThumbnailDraft(s,captured));}
+  case 'thumbnails/suggest':{const captured=await suggestVideoFrame(workspace,body);return workspace.update(s=>storeThumbnailDraft(s,captured));}
+  case 'thumbnails/upload':{const captured=await storeUploadedThumbnail(workspace,body);return workspace.update(s=>storeThumbnailDraft(s,captured));}
+  case 'thumbnails/save':return workspace.update(s=>{const target=resolveLibraryTarget(s,body),now=new Date().toISOString();s.thumbnails??={};s.thumbnails[target.key]=approveThumbnail(s.thumbnails[target.key],s.thumbnailDrafts?.[target.key],now);if(s.thumbnailDrafts)delete s.thumbnailDrafts[target.key];const player=body.applyToPlayer===true&&target.job?applyPlayerPoster(s,target.job.id,s.thumbnails[target.key],body.destinationId):null;return {thumbnail:s.thumbnails[target.key],player};});
+  case 'thumbnails/restore':return workspace.update(s=>{const target=resolveLibraryTarget(s,body);s.thumbnails??={};s.thumbnails[target.key]=restoreThumbnail(s.thumbnails[target.key],new Date().toISOString());return {thumbnail:s.thumbnails[target.key]};});
+  case 'videos/details':return workspace.update(s=>{const target=resolveLibraryTarget(s,body),details={...libraryDetails(body),updatedAt:new Date().toISOString()};s.videoDetails??={};s.videoDetails[target.key]=details;return details;});
+  case 'videos/analytics':{const {state}=await workspace.snapshot(),target=resolveLibraryTarget(state,body),ids=target.job?(state.websiteVideos||[]).filter(video=>video.jobId===target.job.id).map(video=>video.id):[];return analyticsForVideos(state.playerEvents,ids);}
+  case 'studio-playlists/create':return workspace.update(s=>{createStudioPlaylist(s,body,randomUUID(),new Date().toISOString());return playlistCatalogue(s);});
+  case 'studio-playlists/add':return workspace.update(s=>(addStudioVideo(s,body.playlistId,body.jobId,new Date().toISOString()),playlistCatalogue(s)));
+  case 'studio-playlists/remove':return workspace.update(s=>(removeStudioVideo(s,body.playlistId,body.jobId,new Date().toISOString()),playlistCatalogue(s)));
+  case 'studio-playlists/move':return workspace.update(s=>(moveStudioVideo(s,body.playlistId,body.jobId,body.direction,new Date().toISOString()),playlistCatalogue(s)));
+  case 'studio-playlists/rename':return workspace.update(s=>(renameStudioPlaylist(s,{...body,playlistId:body.playlistId},new Date().toISOString()),playlistCatalogue(s)));
+  case 'studio-playlists/delete':return workspace.update(s=>(deleteStudioPlaylist(s,body.playlistId),playlistCatalogue(s)));
   case 'images/remove-background':{
    const {state}=await workspace.snapshot(),original=state.images.find(i=>i.id===body.id);if(!original)throw Error('Image not found');
    let bytes=(await workspace.getFile('images/'+original.id+'.png')).bytes;
