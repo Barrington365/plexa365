@@ -8,13 +8,13 @@ export function PlexaVideoPlayer(element,config){
  const status=document.getElementById('status'),measurement=document.getElementById('measurement'),advertising=document.getElementById('advertising');
  document.documentElement.style.setProperty('--player-accent',config.accent||'#48ded0');
  const player=videojs(element,{controls:true,autoplay:false,playsinline:true,preload:'metadata',fluid:true,aspectRatio:'16:9',responsive:true,playbackRates:[.5,1,1.25,1.5,2]});
- const playbackId=crypto.randomUUID(),seen=new Set();let contentStarted=false,adsReady=false,adTimer,disposed=false;
+ const playbackId=crypto.randomUUID(),seen=new Set(),queue=Array.isArray(config.queue)?config.queue:[];let contentStarted=false,adsReady=false,adTimer,disposed=false,queueIndex=0;
  const inAd=()=>!!player.ads?.isInAdMode();
  const emit=(event,code)=>{if(!measurement?.checked||seen.has(event))return;seen.add(event);fetch('/api/player/events',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({videoId:config.id,destinationId:config.destinationId,event,playbackId,consent:true,device:innerWidth<600?'mobile':innerWidth<1024?'tablet':'desktop',articleId:config.articleId||undefined,code}),keepalive:true}).catch(()=>{});};
  measurement?.addEventListener('change',()=>{if(measurement.checked){emit('load');if(contentStarted)emit('start');}});
  player.on('playing',()=>{if(inAd())return;contentStarted=true;status.textContent='';if(advertising)advertising.disabled=true;emit('start');});
  player.on('timeupdate',()=>{if(inAd()||!contentStarted)return;const duration=player.duration();if(!duration||!Number.isFinite(duration))return;const progress=player.currentTime()/duration;for(const n of [25,50,75])if(progress>=n/100)emit('progress'+n);});
- player.on('ended',()=>{if(!inAd()&&contentStarted)emit('complete');});
+ player.on('ended',()=>{if(inAd())return;if(contentStarted)emit('complete');const next=queue[queueIndex+1];if(!next)return;queueIndex+=1;config.id=next.id;seen.clear();contentStarted=false;status.textContent='Next: '+next.title;for(let i=player.remoteTextTracks().length-1;i>=0;i--)player.removeRemoteTextTrack(player.remoteTextTracks()[i]);for(const cue of next.captions||[])player.addRemoteTextTrack({kind:'captions',src:cue.src,srclang:cue.language,label:cue.label},false);player.poster(next.thumbnail);player.src({src:next.contentUrl,type:'video/mp4'});const download=document.getElementById('download');if(download)download.href=next.contentUrl;document.title=next.title+' · Plexa Video';player.play()?.catch(()=>{status.textContent='Press play for '+next.title;});});
  player.on('error',()=>{status.textContent='This video could not be played. Try opening it directly below.';emit('error',String(player.error()?.code||'unknown'));});
  const resume=()=>{clearTimeout(adTimer);if(disposed)return;status.textContent='';try{player.ima?.getAdsManager()?.destroy();if(inAd())player.ads.endLinearAdMode();}catch{}player.play()?.catch(()=>{status.textContent='Press play to continue.';});};
  player.on('adserror',()=>{emit('ad-error','ima');resume();});player.on('adtimeout',()=>{emit('ad-error','timeout');resume();});
