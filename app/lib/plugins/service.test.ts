@@ -16,3 +16,5 @@ describe('safe provider checks',()=>{
  it('bounds repeated checks',async()=>{mocks.read.mockResolvedValue({checkedAt:new Date().toISOString()});await expect(safeCheck(plugins[0])).rejects.toThrow('30 seconds');expect(mocks.fetch).not.toHaveBeenCalled();});
  it('recovers from expired leases',async()=>{mocks.reserve.mockResolvedValue({data:{started:Date.now()-31000},etag:'previous'});await safeCheck(plugins[0]);expect(mocks.write.mock.calls[0][2]).toEqual({onlyIfMatch:'previous'});expect(mocks.fetch).toHaveBeenCalledOnce();});
 });
+
+it('records bounded timeout failure without leaking exception details',async()=>{mocks.fetch.mockRejectedValue(new Error('secret fixture-not-a-real-key'));await safeCheck(plugins[0]);const options=mocks.fetch.mock.calls[0][1];expect(options.signal).toBeInstanceOf(AbortSignal);const stored=mocks.write.mock.calls.at(-1)?.[1];expect(stored.ok).toBe(false);expect(stored.error).not.toContain('fixture-not-a-real-key');});

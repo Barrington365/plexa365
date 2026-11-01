@@ -20,6 +20,7 @@ export type Health = { fingerprint: string; checkedAt: string; lastSuccess?: str
 export function connectionStatus(plugin: Plugin, configured: boolean, health?: Health, fingerprint?: string, now=Date.now()) {
  if(plugin.planned) return 'Coming Soon';
  if(!configured) return 'Not Connected';
- if(!health || health.fingerprint!==fingerprint || now-Date.parse(health.checkedAt)>86400000) return 'Configured — Not Verified';
+ const checkedAt=health?Date.parse(health.checkedAt):NaN;
+ if(!health || health.fingerprint!==fingerprint || !Number.isFinite(checkedAt) || checkedAt>now || now-checkedAt>86400000) return 'Configured — Not Verified';
  return health.ok?'Connected':'Needs Attention';
 }

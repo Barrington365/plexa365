@@ -8,3 +8,5 @@ describe('connection evidence',()=>{
  it('keeps planned integrations and missing configuration distinct',()=>{expect(connectionStatus(plugins.find(p=>p.planned)!,false)).toBe('Coming Soon');expect(connectionStatus(plugin,false,health,'v1')).toBe('Not Connected');});
  it('uses unique identifiers and only fixed HTTPS check endpoints',()=>{expect(new Set(plugins.map(p=>p.id)).size).toBe(plugins.length);for(const p of plugins)if(p.endpoint)expect(p.endpoint).toMatch(/^https:\/\//);});
 });
+
+it('rejects invalid or future check timestamps',()=>{for(const checkedAt of ['invalid',new Date(now+60000).toISOString()])expect(connectionStatus(plugin,true,{...health,checkedAt},'v1',now)).toBe('Configured — Not Verified');});
