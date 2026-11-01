@@ -14,6 +14,9 @@ const PUBLIC_PATHS = [
   "/api/auth/forgot-password",
   "/api/auth/reset-password",
   "/api/auth/logout",
+  "/api/player",
+  "/embed/video",
+  "/player",
   "/api/client-api",
   "/api/client-feeds",
   /** RSS Import Builder export URLs; auth is `?token=` matching export_token (no session). */

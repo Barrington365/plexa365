@@ -1,0 +1,2 @@
+import {playerContext,playerBase} from '@/app/lib/player';import {recordEvent} from '@/features/player/service.mjs';
+export async function POST(request:Request){if(request.headers.get('origin')!==playerBase())return new Response(null,{status:403});try{const text=await request.text();if(text.length>2000)return new Response(null,{status:413});const {workspace,clients}=await playerContext();await recordEvent(workspace,clients,JSON.parse(text));return new Response(null,{status:204,headers:{'Cache-Control':'no-store'}});}catch{return new Response(null,{status:400});}}

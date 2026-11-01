@@ -15,7 +15,7 @@
     "dev:turbo": "USE_TURBO=1 node scripts/run-dev.cjs",
     "dev:fresh": "node scripts/run-dev.cjs",
     "dev:webpack": "sh -c \"NEXT_DIST_DIR=.next WATCHPACK_POLLING=true next dev -p 8081 -H \\\"$(node scripts/print-default-listen-host.cjs)\\\"\"",
-    "build": "NEXT_DIST_DIR=.next-prod next build",
+    "build": "npm run build:player && NEXT_DIST_DIR=.next-prod next build",
     "start": "NEXT_DIST_DIR=.next-prod node scripts/ensure-next-build.cjs && NEXT_DIST_DIR=.next-prod node scripts/run-start.cjs",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
@@ -29,7 +29,8 @@
     "runway:image-gen": "npm run example --prefix tools/runway-image-gen",
     "sync:f1-drivers": "node scripts/sync-f1-driver-images.mjs",
     "dev:msn-local": "node scripts/local-msn-studio.mjs",
-    "test:msn-local": "node --test features/msn-local/*.test.mjs"
+    "test:msn-local": "node --test features/msn-local/*.test.mjs",
+    "build:player": "node scripts/player/build.mjs"
   },
   "dependencies": {
     "@netlify/blobs": "^10.7.4",
@@ -46,6 +47,9 @@
     "puppeteer": "^24.4.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "video.js": "8.24.2",
+    "videojs-contrib-ads": "7.5.2",
+    "videojs-ima": "2.6.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
@@ -54,6 +58,7 @@
     "@types/node": "^22.13.14",
     "@types/react": "^19.0.12",
     "@types/react-dom": "^19.0.4",
+    "esbuild": "0.28.2",
     "eslint": "^9.23.0",
     "eslint-config-next": "^15.2.4",
     "tailwindcss": "^4.0.17",
