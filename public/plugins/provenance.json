@@ -1,0 +1,240 @@
+[
+  {
+    "id": "openai",
+    "sourcePage": "https://openai.com",
+    "path": "/plugins/openai.svg",
+    "note": "Unmodified black monoblossom from official brand pack; OpenAI owns the mark; no endorsement implied.",
+    "sourceAsset": "https://cdn.openai.com/brand/OpenAI-Logos-2025.zip",
+    "bytes": 2969
+  },
+  {
+    "id": "elevenlabs",
+    "sourcePage": "https://elevenlabs.io",
+    "sourceAsset": "https://elevenlabs.io/favicon.ico?9c55860cee08706b",
+    "path": "/plugins/elevenlabs.png",
+    "bytes": 482,
+    "note": "Unmodified icon declared by provider official website; brand ownership retained. Lossless PNG conversion of largest ICO frame; no recolouring."
+  },
+  {
+    "id": "runway",
+    "sourcePage": "https://runwayml.com",
+    "path": "/plugins/runway.svg",
+    "note": "Unmodified black symbol from official brand pack, used according to small-format symbol guidelines.",
+    "sourceAsset": "https://runway.com/assets/Runway-Brand-Guidelines.zip",
+    "bytes": 1126
+  },
+  {
+    "id": "mux",
+    "sourcePage": "https://www.mux.com",
+    "sourceAsset": "https://www.mux.com/favicon.ico?favicon.1q3rcv3wpya2b.ico",
+    "path": "/plugins/mux.png",
+    "bytes": 524,
+    "note": "Unmodified icon declared by provider official website; brand ownership retained. Lossless PNG conversion of largest ICO frame; no recolouring."
+  },
+  {
+    "id": "livepeer",
+    "sourcePage": "https://livepeer.org",
+    "sourceAsset": "https://livepeer.org/favicon.ico?1099727330a00b8b",
+    "path": "/plugins/livepeer.png",
+    "bytes": 452,
+    "note": "Unmodified icon declared by provider official website; brand ownership retained. Lossless PNG conversion of largest ICO frame; no recolouring."
+  },
+  {
+    "id": "daily",
+    "sourcePage": "https://www.daily.co",
+    "sourceAsset": "https://www.daily.co/icon.png?icon.3apzgf19zqf4s.png",
+    "path": "/plugins/daily.png",
+    "bytes": 367,
+    "note": "Unmodified icon declared by provider official website; brand ownership retained."
+  },
+  {
+    "id": "apify",
+    "sourcePage": "https://apify.com",
+    "sourceAsset": "https://apify.com/favicon.ico?favicon.2653ilt32bing.ico?dpl=538cafa52c",
+    "path": "/plugins/apify.png",
+    "bytes": 1093,
+    "note": "Unmodified icon declared by provider official website; brand ownership retained. Lossless PNG conversion of largest ICO frame; no recolouring."
+  },
+  {
+    "id": "deepl",
+    "sourcePage": "https://www.deepl.com",
+    "sourceAsset": "https://www.deepl.com/favicon.ico?favicon.2q65ixsfts1dv.ico",
+    "path": "/plugins/deepl.png",
+    "bytes": 7559,
+    "note": "Unmodified icon declared by provider official website; brand ownership retained. Lossless PNG conversion of largest ICO frame; no recolouring."
+  },
+  {
+    "id": "higgsfield",
+    "sourcePage": "https://higgsfield.ai",
+    "sourceAsset": "https://higgsfield.ai/icon.png",
+    "path": "/plugins/higgsfield.png",
+    "bytes": 9376,
+    "note": "Unmodified icon declared by provider official website; brand ownership retained."
+  },
+  {
+    "id": "restream",
+    "sourcePage": "https://restream.io",
+    "sourceAsset": "https://restream.io/favicon.ico",
+    "path": "/plugins/restream.png",
+    "bytes": 963,
+    "note": "Unmodified icon declared by provider official website; brand ownership retained. Lossless PNG conversion of largest ICO frame; no recolouring."
+  },
+  {
+    "id": "supabase",
+    "sourcePage": "https://supabase.com",
+    "sourceAsset": "https://supabase.com/favicon/favicon.ico",
+    "path": "/plugins/supabase.png",
+    "bytes": 1234,
+    "note": "Unmodified icon declared by provider official website; brand ownership retained. Lossless PNG conversion of largest ICO frame; no recolouring."
+  },
+  {
+    "id": "resend",
+    "sourcePage": "https://resend.com",
+    "sourceAsset": "https://resend.com/static/favicons/favicon-marketing.ico?v=1",
+    "path": "/plugins/resend.png",
+    "bytes": 1227,
+    "note": "Unmodified icon declared by provider official website; brand ownership retained. Lossless PNG conversion of largest ICO frame; no recolouring."
+  },
+  {
+    "id": "youtube",
+    "sourcePage": "https://www.youtube.com",
+    "sourceAsset": "https://www.youtube.com/s/desktop/e358493a/img/favicon.ico",
+    "path": "/plugins/youtube.png",
+    "bytes": 747,
+    "note": "Unmodified icon declared by provider official website; brand ownership retained. Lossless PNG conversion of largest ICO frame; no recolouring."
+  },
+  {
+    "id": "instagram",
+    "sourcePage": "https://www.instagram.com",
+    "sourceAsset": "https://static.cdninstagram.com/rsrc.php/yr/r/rzWiSjZRxk5.webp",
+    "path": "/plugins/instagram.webp",
+    "bytes": 900,
+    "note": "Unmodified icon declared by provider official website; brand ownership retained."
+  },
+  {
+    "id": "tiktok",
+    "sourcePage": "https://www.tiktok.com",
+    "sourceAsset": "https://www.tiktok.com/favicon.ico",
+    "path": "/plugins/tiktok.png",
+    "bytes": 951,
+    "note": "Unmodified icon declared by provider official website; brand ownership retained. Lossless PNG conversion of largest ICO frame; no recolouring."
+  },
+  {
+    "id": "facebook",
+    "sourcePage": "https://www.facebook.com",
+    "sourceAsset": "https://static.xx.fbcdn.net/rsrc.php/y1/r/ay1hV6OlegS.ico",
+    "path": "/plugins/facebook.png",
+    "bytes": 1350,
+    "note": "Unmodified icon declared by provider official website; brand ownership retained. Lossless PNG conversion of largest ICO frame; no recolouring."
+  },
+  {
+    "id": "linkedin",
+    "sourcePage": "https://www.linkedin.com",
+    "sourceAsset": "https://static.licdn.com/aero-v1/sc/h/akt4ae504epesldzj74dzred8",
+    "path": "/plugins/linkedin.svg",
+    "bytes": 833,
+    "note": "Unmodified icon declared by provider official website; brand ownership retained."
+  },
+  {
+    "id": "x",
+    "sourcePage": "https://x.com",
+    "sourceAsset": "https://x.com/apple-touch-icon.png",
+    "path": "/plugins/x.png",
+    "bytes": 13160,
+    "note": "Unmodified icon declared by provider official website; brand ownership retained."
+  },
+  {
+    "id": "bluesky",
+    "sourcePage": "https://bsky.social",
+    "sourceAsset": "https://bsky.social:443/about/images/apple-touch-icon.png",
+    "path": "/plugins/bluesky.png",
+    "bytes": 7783,
+    "note": "Unmodified icon declared by provider official website; brand ownership retained."
+  },
+  {
+    "id": "threads",
+    "sourcePage": "https://www.threads.com",
+    "sourceAsset": "https://static.cdninstagram.com/rsrc.php/yP/r/0Qa-AOmHi0c.ico",
+    "path": "/plugins/threads.png",
+    "bytes": 5024,
+    "note": "Unmodified icon declared by provider official website; brand ownership retained. Lossless PNG conversion of largest ICO frame; no recolouring."
+  },
+  {
+    "id": "snapchat",
+    "sourcePage": "https://www.snapchat.com",
+    "sourceAsset": "https://www.snapchat.com/favicon.ico",
+    "path": "/plugins/snapchat.png",
+    "bytes": 2108,
+    "note": "Unmodified icon declared by provider official website; brand ownership retained. Lossless PNG conversion of largest ICO frame; no recolouring."
+  },
+  {
+    "id": "mastodon",
+    "sourcePage": "https://joinmastodon.org",
+    "sourceAsset": "https://joinmastodon.org/_next/static/media/favicon-32x32.2_1axy1s32xu0.png",
+    "path": "/plugins/mastodon.png",
+    "bytes": 1938,
+    "note": "Unmodified icon declared by provider official website; brand ownership retained."
+  },
+  {
+    "id": "github",
+    "sourcePage": "https://github.com",
+    "sourceAsset": "https://github.com/fluidicon.png",
+    "path": "/plugins/github.png",
+    "bytes": 33270,
+    "note": "Unmodified icon declared by provider official website; brand ownership retained."
+  },
+  {
+    "id": "google-drive",
+    "sourcePage": "https://drive.google.com",
+    "sourceAsset": "https://accounts.google.com/favicon.ico",
+    "path": "/plugins/google-drive.png",
+    "bytes": 1319,
+    "note": "Unmodified icon declared by provider official website; brand ownership retained. Lossless PNG conversion of largest ICO frame; no recolouring."
+  },
+  {
+    "id": "aws",
+    "sourcePage": "https://aws.amazon.com",
+    "sourceAsset": "https://a0.awsstatic.com/libra-css/images/site/fav/favicon.ico",
+    "path": "/plugins/aws.png",
+    "bytes": 735,
+    "note": "Unmodified icon declared by provider official website; brand ownership retained. Lossless PNG conversion of largest ICO frame; no recolouring."
+  },
+  {
+    "id": "deepseek",
+    "sourcePage": "https://api-docs.deepseek.com",
+    "sourceAsset": "https://api-docs.deepseek.com/img/favicon.svg",
+    "path": "/plugins/deepseek.svg",
+    "bytes": 3652,
+    "note": "Unmodified icon declared by provider official website; brand ownership retained."
+  },
+  {
+    "id": "reddit",
+    "sourcePage": "https://redditinc.com",
+    "sourceAsset": "https://redditinc.com/hubfs/Reddit_Favicon_FullColor_48x48.png",
+    "path": "/plugins/reddit.png",
+    "bytes": 2617,
+    "note": "Unmodified icon declared by provider official website; brand ownership retained."
+  },
+  {
+    "id": "getty",
+    "sourcePage": "https://www.gettyimages.co.uk",
+    "path": null,
+    "note": "Official artwork not retrieved; neutral text fallback."
+  },
+  {
+    "id": "notion",
+    "sourcePage": "https://www.notion.so",
+    "sourceAsset": "https://www.notion.com/front-static/favicon.ico",
+    "path": "/plugins/notion.png",
+    "bytes": 1381,
+    "note": "Unmodified icon declared by provider official website; brand ownership retained. Largest ICO frame converted losslessly to PNG."
+  },
+  {
+    "id": "netlify",
+    "sourcePage": "https://www.netlify.com",
+    "sourceAsset": "https://www.netlify.com/favicon/favicon.ico",
+    "path": "/plugins/netlify.png",
+    "bytes": 713,
+    "note": "Unmodified icon declared by provider official website; brand ownership retained. Largest ICO frame converted losslessly to PNG."
+  }
+]
