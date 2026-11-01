@@ -11,6 +11,8 @@ import {assignLayerAsset} from './assign-layer.mjs';
 import path from 'node:path';import fs from 'node:fs/promises';import {randomUUID} from 'node:crypto';import sharp from 'sharp';
 import {removeBackground} from './background-removal.mjs';
 const mediaURL=asset=>'/api/studio-workspace/media?asset='+encodeURIComponent(asset);
+function playlistCatalogue(state){return {playlists:(state.playerPlaylists||[]).map(p=>({id:p.id,title:p.title,destinationId:p.destinationId,videoIds:[...p.videoIds]})),videos:(state.websiteVideos||[]).filter(v=>v.status==='published').map(v=>({id:v.id,jobId:v.jobId,title:v.title,destinationId:v.destinationId}))};}
+function playlistById(state,id){if(typeof id!=='string'||!id)throw Error('Choose a playlist');const playlist=state.playerPlaylists?.find(p=>p.id===id);if(!playlist)throw Error('Choose a playlist');playlist.videoIds??=[];return playlist;}
 const mime=asset=>({png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',webp:'image/webp',mp4:'video/mp4',mp3:'audio/mpeg',wav:'audio/wav',m4a:'audio/mp4',flac:'audio/flac',ogg:'audio/ogg'}[asset.split('.').at(-1)?.toLowerCase()]);
 export async function workspaceRead(workspace,route){
  if(['state','article-inbox'].includes(route))await expireWorkspaceJobs(workspace);
@@ -20,6 +22,7 @@ export async function workspaceRead(workspace,route){
   case 'studio-assets':return {assets:Object.values(state.assets).filter(f=>mime(f.asset)).map(f=>{const category=['presenter','studio','intro','outro','transition','background','graphics'].includes(f.category)?f.category:undefined;return {asset:f.asset,name:f.name||path.basename(f.asset),type:mime(f.asset).split('/')[0],url:mediaURL(f.asset),updatedAt:f.updatedAt||state.images.find(i=>'images/'+i.id+'.png'===f.asset)?.updatedAt||null,...(category?{category}:{})};})};
   case 'state':return {jobs:state.jobs,active:state.jobs.find(j=>['queued','running','saving'].includes(j.status))?.id,assets:workspaceClips(state).map(c=>({...c,url:mediaURL(c.asset)}))};
   case 'library-trash':return state.trash;
+  case 'playlists':return playlistCatalogue(state);
   case 'article-inbox':return {...(state.inbox||{articles:[],history:[],lastSuccessfulImportAt:null}),articles:(state.inbox?.articles||[]).map(a=>({...a,scriptPreparation:(()=>{const j=state.jobs.find(j=>j.id===a.scriptPreparation?.jobId);return j?.status==='failed'?{...a.scriptPreparation,status:'failed',error:j.stage,updatedAt:j.updatedAt}:a.scriptPreparation;})(),images:state.images.filter(i=>i.sourceUrl===a.sourceUrl).map(i=>({...i,url:mediaURL('images/'+i.id+'.png')}))}))};
   case 'studio-articles':return {articles:(state.inbox?.articles||[]).map(a=>({id:a.id,title:a.title,sourceUrl:a.sourceUrl,script:a.spokenDraft?.status==='ready'&&a.spokenDraft.sourceFingerprint===a.fingerprint?a.spokenDraft.script:a.text,updatedAt:a.updatedAt,sourceCheckedAt:a.sourceCheckedAt||null,hasNarration:false}))};
   case 'brand-kits':return state.kits||JSON.parse(await fs.readFile(path.join(process.cwd(),'features/brand-kits/seeds.json'),'utf8'));
@@ -53,6 +56,9 @@ export async function workspaceWrite(workspace,route,body){
   case 'projects/restore':return projects.restore(body.id);
   case 'templates/save':return projects.saveTemplate(body);
   case 'library-trash':{if(typeof body.key!=='string'||body.key.length>2048||typeof body.trashed!=='boolean'||['__proto__','constructor','prototype'].includes(body.key))throw Error('Invalid trash request');return workspace.update(s=>{s.trash[body.key]={trashed:body.trashed,updatedAt:new Date().toISOString()};return s.trash;});}
+  case 'playlists/add':return workspace.update(s=>{const playlist=playlistById(s,body.playlistId);const video=(s.websiteVideos||[]).find(v=>v.jobId===body.jobId&&v.destinationId===playlist.destinationId&&v.status==='published');if(!video)throw Error('Publish this video to the player before adding it to a playlist');if(!playlist.videoIds.includes(video.id))playlist.videoIds.push(video.id);return playlistCatalogue(s);});
+  case 'playlists/remove':return workspace.update(s=>{const playlist=playlistById(s,body.playlistId);if(typeof body.videoId!=='string')throw Error('Choose a video');playlist.videoIds=playlist.videoIds.filter(id=>id!==body.videoId);return playlistCatalogue(s);});
+  case 'playlists/move':return workspace.update(s=>{const playlist=playlistById(s,body.playlistId);if(typeof body.videoId!=='string'||!['up','down'].includes(body.direction))throw Error('Choose a video');const index=playlist.videoIds.indexOf(body.videoId),next=index+(body.direction==='up'?-1:1);if(index<0||next<0||next>=playlist.videoIds.length)throw Error('That video cannot move further');const [item]=playlist.videoIds.splice(index,1);playlist.videoIds.splice(next,0,item);return playlistCatalogue(s);});
   case 'images/remove-background':{
    const {state}=await workspace.snapshot(),original=state.images.find(i=>i.id===body.id);if(!original)throw Error('Image not found');
    let bytes=(await workspace.getFile('images/'+original.id+'.png')).bytes;
