@@ -1,0 +1,7 @@
+import { requireUser,requireAdmin } from '@/app/lib/auth/guards';
+import { isWorkspaceSameOrigin } from '@/app/lib/studio-workspace/origin';
+import { plugins } from '@/app/lib/plugins/catalog';
+import { inventory,safeCheck } from '@/app/lib/plugins/service';
+export const dynamic='force-dynamic';
+export async function GET(request:Request){const auth=await requireUser(request);if('response'in auth)return auth.response;if(!['admin','editor','viewer'].includes(auth.user.role))return Response.json({error:'Workspace access required.'},{status:403});try{return Response.json({admin:auth.user.role==='admin',plugins:await inventory()},{headers:{'Cache-Control':'no-store'}});}catch{return Response.json({error:'Connection status is temporarily unavailable.'},{status:503});}}
+export async function POST(request:Request){const auth=await requireAdmin(request);if('response'in auth)return auth.response;if(!isWorkspaceSameOrigin(request))return Response.json({error:'Same-origin request required.'},{status:403});let id;try{id=(await request.json()).id;}catch{return Response.json({error:'Invalid request.'},{status:400});}const plugin=plugins.find(p=>p.id===id);if(!plugin)return Response.json({error:'Unknown service.'},{status:404});try{await safeCheck(plugin);return Response.json({ok:true});}catch{return Response.json({error:'Check unavailable. Ensure the service is configured, wait 30 seconds and retry.'},{status:409});}}
