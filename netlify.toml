@@ -1,7 +1,7 @@
 [build]
   # Use `next build` here — not `npm run build` — because package.json pins
   # NEXT_DIST_DIR=.next-prod locally; Netlify must emit `.next` for the adapter.
-  command = "npm run install-ffmpeg-static && npx next build"
+  command = "npm run install-ffmpeg-static && npm run build:player && npx next build"
   publish = ".next"
 
 [build.environment]
