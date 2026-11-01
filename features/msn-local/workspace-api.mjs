@@ -1,3 +1,5 @@
+export function studioArticles(state){return {articles:(state.inbox?.articles||[]).map(a=>({id:a.id,title:a.title,brand:a.brand,author:a.author||'',publishedAt:a.publishedAt||null,scriptReady:!!(a.spokenDraft?.status==='ready'&&a.spokenDraft.sourceFingerprint===a.fingerprint&&a.spokenDraft.script?.trim()),imageAsset:state.images.filter(i=>i.sourceUrl===a.sourceUrl&&i.kind==='original').map(i=>'images/'+i.id+'.png')[0]||'',sourceUrl:a.sourceUrl,script:a.spokenDraft?.status==='ready'&&a.spokenDraft.sourceFingerprint===a.fingerprint?a.spokenDraft.script:a.text,updatedAt:a.updatedAt,sourceCheckedAt:a.sourceCheckedAt||null,hasNarration:false}))};}
+import {validateArticleBuild} from './article-builder.mjs';
 import {workspaceBroadcast} from './workspace-broadcast.mjs';
 import {expireWorkspaceJobs} from './workspace-job-expiry.mjs';
 import {publication} from './publishing.mjs';
@@ -28,7 +30,7 @@ export async function workspaceRead(workspace,route){
   case 'playlists':return playlistCatalogue(state);
   case 'video-library':return videoLibraryView(state);
   case 'article-inbox':return {...(state.inbox||{articles:[],history:[],lastSuccessfulImportAt:null}),articles:(state.inbox?.articles||[]).map(a=>({...a,scriptPreparation:(()=>{const j=state.jobs.find(j=>j.id===a.scriptPreparation?.jobId);return j?.status==='failed'?{...a.scriptPreparation,status:'failed',error:j.stage,updatedAt:j.updatedAt}:a.scriptPreparation;})(),images:state.images.filter(i=>i.sourceUrl===a.sourceUrl).map(i=>({...i,url:mediaURL('images/'+i.id+'.png')}))}))};
-  case 'studio-articles':return {articles:(state.inbox?.articles||[]).map(a=>({id:a.id,title:a.title,sourceUrl:a.sourceUrl,script:a.spokenDraft?.status==='ready'&&a.spokenDraft.sourceFingerprint===a.fingerprint?a.spokenDraft.script:a.text,updatedAt:a.updatedAt,sourceCheckedAt:a.sourceCheckedAt||null,hasNarration:false}))};
+  case 'studio-articles':return studioArticles(state);
   case 'brand-kits':return state.kits||JSON.parse(await fs.readFile(path.join(process.cwd(),'features/brand-kits/seeds.json'),'utf8'));
   default:throw Error('Studio route not found');
  }
@@ -51,7 +53,7 @@ export async function workspaceWrite(workspace,route,body){
   case 'projects/assign-layer':return assignLayerAsset(projects,body);
   case 'cancel':return workspace.update(s=>{const j=s.jobs.find(j=>j.id===body.id);if(!j)throw Error('Build not found');j.cancelRequestedAt=new Date().toISOString();if(j.status==='queued')j.status='cancelled';return {ok:true};});
   case 'brand-kits':{const kits=await workspaceRead(workspace,'brand-kits');const previous=kits.find(k=>k.id===body.id);const kit={...validateKit(body,previous),updatedAt:new Date().toISOString()};return workspace.update(s=>{const current=(s.kits||kits).find(k=>k.id===body.id);if(JSON.stringify(current)!==JSON.stringify(previous))throw Error('Another editor saved changes. Reload brand kits.');s.kits=(s.kits||kits).map(k=>k.id===kit.id?kit:k);return kit;});}
-  case 'projects/from-article':{if(body.templateId==='football365-live-studio-broadcast')return workspaceBroadcast(workspace,'create',{articleIds:[body.articleId]});const result=await workspaceArticle(workspace,'project',{id:body.articleId,templateId:body.templateId});return projects.get(result.projectId);}
+  case 'projects/from-article':{const {state}=await workspace.snapshot();const template=(await projects.listTemplates()).find(t=>t.id===body.templateId);validateArticleBuild(template,[state.inbox?.articles.find(a=>a.id===body.articleId)],body);if(body.templateId==='football365-live-studio-broadcast')return workspaceBroadcast(workspace,'create',{...body,articleIds:[body.articleId]});const result=await workspaceArticle(workspace,'project',{...body,id:body.articleId});return projects.get(result.projectId);}
   case 'projects/social':return projects.create('news-article',socialDraft(body));
   case 'publish':case 'unpublish':return workspace.update(state=>{const job=state.jobs.find(j=>j.id===body.id);const next=publication(job,body,route==='publish');job.publication={...next,scope:'authenticated-studio'};return job;});
   case 'projects/create':return projects.create(body.templateId,{title:body.title||'Untitled video'});

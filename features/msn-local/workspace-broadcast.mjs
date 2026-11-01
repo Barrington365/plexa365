@@ -1,3 +1,4 @@
+import {validateArticleBuild} from './article-builder.mjs';
 import {broadcastSchema,broadcastScript,storyFromArticle} from './broadcast.mjs';
 import {football365BroadcastDefaults} from './football365-profile.mjs';
 export const BROADCAST_TEMPLATE='football365-live-studio-broadcast';
@@ -6,7 +7,9 @@ export function broadcastScenes(b,background){return b.stories.map(s=>({id:s.id,
 export async function workspaceBroadcast(w,action,body){
  const {state}=await w.snapshot();
  if(action==='create'){
+  if(body.templateId&&body.templateId!==BROADCAST_TEMPLATE)throw Error('Choose the approved broadcast template');
   const ids=body.articleIds;if(!Array.isArray(ids)||!ids.length||ids.length>50||new Set(ids).size!==ids.length)throw Error('Choose 1–50 distinct articles');
+  validateArticleBuild((await w.projects.listTemplates()).find(t=>t.id===(body.templateId||BROADCAST_TEMPLATE)),ids.map(id=>state.inbox?.articles.find(a=>a.id===id)),body);
   const stories=ids.map(id=>{const a=state.inbox?.articles.find(a=>a.id===id);if(!a||a.brand!=='Football365')throw Error('Choose imported Football365 articles');const story=storyFromArticle(a);story.rightAssets=state.images.filter(i=>i.sourceUrl===a.sourceUrl&&i.kind==='original').map(i=>'images/'+i.id+'.png');const club=/arsenal/i.test(a.title)?'arsenal':/man utd|manchester united/i.test(a.title)?'manchester.?united|man.?utd':null;if(club){const crestName=club==='arsenal'?'arsenal-logo.png':'manchester-united-logo.png';const crest=Object.values(state.assets).find(v=>(v.name||'').toLowerCase()===crestName&&/\.(png|jpg|webp)$/i.test(v.asset));if(crest)story.leftAsset=crest.asset;}return story;});
   if(stories.some(s=>!s.script.trim()))throw Error('Wait for each spoken script to be prepared, then review it before creating the broadcast');
   const background=Object.values(state.assets).find(a=>a.name==='Football365-Female-Studio-Background-Compact.mp4')?.asset;

@@ -1,3 +1,4 @@
+import {articleCapabilities} from './article-builder.mjs';
 /** Local draft persistence. No rendering, networking, or publication side effects. */
 import {FOOTBALL365_PROFILE,FOOTBALL365_BROADCAST_PROFILE,FOOTBALL365_TEMPLATE,football365Defaults,football365BroadcastDefaults} from './football365-profile.mjs';
 import {broadcastSchema} from './broadcast.mjs';
@@ -294,7 +295,7 @@ export function createProjectStore(directory, { now = () => new Date(), persiste
     return p;
   }
   return {
-    async listTemplates() { return [...listTemplates(), ...(await operation()).templates.map(t=>t.id==='custom-98ba5413-c3cd-49bd-aca7-e2de4f18d130'?{...t,name:t.name+' · legacy layout'}:t)]; },
+    async listTemplates() { return [...listTemplates(), ...(await operation()).templates.map(t=>t.id==='custom-98ba5413-c3cd-49bd-aca7-e2de4f18d130'?{...t,name:t.name+' · legacy layout'}:t)].map(t=>({...t,articleCapabilities:articleCapabilities(t)})); },
     async list({ trash = false } = {}) {
       return (await operation()).projects.filter(p => Boolean(p.trashedAt) === trash);
     },
