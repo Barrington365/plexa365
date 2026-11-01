@@ -61,7 +61,7 @@ export function LoginForm() {
       </label>
       <div className="flex items-center justify-between gap-3 text-sm">
         <span className="text-[color:var(--text-muted)]">Private access only</span>
-        <Link href="/forgot-password" className="text-[#22c55e] hover:underline">
+        <Link href="/forgot-password" className="text-[color:var(--accent)] hover:underline">
           Forgot password?
         </Link>
       </div>

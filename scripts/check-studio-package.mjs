@@ -4,7 +4,7 @@ import path from 'node:path';
 import assert from 'node:assert/strict';
 import {workspacePage} from '../features/msn-local/hosted-ui.mjs';
 const root=path.resolve('.netlify/functions-internal/___netlify-server-handler');
-const pages=['','projects','templates','articles','library','social','video','images','image-editor','msn-video','settings','import','studio-navigation.js','studio-animation.mjs','hosted-transport.js'];
+const pages=['','projects','templates','articles','library','social','video','images','image-editor','msn-video','settings','import','studio-navigation.js','studio-animation.mjs','hosted-transport.js','studio-theme.css','studio-theme.js'];
 for(const file of new Set(pages.map(workspacePage))){
  assert.ok(file,'Every workspace route needs a source file');
  const expected=await fs.readFile(path.join('features/msn-local',file));

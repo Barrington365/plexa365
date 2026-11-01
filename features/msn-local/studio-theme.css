@@ -1,0 +1,134 @@
+/*
+ * Shared Planet Sport Studio palette.
+ * Light and dark values are the Studio purple theme.
+ * Semantic names (--background, --surface, --accent, --primary) stay so existing pages follow them.
+ * Status colours stay green, amber, and red.
+ */
+:root {
+  color-scheme: light;
+  --bg: #f4f5f8;
+  --paper: #ffffff;
+  --ink: #202236;
+  --muted: #707286;
+  --line: #e4e5ec;
+  --accent: #6454d9;
+  --wash: #eeebff;
+  --panel: var(--paper);
+
+  --background: var(--bg);
+  --bg-elevated: #eef0f6;
+  --surface: var(--paper);
+  --surface-muted: #f4f5f8;
+  --surface-elevated: #ffffff;
+  --surface-hover: var(--wash);
+
+  --text-primary: var(--ink);
+  --text-secondary: var(--muted);
+  --text-muted: var(--muted);
+  --text-inverse: #f4f5f8;
+
+  --border: var(--line);
+  --border-strong: #c9ccda;
+  --divider: var(--line);
+
+  --primary: #6454d9;
+  --primary-hover: #5141c1;
+  --primary-foreground: #ffffff;
+  --primary-soft: var(--wash);
+  --accent-gradient: linear-gradient(135deg, #6454d9, #5141c1);
+
+  --accent-hover: #5141c1;
+  --accent-foreground: #ffffff;
+  --accent-soft: var(--wash);
+
+  --success: #16a34a;
+  --success-soft: #dcfce7;
+  --warning: #d97706;
+  --warning-soft: #fef3c7;
+  --danger: #dc2626;
+  --danger-foreground: #fef2f2;
+  --danger-soft: #fee2e2;
+  --info: #2563eb;
+  --info-soft: #dbeafe;
+
+  --overlay: rgb(32 34 54 / 0.45);
+  --shadow: 0 1px 2px rgb(32 34 54 / 0.04), 0 8px 24px rgb(32 34 54 / 0.06);
+  --shadow-lg: 0 12px 32px rgb(32 34 54 / 0.1), 0 24px 60px rgb(32 34 54 / 0.12);
+  --shadow-card: 0 1px 2px rgb(32 34 54 / 0.04), 0 10px 28px rgb(32 34 54 / 0.06);
+  --shadow-card-hover: 0 4px 8px rgb(32 34 54 / 0.06), 0 16px 36px rgb(32 34 54 / 0.08);
+
+  --ring: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent);
+  --focus: #9c88ff;
+
+  --r365-gold: var(--accent);
+  --heading-brand: var(--accent);
+  --media-backdrop: #14161f;
+}
+
+html.dark,
+body.dark {
+  color-scheme: dark;
+  --bg: #14161f;
+  --paper: #1e2230;
+  --ink: #edeef8;
+  --muted: #b0b3c7;
+  --line: #383d50;
+  --accent: #b1a0ff;
+  --wash: #332c50;
+  --panel: var(--paper);
+
+  --background: var(--bg);
+  --bg-elevated: #1a1e2b;
+  --surface: var(--paper);
+  --surface-muted: #181b28;
+  --surface-elevated: #252a3b;
+  --surface-hover: var(--wash);
+
+  --text-primary: var(--ink);
+  --text-secondary: var(--muted);
+  --text-muted: var(--muted);
+  --text-inverse: #14161f;
+
+  --border: var(--line);
+  --border-strong: #4d5368;
+  --divider: var(--line);
+
+  --primary: #b1a0ff;
+  --primary-hover: #c4b6ff;
+  --primary-foreground: #14161f;
+  --primary-soft: var(--wash);
+  --accent-gradient: linear-gradient(135deg, #7260db, #b1a0ff);
+
+  --accent-hover: #c4b6ff;
+  --accent-foreground: #14161f;
+  --accent-soft: var(--wash);
+
+  --success: #22c55e;
+  --success-soft: #052e16;
+  --warning: #fbbf24;
+  --warning-soft: #451a03;
+  --danger: #f87171;
+  --danger-foreground: #450a0a;
+  --danger-soft: #450a0a;
+  --info: #60a5fa;
+  --info-soft: #1e3a5f;
+
+  --overlay: rgb(0 0 0 / 0.62);
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.35), 0 12px 32px rgb(0 0 0 / 0.28);
+  --shadow-lg: 0 12px 28px rgb(0 0 0 / 0.35), 0 24px 48px rgb(0 0 0 / 0.28);
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.35), 0 12px 32px rgb(0 0 0 / 0.28);
+  --shadow-card-hover: 0 8px 16px rgb(0 0 0 / 0.35), 0 20px 40px rgb(0 0 0 / 0.32);
+
+  --ring: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent);
+  --focus: #b1a0ff;
+
+  --r365-gold: var(--accent);
+  --heading-brand: var(--accent);
+  --media-backdrop: #14161f;
+}
+
+html.dark body,
+body.dark {
+  background: var(--bg);
+  color: var(--ink);
+}
