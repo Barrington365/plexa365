@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { WorkspaceSidebar } from "./WorkspaceSidebar";
 import { Montserrat } from "next/font/google";
 import { BRAND_MARK, BRAND_SLOGAN } from "@/app/lib/brand";
 import { AuthControls } from "@/app/components/AuthControls";
@@ -49,6 +50,7 @@ const footerLinks = [
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen flex flex-col">
+      <WorkspaceSidebar />
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[100] focus:rounded-lg focus:bg-[color:var(--accent)] focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-[color:var(--accent-foreground)] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[var(--surface)]"

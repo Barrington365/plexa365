@@ -5,4 +5,42 @@ const items=[{id:'home-nav',href:'/studio',icon:'⌂',label:'Home',on:()=>['/','
 const kept=new Set();
 for(const item of items){const aliases=item.aliases||[];let el=item.id?menu.querySelector('#'+item.id):null;if(!el)el=[item.href,...aliases].map(href=>menu.querySelector('a[href="'+href+'"]')).find(Boolean);if(!el){el=document.createElement('a');el.href=item.href;}if(el.tagName==='A')el.href=item.href;el.title=item.label;let icon=el.querySelector('b'),label=el.querySelector('span');if(!icon||!label){el.innerHTML='<b aria-hidden="true">'+item.icon+'</b><span>'+item.label+'</span>';}else{icon.textContent=item.icon;label.textContent=item.label;}const on=item.on?item.on():location.pathname===item.href;el.classList.toggle('active',on);if(on)el.setAttribute('aria-current','page');else el.removeAttribute('aria-current');kept.add(el);menu.append(el);}
 for(const node of [...menu.querySelectorAll('a,button')])if(!kept.has(node))node.remove();
-const management=document.createElement('nav');management.className='management-nav';management.setAttribute('aria-label','Settings and administration');for(const [href,icon,label]of [['/tools','▦','Tools'],['/settings','⚙','Settings'],['/admin','◇','Admin'],['/development','⌘','Development']]){const a=document.createElement('a');a.href=href;a.title=label;a.innerHTML='<b aria-hidden="true">'+icon+'</b><span>'+label+'</span>';if(location.pathname===href)a.setAttribute('aria-current','page');management.append(a);}const note=side.querySelector('.side-note');side.insertBefore(management,note);})();
+const management=document.createElement('nav');management.className='management-nav';management.setAttribute('aria-label','Settings and administration');for(const [href,icon,label]of [['/tools','▦','Tools'],['/settings','⚙','Settings'],['/admin','◇','Admin'],['/development','⌘','Development']]){const a=document.createElement('a');a.href=href;a.title=label;a.innerHTML='<b aria-hidden="true">'+icon+'</b><span>'+label+'</span>';if(location.pathname===href)a.setAttribute('aria-current','page');management.append(a);}const note=side.querySelector('.side-note');side.insertBefore(management,note);
+
+side.classList.add('plexa-sidebar');
+const extra=document.createElement('style');extra.textContent=`
+body{--plexa-nav-width:220px}body.plexa-nav-collapsed{--plexa-nav-width:72px}
+body.has-local-navigation{padding-left:var(--plexa-nav-width)}
+body>.local-navigation{width:var(--plexa-nav-width)}
+#shell.shell,#shell.shell.collapsed{grid-template-columns:var(--plexa-nav-width) minmax(0,1fr)}
+.plexa-sidebar::-webkit-scrollbar{width:0}.plexa-sidebar{scrollbar-width:none;overflow-y:auto!important;overflow-x:hidden;max-height:100dvh;position:sticky;top:0;padding:20px 12px!important}
+.plexa-sidebar .nav span,.plexa-sidebar .management-nav span{display:inline!important}
+body:not(.plexa-nav-collapsed) .plexa-sidebar .brand,body:not(.plexa-nav-collapsed) .plexa-sidebar .local-logo{display:block}
+body.plexa-nav-collapsed .plexa-sidebar span,body.plexa-nav-collapsed .plexa-sidebar .brand,body.plexa-nav-collapsed .plexa-sidebar .local-logo,body.plexa-nav-collapsed .plexa-sidebar .side-note{display:none!important}
+.plexa-sidebar .nav a,.plexa-sidebar .nav button{display:flex;align-items:center;gap:10px}.plexa-sidebar .nav b{font-size:18px;line-height:1;width:20px;flex-shrink:0}
+.plexa-sidebar nav{min-width:0;width:100%}.plexa-nav-row{min-width:0}
+.plexa-sidebar a,.plexa-sidebar button{min-height:42px;flex-shrink:0}.plexa-sidebar a:focus-visible,.plexa-sidebar button:focus-visible,.plexa-nav-flyout a:focus-visible{outline:3px solid #8c78ed;outline-offset:2px}
+.plexa-nav-toggle{display:block;width:100%;margin-bottom:16px;border:1px solid #c5cdda;border-radius:8px;background:transparent;color:inherit;padding:10px;cursor:pointer}
+.plexa-submenu-toggle{border:0;background:transparent;color:inherit;cursor:pointer;padding:4px!important;min-height:32px!important;margin-left:auto}
+body.plexa-nav-collapsed .plexa-sidebar{padding-inline:6px!important}body.plexa-nav-collapsed .plexa-nav-row>a{padding-inline:6px!important}body.plexa-nav-collapsed .plexa-nav-row{position:relative;width:100%}body.plexa-nav-collapsed .plexa-nav-row>a{padding-right:16px!important}body.plexa-nav-collapsed .plexa-submenu-toggle{position:absolute;right:0;top:5px;width:16px;margin:0}
+.plexa-nav-row{display:flex;align-items:center}.plexa-nav-row>a,.plexa-nav-row>button:first-child{flex:1;min-width:0}
+.plexa-nav-flyout{position:fixed;z-index:200;min-width:190px;max-width:calc(100vw - 86px);max-height:80dvh;overflow:auto;background:var(--paper,var(--surface,#fff));color:var(--ink,var(--text-primary,#202236));box-shadow:0 12px 40px #0003;border:1px solid #c5cdda;border-radius:12px;padding:8px;display:grid;gap:4px}
+.plexa-nav-flyout[hidden]{display:none}.plexa-nav-flyout a{display:block;padding:12px;border-radius:6px;color:inherit;text-decoration:none;font:600 14px system-ui}.plexa-nav-flyout a:hover{background:#eeebff;color:#5141b4}
+body.has-local-navigation .app-shell-header nav,body.has-local-navigation .mobile-tab-bar{display:none}
+@media(prefers-reduced-motion:reduce){.plexa-sidebar{transition:none}}
+`;document.head.append(extra);
+let collapsed=false;try{collapsed=localStorage.getItem('plexa-navigation-collapsed')==='true';}catch{}
+const oldToggle=side.querySelector('#collapse');const toggle=document.createElement('button');toggle.type='button';toggle.className='plexa-nav-toggle';if(oldToggle)oldToggle.replaceWith(toggle);else side.prepend(toggle);
+function setCollapsed(value){collapsed=value;document.body.classList.toggle('plexa-nav-collapsed',value);document.querySelector('#shell')?.classList.toggle('collapsed',value);toggle.innerHTML=value?'☰':'◧ <span>Collapse menu</span>';toggle.setAttribute('aria-label',value?'Expand navigation':'Collapse navigation');toggle.setAttribute('aria-expanded',String(!value));try{localStorage.setItem('plexa-navigation-collapsed',String(value));}catch{}}
+toggle.onclick=()=>setCollapsed(!collapsed);setCollapsed(collapsed);
+const flyout=document.createElement('nav');flyout.className='plexa-nav-flyout';flyout.hidden=true;document.body.append(flyout);let owner=null,closeTimer,pinned=false;
+function close(){pinned=false;flyout.hidden=true;owner?.setAttribute('aria-expanded','false');owner=null;}
+function group(link,children,label){if(!link)return;const row=document.createElement('div');row.className='plexa-nav-row';link.before(row);row.append(link);const button=document.createElement('button');button.type='button';button.className='plexa-submenu-toggle';button.textContent='›';button.setAttribute('aria-label',label+' submenu');button.setAttribute('aria-expanded','false');row.append(button);
+ function open(){clearTimeout(closeTimer);close();owner=button;button.setAttribute('aria-expanded','true');flyout.setAttribute('aria-label',label+' submenu');flyout.replaceChildren();for(const [href,text] of children){const a=document.createElement('a');a.href=href;a.textContent=text;flyout.append(a);}flyout.hidden=false;const r=row.getBoundingClientRect();flyout.style.left=Math.min(r.right+4,innerWidth-200)+'px';flyout.style.top=Math.max(8,Math.min(r.top,innerHeight-flyout.offsetHeight-8))+'px';}
+ row.onmouseenter=open;row.onmouseleave=()=>{closeTimer=setTimeout(()=>{if(!pinned&&!flyout.contains(document.activeElement))close();},180);};button.onclick=()=>{open();pinned=true;};button.onkeydown=e=>{if(e.key==='ArrowRight'||e.key==='ArrowDown'){e.preventDefault();open();flyout.querySelector('a')?.focus();}};
+}
+flyout.onmouseenter=()=>clearTimeout(closeTimer);flyout.onmouseleave=()=>{closeTimer=setTimeout(()=>{if(!pinned)close();},180);};flyout.onfocusout=()=>setTimeout(()=>{if(!flyout.contains(document.activeElement))close();},0);
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){const previous=owner;close();previous?.focus();}});document.addEventListener('click',e=>{if(!flyout.contains(e.target)&&!e.target.closest('.plexa-nav-row'))close();});window.addEventListener('resize',close);
+group(menu.querySelector('a[href="/library"]'),[['/library?type=video','Video'],['/library?type=audio','Audio'],['/library?type=image','Images'],['/library?type=background','Backgrounds'],['/library?type=presenter','Presenters']], 'Library');
+if('__PLEXA_ROLE__'==='admin')group(management.querySelector('a[href="/admin"]'),[['/admin/agents','Agents'],['/admin/users-and-permissions','Users & permissions']], 'Admin');
+})();
