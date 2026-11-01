@@ -17,6 +17,7 @@ function playlistCatalogue(state){const view=videoLibraryView(state);const thumb
 function storeThumbnailDraft(state,captured){state.thumbnailDrafts??={};state.thumbnailDrafts[captured.key]=captured.draft;for(const entry of captured.entries)state.assets[entry.asset]=entry;return {key:captured.key,draft:captured.draft,url:mediaURL(captured.draft.listAsset),originalUrl:mediaURL(captured.draft.asset)};}
 function playlistById(state,id){if(typeof id!=='string'||!id)throw Error('Choose a playlist');const playlist=state.playerPlaylists?.find(p=>p.id===id);if(!playlist)throw Error('Choose a playlist');playlist.videoIds??=[];return playlist;}
 const mime=asset=>({png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',webp:'image/webp',mp4:'video/mp4',mp3:'audio/mpeg',wav:'audio/wav',m4a:'audio/mp4',flac:'audio/flac',ogg:'audio/ogg'}[asset.split('.').at(-1)?.toLowerCase()]);
+export function studioArticlesFrom(articles){return {articles:(articles||[]).map(a=>({id:a.id,title:a.title,brand:typeof a.brand==='string'?a.brand:'',sourceUrl:a.sourceUrl,script:a.spokenDraft?.status==='ready'&&a.spokenDraft.sourceFingerprint===a.fingerprint?a.spokenDraft.script:a.text,updatedAt:a.updatedAt||null,sourceCheckedAt:a.sourceCheckedAt||null,hasNarration:false}))};}
 export async function workspaceRead(workspace,route){
  if(['state','article-inbox'].includes(route))await expireWorkspaceJobs(workspace);
  const {state}=await workspace.snapshot();
@@ -28,7 +29,7 @@ export async function workspaceRead(workspace,route){
   case 'playlists':return playlistCatalogue(state);
   case 'video-library':return videoLibraryView(state);
   case 'article-inbox':return {...(state.inbox||{articles:[],history:[],lastSuccessfulImportAt:null}),articles:(state.inbox?.articles||[]).map(a=>({...a,scriptPreparation:(()=>{const j=state.jobs.find(j=>j.id===a.scriptPreparation?.jobId);return j?.status==='failed'?{...a.scriptPreparation,status:'failed',error:j.stage,updatedAt:j.updatedAt}:a.scriptPreparation;})(),images:state.images.filter(i=>i.sourceUrl===a.sourceUrl).map(i=>({...i,url:mediaURL('images/'+i.id+'.png')}))}))};
-  case 'studio-articles':return {articles:(state.inbox?.articles||[]).map(a=>({id:a.id,title:a.title,sourceUrl:a.sourceUrl,script:a.spokenDraft?.status==='ready'&&a.spokenDraft.sourceFingerprint===a.fingerprint?a.spokenDraft.script:a.text,updatedAt:a.updatedAt,sourceCheckedAt:a.sourceCheckedAt||null,hasNarration:false}))};
+  case 'studio-articles':return studioArticlesFrom(state.inbox?.articles);
   case 'brand-kits':return state.kits||JSON.parse(await fs.readFile(path.join(process.cwd(),'features/brand-kits/seeds.json'),'utf8'));
   default:throw Error('Studio route not found');
  }
