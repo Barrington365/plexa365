@@ -1,104 +1,5 @@
 @import "tailwindcss";
-
-/*
- * Design tokens — light (:root) / dark (html.dark).
- * Aliases: --background/--bg, semantic surfaces, --accent/--primary for green-led product chrome.
- */
-:root {
-  --background: #f7faf8;
-  --bg: var(--background);
-  --bg-elevated: #eef6f1;
-  --surface: #ffffff;
-  --surface-muted: #f7f9fc;
-  --surface-elevated: #ffffff;
-  --surface-hover: #edf7f1;
-
-  --text-primary: #111827;
-  --text-secondary: #4b5563;
-  --text-muted: #5f6f82;
-  --text-inverse: #f8fafc;
-
-  --border: #e1ebe5;
-  --border-strong: #bfd4c7;
-  --divider: #e1ebe5;
-
-  --primary: #047857;
-  --primary-hover: #065f46;
-  --primary-soft: color-mix(in srgb, var(--primary) 12%, var(--background));
-  --accent-gradient: linear-gradient(135deg, #047857, #22c55e);
-
-  --accent: #22c55e;
-  --accent-hover: #4ade80;
-  --accent-foreground: #052e16;
-  --accent-soft: color-mix(in srgb, var(--accent) 16%, var(--surface));
-
-  --success: #16a34a;
-  --warning: #d97706;
-  --danger: #dc2626;
-  --danger-foreground: #fef2f2;
-  --danger-soft: color-mix(in srgb, var(--danger) 12%, var(--surface));
-  --info: #2563eb;
-
-  --overlay: rgb(15 23 42 / 0.45);
-  --shadow: 0 1px 2px rgb(17 24 39 / 0.04), 0 8px 24px rgb(17 24 39 / 0.06);
-  --shadow-lg: 0 12px 32px rgb(17 24 39 / 0.1), 0 24px 60px rgb(17 24 39 / 0.12);
-  --shadow-card: 0 1px 2px rgb(17 24 39 / 0.04), 0 10px 28px rgb(17 24 39 / 0.06);
-
-  --ring: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent);
-  --focus: #10b981;
-
-  --r365-gold: var(--accent);
-  --heading-brand: var(--accent);
-  --media-backdrop: #020617;
-}
-
-html.dark {
-  --background: #07100c;
-  --bg: var(--background);
-  --bg-elevated: #0b1511;
-  --surface: #101913;
-  --surface-muted: #16221a;
-  --surface-elevated: #1b2a21;
-  --surface-hover: #1d2f25;
-
-  --text-primary: #f8fafc;
-  --text-secondary: #cbd5e1;
-  --text-muted: #94a3b8;
-  --text-inverse: #0f172a;
-
-  --border: #25352b;
-  --border-strong: #3b5343;
-  --divider: #25352b;
-
-  --primary: #4ade80;
-  --primary-hover: #86efac;
-  --primary-soft: color-mix(in srgb, var(--primary) 16%, var(--surface));
-  --accent-gradient: linear-gradient(135deg, #16a34a, #4ade80);
-
-  --accent: #4ade80;
-  --accent-hover: #86efac;
-  --accent-foreground: #052e16;
-  --accent-soft: color-mix(in srgb, var(--accent) 14%, var(--surface));
-
-  --success: #22c55e;
-  --warning: #f59e0b;
-  --danger: #f87171;
-  --danger-foreground: #450a0a;
-  --danger-soft: color-mix(in srgb, var(--danger) 14%, var(--surface));
-  --info: #38bdf8;
-
-  --overlay: rgb(0 0 0 / 0.62);
-  --shadow: 0 1px 2px rgb(0 0 0 / 0.22), 0 8px 20px rgb(0 0 0 / 0.2);
-  --shadow-lg: 0 12px 28px rgb(0 0 0 / 0.35), 0 24px 48px rgb(0 0 0 / 0.28);
-  --shadow-card: 0 0 0 1px rgb(255 255 255 / 0.06);
-
-  --ring: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent);
-  --focus: #86efac;
-
-  --r365-gold: var(--accent);
-  --heading-brand: var(--accent);
-  --media-backdrop: #020617;
-}
+@import "../features/msn-local/studio-theme.css";
 
 body {
   background: var(--background);
@@ -127,14 +28,14 @@ body::before {
   z-index: -1;
   pointer-events: none;
   background:
-    radial-gradient(circle at top left, color-mix(in srgb, var(--accent) 14%, transparent) 0, transparent 28rem),
-    linear-gradient(180deg, color-mix(in srgb, var(--surface) 60%, transparent), transparent 22rem);
+    radial-gradient(circle at top left, color-mix(in srgb, var(--accent) 16%, transparent) 0, transparent 28rem),
+    radial-gradient(circle at 85% 0%, color-mix(in srgb, var(--wash) 80%, transparent) 0, transparent 24rem);
 }
 
 html.dark body::before {
   background:
-    radial-gradient(circle at top left, color-mix(in srgb, var(--accent) 12%, transparent) 0, transparent 30rem),
-    radial-gradient(circle at top right, color-mix(in srgb, #22c55e 10%, transparent) 0, transparent 26rem);
+    radial-gradient(circle at 12% -10%, color-mix(in srgb, #6454d9 22%, transparent) 0, transparent 32rem),
+    radial-gradient(circle at 88% 0%, color-mix(in srgb, var(--accent) 12%, transparent) 0, transparent 26rem);
 }
 
 .app-nav-link {
@@ -157,10 +58,12 @@ html.dark body::before {
   outline-offset: 2px;
 }
 
-.app-shell-header {
+.app-shell-header,
+.app-shell-footer {
   border-color: var(--border);
-  background: color-mix(in srgb, var(--surface) 94%, transparent);
-  box-shadow: 0 1px 0 rgb(17 24 39 / 0.04), 0 10px 28px rgb(17 24 39 / 0.04);
+  background: var(--surface);
+  color: var(--text-secondary);
+  box-shadow: none;
 }
 
 .mobile-tab-bar {
@@ -170,8 +73,9 @@ html.dark body::before {
 }
 
 html.dark .mobile-tab-bar,
-html.dark .app-shell-header {
-  box-shadow: 0 1px 0 rgb(255 255 255 / 0.04);
+html.dark .app-shell-header,
+html.dark .app-shell-footer {
+  box-shadow: none;
 }
 
 /*
@@ -241,9 +145,9 @@ html.light .bg-black\/30 {
 }
 
 /*
- * Green brand compatibility layer.
+ * Accent compatibility layer.
  * Legacy studio screens still contain Tailwind arbitrary gold classes; map them to
- * the new semantic green system so the product feels coherent during migration.
+ * the Studio accent so the product feels coherent during migration.
  */
 .text-\[\#eab308\],
 .text-\[\#eab308\]\/90 {

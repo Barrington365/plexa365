@@ -7,7 +7,7 @@ const json=(res,status,data)=>{res.writeHead(status,{'Content-Type':'application
 http.createServer(async(req,res)=>{try{
  if(req.headers.host!=='127.0.0.1:'+port||req.method==='POST'&&req.headers.origin!==origin)return json(res,403,{error:'Local QA origin only'});
  const url=new URL(req.url,origin);
- if(req.method==='GET'&&url.pathname.startsWith('/workspace')){const page=url.pathname.slice('/workspace'.length).replace(/^\//,'');const file=workspacePage(page);if(!file)return json(res,404,{error:'Page not found'});res.writeHead(200,{'Content-Type':file.endsWith('.html')?'text/html':'text/javascript','Cache-Control':'no-store'});res.end(hostedUI(await fs.readFile(path.join('features/msn-local',file),'utf8')));return;}
+ if(req.method==='GET'&&url.pathname.startsWith('/workspace')){const page=url.pathname.slice('/workspace'.length).replace(/^\//,'');const file=workspacePage(page);if(!file)return json(res,404,{error:'Page not found'});const source=await fs.readFile(path.join('features/msn-local',file),'utf8');const type=file.endsWith('.html')?'text/html':file.endsWith('.css')?'text/css':'text/javascript';res.writeHead(200,{'Content-Type':type,'Cache-Control':'no-store'});res.end(file.endsWith('.css')?source:hostedUI(source));return;}
  if(!url.pathname.startsWith('/api/studio-workspace/'))return json(res,404,{error:'Not part of the hosted QA workspace'});
  const route=url.pathname.slice('/api/studio-workspace/'.length);
  if(req.method==='GET'){

@@ -26,7 +26,7 @@ export default function LoginPage() {
         </section>
         <p className="text-center text-xs text-[color:var(--text-muted)]">
           First admin?{" "}
-          <Link href="/setup" className="font-semibold text-[#22c55e] hover:underline">
+          <Link href="/setup" className="font-semibold text-[color:var(--accent)] hover:underline">
             Open setup
           </Link>
         </p>

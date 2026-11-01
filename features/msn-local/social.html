@@ -16,5 +16,5 @@ for(const name of kinds){const b=document.createElement('button');b.textContent=
 for(const p of platforms){const b=document.createElement('button');b.textContent=p;b.onclick=()=>{platform=p;$('notice').textContent='';render()};$('tabs').append(b)}
 $('search').oninput=render;$('cancel').onclick=()=>$('setup').close();
 $('create').onclick=async()=>{if(!$('title').value.trim()){$('error').textContent='Enter a title.';return}$('create').disabled=true;try{const res=await fetch('/api/projects/social',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:$('title').value.trim(),width:chosen.w,height:chosen.h,kind:chosen.kind})});const p=await res.json();if(!res.ok)throw Error(p.error||'Could not create project');location.href='/studio?project='+encodeURIComponent(p.id)}catch(e){$('error').textContent=e.message;$('create').disabled=false}};
-$('theme').onclick=()=>{document.body.classList.toggle('dark');$('theme').textContent=document.body.classList.contains('dark')?'Light mode':'Dark mode'};render();
+render();
 </script><script src="/studio-navigation.js"></script></html>

@@ -9,7 +9,7 @@ export type ThemeMode = "light" | "dark" | "system";
  */
 export function getThemeBootstrapScript(): string {
   const k = JSON.stringify(THEME_STORAGE_KEY);
-  return `!function(){try{var k=${k};var m=localStorage.getItem(k);if(m!=="light"&&m!=="dark"&&m!=="system")m="system";document.documentElement.setAttribute("data-theme-mode",m);var d=m==="dark"||(m!=="light"&&window.matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.classList.remove("light","dark");document.documentElement.classList.add(d?"dark":"light");}catch(e){document.documentElement.classList.add("light");document.documentElement.setAttribute("data-theme-mode","system");}}();`;
+  return `!function(){try{var k=${k};var m=localStorage.getItem(k);if(m!=="light"&&m!=="dark"&&m!=="system"){m=(localStorage.getItem("plexa-studio-theme")==="dark"||localStorage.getItem("plexa-theme")==="dark"||localStorage.getItem("msn-local-theme")==="dark")?"dark":"system";try{localStorage.setItem(k,m);}catch(e){}}document.documentElement.setAttribute("data-theme-mode",m);var d=m==="dark"||(m!=="light"&&window.matchMedia("(prefers-color-scheme: dark)").matches);var apply=function(){document.documentElement.classList.remove("light","dark");document.documentElement.classList.add(d?"dark":"light");if(document.body)document.body.classList.toggle("dark",d);};apply();document.addEventListener("DOMContentLoaded",apply);}catch(e){document.documentElement.classList.add("light");document.documentElement.setAttribute("data-theme-mode","system");}}();`;
 }
 
 export function readThemeModeFromDom(): ThemeMode {

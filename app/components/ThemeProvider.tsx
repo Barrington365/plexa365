@@ -38,6 +38,7 @@ function applyThemeClass(theme: ResolvedTheme) {
   const root = document.documentElement;
   root.classList.remove("light", "dark");
   root.classList.add(theme);
+  document.body.classList.toggle("dark", theme === "dark");
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {

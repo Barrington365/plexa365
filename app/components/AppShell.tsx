@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { WorkspaceSidebar } from "./WorkspaceSidebar";
 import { Montserrat } from "next/font/google";
 import { BRAND_MARK, BRAND_SLOGAN } from "@/app/lib/brand";
 import { AuthControls } from "@/app/components/AuthControls";
@@ -49,6 +50,7 @@ const footerLinks = [
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen flex flex-col">
+      <WorkspaceSidebar />
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[100] focus:rounded-lg focus:bg-[color:var(--accent)] focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-[color:var(--accent-foreground)] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[var(--surface)]"
@@ -56,14 +58,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         Skip to main content
       </a>
       <header
-        className="app-shell-header border-b backdrop-blur sticky top-0 z-50"
+        className="app-shell-header border-b sticky top-0 z-50"
       >
         <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
           <Link href="/" className="flex items-center">
             <div className="flex min-w-0 flex-col gap-1 leading-tight">
               <span
                 className={`${plexaFont.className} text-lg font-extrabold tracking-[0.08em] sm:text-xl lg:text-2xl`}
-                style={{ color: "var(--heading-brand)" }}
+                style={{ color: "var(--text-primary)" }}
               >
                 {BRAND_MARK}
               </span>
@@ -136,9 +138,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 Admin
               </AppNavLink>
             </nav>
-            <div className="hidden xl:block">
-              <ThemeToggle />
-            </div>
+            <ThemeToggle />
             <AuthControls />
           </div>
         </div>
@@ -179,8 +179,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           />
         </div>
       </nav>
-      <footer className="hidden border-t md:block" style={{ borderColor: "var(--border)" }}>
-        <div className="mx-auto flex w-full max-w-[1600px] flex-wrap items-center justify-between gap-3 px-4 py-4">
+      <footer className="app-shell-footer hidden border-t md:block">
+        <div className="mx-auto flex w-full max-w-[1600px] flex-wrap items-center gap-3 px-4 py-4">
           <nav className="flex flex-wrap gap-2 text-sm">
             {footerLinks.map((n) => (
               <Link
@@ -193,12 +193,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </Link>
             ))}
           </nav>
-          <div className="flex items-center gap-2">
-            <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-              Theme
-            </span>
-            <ThemeToggle />
-          </div>
         </div>
       </footer>
       <PlexaGatewayPopout triggerLabel="Gateway" floating />
