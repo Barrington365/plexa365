@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import {approveThumbnail,restoreThumbnail,chooseFrame,libraryDetails,createStudioPlaylist,addStudioVideo,analyticsForVideos,applyPlayerPoster,videoLibraryView} from './video-library.mjs';
+import {approveThumbnail,assignThumbnail,restoreThumbnail,chooseFrame,libraryDetails,createStudioPlaylist,addStudioVideo,analyticsForVideos,applyPlayerPoster,videoLibraryView} from './video-library.mjs';
 import {run} from './engine.mjs';
 import sharp from 'sharp';
 
@@ -44,6 +44,15 @@ test('library view reads stored articles and does not invent a brand',()=>{
  assert.equal(view.finished[0].articles[0].url,'https://www.football365.com/news/story');
  assert.equal(view.finished[0].createdAt,'2026-10-30T12:00:00.000Z');
 });
+test('a missing thumbnail is saved once and an existing one is left in place',()=>{
+ const captured={key:'file:videos/a.mp4',draft:{asset:'thumbnails/new.jpg',listAsset:'thumbnails/new.webp',seconds:1.2,source:'suggested'},entries:[{asset:'thumbnails/new.jpg',sha256:'abc'}]};
+ const state={thumbnails:{},assets:{},websiteVideos:[{id:'video',jobId:'job',posterAsset:'old.png',posterHash:'old'}]};
+ const saved=assignThumbnail(state,captured,'2026-11-01T04:00:00.000Z');
+ assert.equal(saved.skipped,false);assert.equal(state.thumbnails[captured.key].source,'suggested');assert.equal(state.thumbnails[captured.key].updatedAt,'2026-11-01T04:00:00.000Z');
+ assert.equal(state.websiteVideos[0].posterAsset,'old.png');
+ assert.equal(assignThumbnail(state,captured,'2026-11-01T05:00:00.000Z').skipped,true);
+ assert.equal(state.thumbnails[captured.key].updatedAt,'2026-11-01T04:00:00.000Z');
+});
 test('server extraction writes the video frame rather than a player screenshot',async()=>{
  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'plexa-frame-'));
  const file=path.join(dir,'sample.mp4');
@@ -55,5 +64,9 @@ test('server extraction writes the video frame rather than a player screenshot',
  const result=await captureVideoFrame(workspace,{jobId:'job',seconds:0.4});
  const meta=await sharp(stored.find(item=>item.asset.endsWith('.jpg')).body).metadata();
  assert.equal(meta.width,320);assert.equal(meta.height,180);assert.equal(result.draft.source,'capture');assert.equal(result.draft.seconds,0.4);
+ const {suggestVideoFrame}=await import('./video-thumbnail.mjs');
+ const upload={snapshot:async()=>({state:{jobs:[],assets:{'uploads/sample.mp4':{asset:'uploads/sample.mp4'}}}}),getFile:async()=>({bytes}),putBytes:async(asset,body)=>({asset,sha256:'hash',bytes:body.length})};
+ const suggested=await suggestVideoFrame(upload,{asset:'uploads/sample.mp4'});
+ assert.equal(suggested.key,'file:uploads/sample.mp4');assert.equal(suggested.draft.source,'suggested');assert.ok(suggested.draft.seconds>=0);
  await fs.rm(dir,{recursive:true,force:true});
 });

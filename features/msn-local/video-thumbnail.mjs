@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {randomUUID} from 'node:crypto';
 import sharp from 'sharp';
-import {run} from './engine.mjs';
+import {probe,run} from './engine.mjs';
 import {chooseFrame,resolveLibraryTarget} from './video-library.mjs';
 function captureSeconds(value,duration){
  const seconds=Number(value);
@@ -12,18 +12,37 @@ function captureSeconds(value,duration){
  if(duration!=null&&seconds>duration+0.05)throw Error('That time is past the end of the video');
  return Math.min(seconds,duration??seconds);
 }
+async function openSource(bytes){
+ const dir=await fs.mkdtemp(path.join(os.tmpdir(),'plexa-thumb-')),input=path.join(dir,'source.mp4');
+ await fs.writeFile(input,bytes);
+ return {input,close:()=>fs.rm(dir,{recursive:true,force:true})};
+}
+async function extractFrame(input,seconds,fast){
+ const frame=path.join(path.dirname(input),`frame-${fast?'fast':'exact'}-${String(seconds).replace(/\./g,'')}.jpg`);
+ const stamp=captureSeconds(seconds).toFixed(3),args=['-hide_banner','-y'];
+ if(fast)args.push('-ss',stamp);
+ args.push('-i',input);
+ if(!fast)args.push('-ss',stamp);
+ args.push('-frames:v','1','-q:v','2',frame);
+ await run(args);
+ const original=await fs.readFile(frame),meta=await sharp(original).metadata();
+ if(!meta.width||!meta.height)throw Error('The captured frame has no picture');
+ const list=await sharp(original).resize({width:640,withoutEnlargement:true}).webp({quality:80}).toBuffer();
+ const stats=await sharp(original).stats();
+ return {original,list,width:meta.width,height:meta.height,mean:stats.channels[0]?.mean??0,r:stats.channels[0]?.mean??0,g:stats.channels[1]?.mean??0,b:stats.channels[2]?.mean??0};
+}
+async function frameAt(input,seconds,fast){
+ try{return await extractFrame(input,seconds,fast);}catch(error){if(!fast)throw error;return extractFrame(input,seconds,false);}
+}
 async function still(bytes,seconds){
- const dir=await fs.mkdtemp(path.join(os.tmpdir(),'plexa-thumb-'));
- try{
-  const input=path.join(dir,'source.mp4'),frame=path.join(dir,'frame.jpg');
-  await fs.writeFile(input,bytes);
-  await run(['-hide_banner','-y','-i',input,'-ss',captureSeconds(seconds).toFixed(3),'-frames:v','1','-q:v','2',frame]);
-  const original=await fs.readFile(frame),meta=await sharp(original).metadata();
-  if(!meta.width||!meta.height)throw Error('The captured frame has no picture');
-  const list=await sharp(original).resize({width:640,withoutEnlargement:true}).webp({quality:80}).toBuffer();
-  const stats=await sharp(original).stats();
-  return {original,list,width:meta.width,height:meta.height,mean:stats.channels[0]?.mean??0,r:stats.channels[0]?.mean??0,g:stats.channels[1]?.mean??0,b:stats.channels[2]?.mean??0};
- }finally{await fs.rm(dir,{recursive:true,force:true});}
+ const source=await openSource(bytes);
+ try{return await extractFrame(source.input,seconds,false);}finally{await source.close();}
+}
+async function readableDuration(input,known){
+ if(Number.isFinite(known)&&known>=0.2)return known;
+ const meta=await probe(input);
+ if(!Number.isFinite(meta.duration)||meta.duration<0.2)throw Error('This video has no duration to sample');
+ return meta.duration;
 }
 async function storePair(workspace,stillImage,source,seconds){
  const id=randomUUID(),updatedAt=new Date().toISOString(),asset=`thumbnails/${id}.jpg`,listAsset=`thumbnails/${id}.webp`;
@@ -37,13 +56,14 @@ export async function captureVideoFrame(workspace,body){
  return {...await storePair(workspace,image,'capture',seconds),key:target.key};
 }
 export async function suggestVideoFrame(workspace,body){
- const {state}=await workspace.snapshot(),target=resolveLibraryTarget(state,body);
- if(target.duration==null||target.duration<0.2)throw Error('This video has no duration to sample');
- const file=await workspace.getFile(target.asset),points=[.2,.45,.7].map(part=>Math.min(target.duration-0.05,Math.max(0,target.duration*part)));
- const samples=[];
- for(const seconds of points){const image=await still(file.bytes,seconds);samples.push({seconds,image,mean:image.mean,r:image.r,g:image.g,b:image.b});}
- const chosen=chooseFrame(samples),match=samples.find(sample=>sample.seconds===chosen.seconds)||samples[0];
- return {...await storePair(workspace,match.image,'suggested',match.seconds),key:target.key};
+ const {state}=await workspace.snapshot(),target=resolveLibraryTarget(state,body),file=await workspace.getFile(target.asset),source=await openSource(file.bytes);
+ try{
+  const duration=await readableDuration(source.input,target.duration),points=[.2,.45,.7].map(part=>Math.min(duration-0.05,Math.max(0,duration*part)));
+  const samples=[];
+  for(const seconds of points){const image=await frameAt(source.input,seconds,true);samples.push({seconds,image,mean:image.mean,r:image.r,g:image.g,b:image.b});}
+  const chosen=chooseFrame(samples),match=samples.find(sample=>sample.seconds===chosen.seconds)||samples[0];
+  return {...await storePair(workspace,match.image,'suggested',match.seconds),key:target.key};
+ }finally{await source.close();}
 }
 export async function storeUploadedThumbnail(workspace,body){
  const {state}=await workspace.snapshot(),target=resolveLibraryTarget(state,body);

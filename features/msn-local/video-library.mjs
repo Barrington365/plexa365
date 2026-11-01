@@ -22,6 +22,15 @@ export function approveThumbnail(current,draft,updatedAt){
  const previous=current?.asset?{asset:current.asset,listAsset:current.listAsset,seconds:current.seconds??null,source:current.source||'capture',updatedAt:current.updatedAt}:null;
  return {...draft,previous,updatedAt};
 }
+export function assignThumbnail(state,captured,updatedAt){
+ if(!captured?.key||!captured.draft?.asset)throw Error('Capture a frame first');
+ state.thumbnails??={};
+ if(state.thumbnails[captured.key]?.listAsset)return {key:captured.key,skipped:true};
+ state.assets??={};
+ for(const entry of captured.entries||[])state.assets[entry.asset]=entry;
+ state.thumbnails[captured.key]=approveThumbnail(state.thumbnails[captured.key],captured.draft,updatedAt);
+ return {key:captured.key,skipped:false,updatedAt,asset:captured.draft.listAsset};
+}
 export function restoreThumbnail(current,updatedAt){
  if(!current?.previous?.asset)throw Error('There is no previous thumbnail');
  const previous={asset:current.asset,listAsset:current.listAsset,seconds:current.seconds??null,source:current.source||'capture',updatedAt:current.updatedAt};
