@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import {approveThumbnail,assignThumbnail,restoreThumbnail,chooseFrame,libraryDetails,createStudioPlaylist,addStudioVideo,analyticsForVideos,applyPlayerPoster,videoLibraryView} from './video-library.mjs';
+import {approveThumbnail,assignThumbnail,restoreThumbnail,chooseFrame,libraryDetails,createStudioPlaylist,addStudioVideo,analyticsForVideos,applyPlayerPoster,videoLibraryView,namedBrand,videoKind} from './video-library.mjs';
 import {run} from './engine.mjs';
 import sharp from 'sharp';
 
@@ -37,6 +37,16 @@ test('player poster replacement is explicit and analytics stay empty when untrac
  assert.equal(applied.destinationId,'football365');assert.equal(state.websiteVideos[0].posterHash,'abc');
  assert.equal(analyticsForVideos([],[]).available,false);
  assert.deepEqual(analyticsForVideos([{videoId:'video',event:'start'},{videoId:'video',event:'complete'}],['video']),{available:true,loads:0,starts:1,completions:1,completionRate:100,averageWatchTime:null,playbackErrors:null,adImpressions:null});
+});
+test('status labels use a named brand and file role, and leave an unnamed video blank',()=>{
+ assert.equal(namedBrand('Football365_Intro_1920x1080.mp4'),'Football365');
+ assert.equal(namedBrand('PlanetF1_Outro_1920x1080.mp4'),'PlanetF1');
+ assert.equal(namedBrand('TEAMtalk_Transition_1920x1080.mp4'),'TEAMtalk');
+ assert.equal(namedBrand('Saved title'),'');
+ assert.equal(videoKind('Football365_Intro_1920x1080.mp4','Upload'),'Intro');
+ assert.equal(videoKind('Football365-Daniel-Brooks-V2-Listening.mp4','Upload'),'Presenter');
+ assert.equal(videoKind('Football365-Carrick-Version-B-Intro-Outro.mp4','Upload'),'Intro and outro');
+ assert.equal(videoKind('Review · news-article','Studio'),'Studio video');
 });
 test('library view reads stored articles and does not invent a brand',()=>{
  const view=videoLibraryView({jobs:[{id:'job',status:'complete',createdAt:'2026-10-30T12:00:00.000Z',output:{asset:'videos/a.mp4',url:'/media',title:'Saved title',duration:12,updatedAt:'2026-10-30T13:00:00.000Z'},request:{kind:'studio',projectId:'project',project:{sourceUrl:'https://www.football365.com/news/story',title:'Story'}}}],assets:{},websiteVideos:[],playerDestinations:[],thumbnails:{},videoDetails:{}});
