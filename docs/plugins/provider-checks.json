@@ -1,0 +1,40 @@
+{
+  "scope": "Read-only checks using existing stored Admin settings; environment overrides were not copied. No generation or changes to settings.",
+  "results": [
+    {
+      "name": "OpenAI",
+      "status": 200,
+      "ok": true,
+      "checkedAt": "2026-11-01T11:50:02.306Z",
+      "duration": 1259
+    },
+    {
+      "name": "ElevenLabs",
+      "status": 200,
+      "ok": true,
+      "checkedAt": "2026-11-01T11:50:01.561Z",
+      "duration": 513
+    },
+    {
+      "name": "Runway",
+      "status": 200,
+      "ok": true,
+      "checkedAt": "2026-11-01T11:50:01.375Z",
+      "duration": 326
+    },
+    {
+      "name": "Daily",
+      "status": 200,
+      "ok": true,
+      "checkedAt": "2026-11-01T11:50:01.819Z",
+      "duration": 769
+    },
+    {
+      "name": "Apify",
+      "status": 200,
+      "ok": true,
+      "checkedAt": "2026-11-01T11:50:01.548Z",
+      "duration": 497
+    }
+  ]
+}
