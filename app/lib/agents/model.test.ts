@@ -47,6 +47,9 @@ describe("Agent management boundaries",()=>{
    expect(next.agents.find(a=>a.id==="fiddle")?.dialogue[1]).toMatchObject({from:"agent",text:"Two sourced stories, then a closer."});
    const brief=characterBrief(next.agents.find(a=>a.id==="fiddle")!);
    expect(brief.system).toContain("Fiddle");
+   expect(brief.system).toContain("Professional video editor");
+   expect(brief.system).toContain("learned production craft");
+   expect(brief.system).toContain("/workspace/library?type=background");
    expect(brief.user).toContain("What should the rundown cover?");
  });
  it("refuses to message an unapproved agent",()=>{
