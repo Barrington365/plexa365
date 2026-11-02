@@ -1,5 +1,5 @@
 import { describe,it,expect } from "vitest";
-import { applyCommand,initialData,commandSchema,type Command } from "./model";
+import { applyCommand,characterBrief,initialData,commandSchema,type Command } from "./model";
 const now="2026-10-31T12:00:00Z";
 function configured(){return applyCommand(initialData(),{action:"configure",agentId:"bob",responsibility:"Video",brand:"F365",workspace:"Editorial"},"admin",now,"config");}
 const task:Command={action:"task",owner:"bob",title:"Prepare video",source:"request-1",brand:"F365",workspace:"Editorial",priority:"Normal"};
@@ -38,6 +38,16 @@ describe("Agent management boundaries",()=>{
    expect(next.agents[0].state).toBe("Paused");
    expect(next.tasks[0]).toMatchObject({state:"Waiting for Input",messages:[{at:now,thread:"Bob",note:"Draft the rundown"}]});
    expect(()=>applyCommand(next,{action:"transition",taskId:"t",state:"Working",note:"start",output:"",checks:"",issues:""},"admin",now,"e")).toThrow("paused");
+ });
+ it("shows an admin line and a character reply without leaving pause",()=>{
+   const d=applyCommand(initialData(),{action:"talk",agentId:"fiddle",note:"What should the rundown cover?"},"admin",now,"talk");
+   expect(d.agents.find(a=>a.id==="fiddle")).toMatchObject({state:"Paused",dialogue:[{at:now,from:"admin",text:"What should the rundown cover?"}]});
+   const next=applyCommand(d,{action:"reply",agentId:"fiddle",note:"Two sourced stories, then a closer."},"admin",now,"reply");
+   expect(next.agents.find(a=>a.id==="fiddle")?.state).toBe("Paused");
+   expect(next.agents.find(a=>a.id==="fiddle")?.dialogue[1]).toMatchObject({from:"agent",text:"Two sourced stories, then a closer."});
+   const brief=characterBrief(next.agents.find(a=>a.id==="fiddle")!);
+   expect(brief.system).toContain("Fiddle");
+   expect(brief.user).toContain("What should the rundown cover?");
  });
  it("refuses to message an unapproved agent",()=>{
    let d=applyCommand(configured(),task,"admin",now,"t");

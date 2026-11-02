@@ -2,9 +2,11 @@ import { beforeEach,describe,it,expect,vi } from "vitest";
 vi.mock("@/app/lib/auth/guards",()=>({requireAdmin:vi.fn()}));
 vi.mock("@/app/lib/agents/store",()=>({readAgents:vi.fn(),updateAgents:vi.fn(),Conflict:class extends Error{}}));
 vi.mock("@/app/lib/agents/codex",()=>({queueCodexMessage:vi.fn(),codexBinary:vi.fn(async()=>null)}));
+vi.mock("@/app/lib/ai/client",()=>({aiChatText:vi.fn()}));
 import {requireAdmin} from "@/app/lib/auth/guards";
 import {readAgents,updateAgents,Conflict} from "@/app/lib/agents/store";
 import {codexBinary,queueCodexMessage} from "@/app/lib/agents/codex";
+import {aiChatText} from "@/app/lib/ai/client";
 import {initialData} from "@/app/lib/agents/model";
 import { GET,POST } from "./route";
 describe("Admin agents API",()=>{
@@ -36,6 +38,30 @@ describe("Admin agents API",()=>{
    const response=await POST(new Request("https://plexa.test/api/admin/agents",{method:"POST",headers:{origin:"https://plexa.test","Content-Type":"application/json"},body:JSON.stringify({version:0,command:{action:"message",taskId:"t",note:"Draft the rundown"}})}));
    expect(response.status).toBe(400);
    expect(updateAgents).not.toHaveBeenCalled();
+ });
+ it("keeps the character line when a reply is returned",async()=>{
+   const data=initialData();
+   const spoken={...data,version:1,agents:data.agents.map(a=>a.id==="fiddle"?{...a,dialogue:[{at:"2026-11-02T00:00:00Z",from:"admin" as const,text:"Hello"}]}:a)};
+   const answered={...spoken,version:2,agents:spoken.agents.map(a=>a.id==="fiddle"?{...a,dialogue:[...a.dialogue,{at:"2026-11-02T00:00:01Z",from:"agent" as const,text:"Hello, I am Fiddle."}]}:a)};
+   vi.mocked(requireAdmin).mockResolvedValue({user:{id:"admin"} as never});
+   vi.mocked(updateAgents).mockResolvedValueOnce(spoken).mockResolvedValueOnce(answered);
+   vi.mocked(aiChatText).mockResolvedValue({text:"Hello, I am Fiddle.",provider:"openai",model:"gpt",latencyMs:1,costEstimateUsd:0,fallbackUsed:false,retryCount:0});
+   const response=await POST(new Request("https://plexa.test/api/admin/agents",{method:"POST",headers:{origin:"https://plexa.test","Content-Type":"application/json"},body:JSON.stringify({version:0,command:{action:"talk",agentId:"fiddle",note:"Hello"}})}));
+   expect(response.status).toBe(200);
+   const body=await response.json();
+   expect(body.agents.find((a:{id:string})=>a.id==="fiddle").dialogue).toHaveLength(2);
+   expect(updateAgents).toHaveBeenCalledTimes(2);
+ });
+ it("still shows the admin line when the character reply fails",async()=>{
+   const data=initialData();
+   const spoken={...data,version:1,agents:data.agents.map(a=>a.id==="bob"?{...a,dialogue:[{at:"2026-11-02T00:00:00Z",from:"admin" as const,text:"Status?"}]}:a)};
+   vi.mocked(requireAdmin).mockResolvedValue({user:{id:"admin"} as never});
+   vi.mocked(updateAgents).mockResolvedValue(spoken);
+   vi.mocked(aiChatText).mockRejectedValue(new Error("offline"));
+   const response=await POST(new Request("https://plexa.test/api/admin/agents",{method:"POST",headers:{origin:"https://plexa.test","Content-Type":"application/json"},body:JSON.stringify({version:0,command:{action:"talk",agentId:"bob",note:"Status?"}})}));
+   expect(response.status).toBe(200);
+   expect((await response.json()).agents.find((a:{id:string})=>a.id==="bob").dialogue).toHaveLength(1);
+   expect(updateAgents).toHaveBeenCalledTimes(1);
  });
  it("does not save a conflicting message after another admin writes",async()=>{vi.mocked(requireAdmin).mockResolvedValue({user:{id:"admin"} as never});vi.mocked(readAgents).mockResolvedValue({...initialData(),version:2});const response=await POST(new Request("https://plexa.test/api/admin/agents",{method:"POST",headers:{origin:"https://plexa.test","Content-Type":"application/json"},body:JSON.stringify({version:1,command:{action:"message",taskId:"t",note:"Draft the rundown"}})}));expect(response.status).toBe(409);expect(response.headers.get("content-type"));expect(queueCodexMessage).not.toHaveBeenCalled();expect(updateAgents).not.toHaveBeenCalled();expect(new Conflict("x")).toBeInstanceOf(Error);});
 });
