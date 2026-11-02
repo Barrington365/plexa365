@@ -4,14 +4,14 @@ import { randomUUID } from "node:crypto";
 import { getStore } from "@netlify/blobs";
 import { shouldUseNetlifyBlobStore } from "@/app/lib/netlify-blob-json";
 import { projectRoot } from "@/app/lib/paths";
-import { initialData, applyCommand, type Data, type Command } from "./model";
+import { initialData, applyCommand, present, type Data, type Command } from "./model";
 const file = path.join(projectRoot(), "data/local/plexa-agent-management.json");
 const key = "management.json";
 const store = () => getStore({ name:"plexa-agent-management", consistency:"strong" });
 export class Conflict extends Error {}
 export async function readAgents(): Promise<Data> {
-  if (shouldUseNetlifyBlobStore()) return (await store().get(key, {type:"json"})) ?? initialData();
-  try { return JSON.parse(await fs.readFile(file,"utf8")); }
+  if (shouldUseNetlifyBlobStore()) return present((await store().get(key, {type:"json"})) ?? initialData());
+  try { return present(JSON.parse(await fs.readFile(file,"utf8"))); }
   catch (e) { if ((e as NodeJS.ErrnoException).code === "ENOENT") return initialData(); throw e; }
 }
 export async function updateAgents(command: Command, version: number, actor: string) {

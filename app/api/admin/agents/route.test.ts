@@ -1,12 +1,41 @@
 import { beforeEach,describe,it,expect,vi } from "vitest";
 vi.mock("@/app/lib/auth/guards",()=>({requireAdmin:vi.fn()}));
 vi.mock("@/app/lib/agents/store",()=>({readAgents:vi.fn(),updateAgents:vi.fn(),Conflict:class extends Error{}}));
+vi.mock("@/app/lib/agents/codex",()=>({queueCodexMessage:vi.fn(),codexBinary:vi.fn(async()=>null)}));
 import {requireAdmin} from "@/app/lib/auth/guards";
-import {readAgents,updateAgents} from "@/app/lib/agents/store";
+import {readAgents,updateAgents,Conflict} from "@/app/lib/agents/store";
+import {codexBinary,queueCodexMessage} from "@/app/lib/agents/codex";
+import {initialData} from "@/app/lib/agents/model";
 import { GET,POST } from "./route";
 describe("Admin agents API",()=>{
  beforeEach(()=>vi.resetAllMocks());
  it("blocks unauthenticated reads without reading storage",async()=>{vi.mocked(requireAdmin).mockResolvedValue({response:new Response(null,{status:401})});expect((await GET(new Request("https://plexa.test/api/admin/agents"))).status).toBe(401);expect(readAgents).not.toHaveBeenCalled();});
  it("blocks non-admin writes",async()=>{vi.mocked(requireAdmin).mockResolvedValue({response:new Response(null,{status:403})});expect((await POST(new Request("https://plexa.test/api/admin/agents",{method:"POST"}))).status).toBe(403);expect(updateAgents).not.toHaveBeenCalled();});
  it("rejects cross-origin writes even from an admin",async()=>{vi.mocked(requireAdmin).mockResolvedValue({user:{id:"admin"} as never});expect((await POST(new Request("https://plexa.test/api/admin/agents",{method:"POST",headers:{origin:"https://other.test"}}))).status).toBe(403);expect(updateAgents).not.toHaveBeenCalled();});
+ it("reports whether this server can reach Codex",async()=>{vi.mocked(requireAdmin).mockResolvedValue({user:{id:"admin"} as never});vi.mocked(readAgents).mockResolvedValue(initialData());vi.mocked(codexBinary).mockResolvedValue("/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/codex");const body=await (await GET(new Request("https://plexa.test/api/admin/agents"))).json();expect(body.codexReachable).toBe(true);expect(body.agents).toHaveLength(8);});
+ it("queues the saved session before recording the message",async()=>{
+   const data=initialData();
+   data.agents[0].approved=true;data.agents[0].brand="F365";data.agents[0].workspace="Editorial";data.agents[0].codexThread="Bob";
+   data.tasks.push({id:"t",owner:"bob",title:"Prepare video",source:"request-1",brand:"F365",workspace:"Editorial",priority:"Normal",state:"Paused",createdAt:"2026-11-02T00:00:00Z",updatedAt:"2026-11-02T00:00:00Z",messages:[]});
+   vi.mocked(requireAdmin).mockResolvedValue({user:{id:"admin"} as never});
+   vi.mocked(readAgents).mockResolvedValue(data);
+   vi.mocked(queueCodexMessage).mockImplementation(async()=>{expect(updateAgents).not.toHaveBeenCalled();});
+   vi.mocked(updateAgents).mockResolvedValue(data);
+   const response=await POST(new Request("https://plexa.test/api/admin/agents",{method:"POST",headers:{origin:"https://plexa.test","Content-Type":"application/json"},body:JSON.stringify({version:0,command:{action:"message",taskId:"t",note:"Draft the rundown"}})}));
+   expect(response.status).toBe(200);
+   expect(queueCodexMessage).toHaveBeenCalledWith("Bob","Draft the rundown");
+   expect(updateAgents).toHaveBeenCalled();
+ });
+ it("does not record a message when Codex rejects it",async()=>{
+   const data=initialData();
+   data.agents[0].approved=true;data.agents[0].codexThread="Bob";
+   data.tasks.push({id:"t",owner:"bob",title:"Prepare video",source:"request-1",brand:"F365",workspace:"Editorial",priority:"Normal",state:"Paused",createdAt:"2026-11-02T00:00:00Z",updatedAt:"2026-11-02T00:00:00Z",messages:[]});
+   vi.mocked(requireAdmin).mockResolvedValue({user:{id:"admin"} as never});
+   vi.mocked(readAgents).mockResolvedValue(data);
+   vi.mocked(queueCodexMessage).mockRejectedValue(new Error("Codex did not accept the message."));
+   const response=await POST(new Request("https://plexa.test/api/admin/agents",{method:"POST",headers:{origin:"https://plexa.test","Content-Type":"application/json"},body:JSON.stringify({version:0,command:{action:"message",taskId:"t",note:"Draft the rundown"}})}));
+   expect(response.status).toBe(400);
+   expect(updateAgents).not.toHaveBeenCalled();
+ });
+ it("does not save a conflicting message after another admin writes",async()=>{vi.mocked(requireAdmin).mockResolvedValue({user:{id:"admin"} as never});vi.mocked(readAgents).mockResolvedValue({...initialData(),version:2});const response=await POST(new Request("https://plexa.test/api/admin/agents",{method:"POST",headers:{origin:"https://plexa.test","Content-Type":"application/json"},body:JSON.stringify({version:1,command:{action:"message",taskId:"t",note:"Draft the rundown"}})}));expect(response.status).toBe(409);expect(response.headers.get("content-type"));expect(queueCodexMessage).not.toHaveBeenCalled();expect(updateAgents).not.toHaveBeenCalled();expect(new Conflict("x")).toBeInstanceOf(Error);});
 });

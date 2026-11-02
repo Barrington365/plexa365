@@ -20,20 +20,40 @@ export const commandSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("handover"), taskId: text, owner: id, completed: text, files: text, issues: text, nextAction: text }),
   z.object({ action: z.literal("decision"), requestId: text, decision: z.enum(["approve", "reject"]), note: text }),
   z.object({ action: z.literal("approval"), agentId: id, reason: text }),
+  z.object({ action: z.literal("link"), agentId: id, thread: z.string().trim().max(80).refine((value) => value === "" || /^[A-Za-z0-9][A-Za-z0-9 ._-]*$/.test(value), "Use a session UUID or exact session name.") }),
+  z.object({ action: z.literal("message"), taskId: text, note: z.string().trim().min(1).max(4000) }),
   z.object({ action: z.literal("automation"), owner: id, title: text, trigger: text, schedule: text, brand: text, workspace: text, tools: text, costLimit: z.number().finite().min(0), approvalPolicy: text }),
 ]);
 export type Command = z.infer<typeof commandSchema>;
-export type Agent = { id: string; name: string; responsibility: string; group: string; state: "Paused"; brand: string; workspace: string; approved: boolean };
-export type Task = { id: string; owner: string; title: string; source: string; brand: string; workspace: string; priority: string; state: typeof states[number]; createdAt: string; updatedAt: string; output?: string; checks?: string; issues?: string };
+export type Agent = { id: string; name: string; responsibility: string; group: string; state: "Paused"; brand: string; workspace: string; approved: boolean; codexThread: string };
+export type CodexNote = { at: string; thread: string; note: string };
+export type Task = { id: string; owner: string; title: string; source: string; brand: string; workspace: string; priority: string; state: typeof states[number]; createdAt: string; updatedAt: string; output?: string; checks?: string; issues?: string; messages: CodexNote[] };
 export type Event = { id: string; at: string; actor: string; action: string; subject: string; details: Record<string, unknown> };
 export type Automation = Extract<Command, {action:"automation"}> & { id: string; state: "Paused"; createdAt: string; runHistory: unknown[] };
 export type Data = { version: number; agents: Agent[]; tasks: Task[]; automations: Automation[]; requests: { id: string; agentId: string; reason: string; state: "Waiting for Admin" | "Completed" | "Cancelled"; createdAt: string }[]; history: Event[] };
 export function initialData(): Data {
-  return { version: 0, agents: roles.map(([id,name,responsibility,group]) => ({ id,name,responsibility,group,state:"Paused",brand:"",workspace:"",approved:false })), tasks:[], automations:[], requests:[], history:[] };
+  return { version: 0, agents: roles.map(([id,name,responsibility,group]) => ({ id,name,responsibility,group,state:"Paused",brand:"",workspace:"",approved:false,codexThread:"" })), tasks:[], automations:[], requests:[], history:[] };
 }
 const terminal = (state: string) => ["Completed", "Cancelled", "Failed"].includes(state);
+export function present(data: Data): Data {
+  return {
+    ...data,
+    agents: data.agents.map((agent) => ({ ...agent, codexThread: agent.codexThread ?? "" })),
+    tasks: data.tasks.map((task) => ({ ...task, messages: task.messages ?? [] })),
+  };
+}
+export function dispatchThread(data: Data, taskId: string) {
+  const current = present(data);
+  const task = current.tasks.find((item) => item.id === taskId);
+  if (!task) throw new Error("Task not found.");
+  if (terminal(task.state)) throw new Error("This task is closed. Create a new task for further work.");
+  const agent = current.agents.find((item) => item.id === task.owner);
+  if (!agent?.codexThread) throw new Error("Save a Codex session for this agent before sending.");
+  if (!agent.approved) throw new Error("Approve this agent's configuration before sending.");
+  return agent.codexThread;
+}
 export function applyCommand(data: Data, command: Command, actor: string, now: string, uid: string): Data {
-  const d = structuredClone(data);
+  const d = present(structuredClone(data));
   const scoped = (owner: string, brand: string, workspace: string) => {
     const agent = d.agents.find(a => a.id === owner);
     if (!agent || agent.brand !== brand || agent.workspace !== workspace || !brand || !workspace) throw new Error("Configure the agent for this brand and workspace first.");
@@ -48,7 +68,7 @@ export function applyCommand(data: Data, command: Command, actor: string, now: s
   } else if (command.action === "task") {
     scoped(command.owner, command.brand, command.workspace);
     if (d.tasks.some(t => !terminal(t.state) && t.brand === command.brand && t.workspace === command.workspace && (t.title.toLowerCase() === command.title.toLowerCase() || t.source === command.source))) throw new Error("An open task already covers this request in this workspace.");
-    d.tasks.push({ ...command, id:uid, state:"Paused", createdAt:now, updatedAt:now });
+    d.tasks.push({ ...command, id:uid, state:"Paused", createdAt:now, updatedAt:now, messages:[] });
   } else if (command.action === "transition" || command.action === "handover") {
     const task = d.tasks.find(t => t.id === command.taskId);
     if (!task) throw new Error("Task not found.");
@@ -75,6 +95,21 @@ export function applyCommand(data: Data, command: Command, actor: string, now: s
     agent.approved = command.decision === "approve";
     request.state = command.decision === "approve" ? "Completed" : "Cancelled";
     subject = request.id;
+  } else if (command.action === "link") {
+    const agent = d.agents.find(a => a.id === command.agentId)!;
+    agent.codexThread = command.thread;
+    subject = agent.id;
+  } else if (command.action === "message") {
+    const task = d.tasks.find(t => t.id === command.taskId);
+    if (!task) throw new Error("Task not found.");
+    if (terminal(task.state)) throw new Error("This task is closed. Create a new task for further work.");
+    const agent = d.agents.find(a => a.id === task.owner);
+    if (!agent?.codexThread) throw new Error("Save a Codex session for this agent before sending.");
+    if (!agent.approved) throw new Error("Approve this agent's configuration before sending.");
+    task.messages.push({ at: now, thread: agent.codexThread, note: command.note });
+    task.state = "Waiting for Input";
+    task.updatedAt = now;
+    subject = task.id;
   } else {
     scoped(command.owner, command.brand, command.workspace);
     if (d.automations.some(a => a.title.toLowerCase() === command.title.toLowerCase() && a.brand === command.brand && a.workspace === command.workspace)) throw new Error("This automation already exists.");
