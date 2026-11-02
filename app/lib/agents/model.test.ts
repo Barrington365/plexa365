@@ -19,4 +19,29 @@ describe("Agent management boundaries",()=>{
  it("blocks execution and completion without evidence",()=>{const d=applyCommand(configured(),task,"admin",now,"t");const c:Command={action:"transition",taskId:"t",state:"Working",note:"start",output:"",checks:"",issues:""};expect(()=>applyCommand(d,c,"admin",now,"e")).toThrow("paused");expect(()=>applyCommand(d,{...c,state:"Completed"},"admin",now,"e")).toThrow("Completion requires");const done=applyCommand(d,{...c,state:"Completed",output:"private/output.mp4",checks:"Playback reviewed"},"admin",now,"e");expect(done.tasks[0].state).toBe("Completed");});
  it("requires handover scope and preserves source request",()=>{let d=configured();d=applyCommand(d,{action:"configure",agentId:"halley",responsibility:"QA",brand:"F365",workspace:"Editorial"},"admin",now,"c2");d=applyCommand(d,task,"admin",now,"t");const next=applyCommand(d,{action:"handover",taskId:"t",owner:"halley",completed:"Draft",files:"draft.mp4",issues:"Review",nextAction:"Check playback"},"admin",now,"h");expect(next.tasks[0]).toMatchObject({owner:"halley",source:"request-1",state:"Paused"});expect(next.history.at(-1)?.details).toMatchObject({nextAction:"Check playback"});});
  it("deduplicates approvals without activating the agent",()=>{const c:Command={action:"approval",agentId:"bob",reason:"Review setup"};const d=applyCommand(configured(),c,"admin",now,"a");expect(()=>applyCommand(d,c,"admin",now,"b")).toThrow("already");expect(d.agents[0].approved).toBe(false);});
+ it("stores a Codex session without starting the agent or dropping approval",()=>{
+   let d=applyCommand(configured(),{action:"approval",agentId:"bob",reason:"Review"},"admin",now,"request");
+   d=applyCommand(d,{action:"decision",requestId:"request",decision:"approve",note:"Reviewed configuration"},"admin",now,"decision");
+   d=applyCommand(d,{action:"link",agentId:"bob",thread:"11111111-1111-4111-8111-111111111111"},"admin",now,"link");
+   expect(d.agents[0]).toMatchObject({approved:true,state:"Paused",codexThread:"11111111-1111-4111-8111-111111111111"});
+   d=applyCommand(d,{action:"configure",agentId:"bob",responsibility:"Updated role",brand:"F365",workspace:"Editorial"},"admin",now,"edit");
+   expect(d.agents[0]).toMatchObject({approved:false,state:"Paused",codexThread:"11111111-1111-4111-8111-111111111111"});
+ });
+ it("rejects a Codex session id that is not a name or UUID",()=>{expect(commandSchema.safeParse({action:"link",agentId:"bob",thread:"../secret"}).success).toBe(false);expect(commandSchema.safeParse({action:"link",agentId:"bob",thread:"Bob"}).success).toBe(true);});
+ it("queues a Codex note without marking the agent as working",()=>{
+   let d=applyCommand(configured(),{action:"approval",agentId:"bob",reason:"Review"},"admin",now,"request");
+   d=applyCommand(d,{action:"decision",requestId:"request",decision:"approve",note:"Reviewed configuration"},"admin",now,"decision");
+   d=applyCommand(d,task,"admin",now,"t");
+   expect(()=>applyCommand(d,{action:"message",taskId:"t",note:"Draft the rundown"},"admin",now,"m")).toThrow("Save a Codex session");
+   d=applyCommand(d,{action:"link",agentId:"bob",thread:"Bob"},"admin",now,"link");
+   const next=applyCommand(d,{action:"message",taskId:"t",note:"Draft the rundown"},"admin",now,"m");
+   expect(next.agents[0].state).toBe("Paused");
+   expect(next.tasks[0]).toMatchObject({state:"Waiting for Input",messages:[{at:now,thread:"Bob",note:"Draft the rundown"}]});
+   expect(()=>applyCommand(next,{action:"transition",taskId:"t",state:"Working",note:"start",output:"",checks:"",issues:""},"admin",now,"e")).toThrow("paused");
+ });
+ it("refuses to message an unapproved agent",()=>{
+   let d=applyCommand(configured(),task,"admin",now,"t");
+   d=applyCommand(d,{action:"link",agentId:"bob",thread:"Bob"},"admin",now,"link");
+   expect(()=>applyCommand(d,{action:"message",taskId:"t",note:"Draft the rundown"},"admin",now,"m")).toThrow("Approve");
+ });
 });
