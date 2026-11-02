@@ -1,6 +1,7 @@
 import { requireAdmin } from "@/app/lib/auth/guards";
+import { aiChatText } from "@/app/lib/ai/client";
 import { codexBinary, queueCodexMessage } from "@/app/lib/agents/codex";
-import { commandSchema, dispatchThread } from "@/app/lib/agents/model";
+import { characterBrief, commandSchema, dispatchThread } from "@/app/lib/agents/model";
 import { Conflict, readAgents, updateAgents } from "@/app/lib/agents/store";
 export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
@@ -22,7 +23,22 @@ export async function POST(request: Request) {
       if (current.version !== body.version) throw new Conflict("Another Admin saved changes. Refresh before saving.");
       await queueCodexMessage(dispatchThread(current, parsed.data.taskId), parsed.data.note);
     }
-    return Response.json({ ...(await updateAgents(parsed.data, body.version, auth.user.id)), codexReachable: Boolean(await codexBinary()) });
+    let next = await updateAgents(parsed.data, body.version, auth.user.id);
+    if (parsed.data.action === "talk") {
+      const agent = next.agents.find((item) => item.id === parsed.data.agentId);
+      if (agent) {
+        try {
+          const brief = characterBrief(agent);
+          const reply = await aiChatText({ task: "admin_dev_gateway", forceProvider: "openai", temperature: 0.4, maxTokens: 350, system: brief.system, user: brief.user });
+          const text = reply.text.trim().slice(0, 2000);
+          if (text) next = await updateAgents({ action: "reply", agentId: agent.id, note: text }, next.version, auth.user.id);
+        } catch { /* The admin line stays on screen when a reply cannot be generated. */ }
+        if (agent.approved && agent.codexThread && await codexBinary()) {
+          try { await queueCodexMessage(agent.codexThread, parsed.data.note); } catch { /* The on-screen conversation does not depend on the Codex queue. */ }
+        }
+      }
+    }
+    return Response.json({ ...next, codexReachable: Boolean(await codexBinary()) });
   }
   catch (e) { return Response.json({error: e instanceof Error ? e.message : "Save failed."},{status:e instanceof Conflict ? 409 : 400}); }
 }
