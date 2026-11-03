@@ -1,0 +1,12 @@
+import {beforeEach,it,expect,vi} from 'vitest';
+const m=vi.hoisted(()=>({get:vi.fn(),setJSON:vi.fn(),getWithMetadata:vi.fn()}));
+vi.mock('@netlify/blobs',()=>({getStore:()=>m}));
+vi.mock('@/app/lib/netlify-blob-json',()=>({shouldUseNetlifyBlobStore:()=>true}));
+import {updateCosts,readCosts} from './store';
+import {initialCosts,type Command} from './model';
+const command:Command={action:'target',brand:'TEAMtalk',unit:'GBP',amount:1,idempotencyKey:'test'};
+beforeEach(()=>{vi.resetAllMocks();});
+it('allows only one of two concurrent conditional writes',async()=>{m.getWithMetadata.mockResolvedValue({data:initialCosts(),etag:'v1'});let writes=0;m.setJSON.mockImplementation(async()=>({modified:++writes===1}));const results=await Promise.allSettled([updateCosts(command,0,'admin1'),updateCosts({...command,idempotencyKey:'other'},0,'admin2')]);expect(results.filter(r=>r.status==='fulfilled')).toHaveLength(1);expect(results.filter(r=>r.status==='rejected')).toHaveLength(1);expect(m.setJSON.mock.calls[0][2]).toEqual({onlyIfMatch:'v1'});});
+it('creates a store only if no other worker has created it',async()=>{m.getWithMetadata.mockResolvedValue(null);m.setJSON.mockResolvedValue({modified:false});await expect(updateCosts(command,0,'admin')).rejects.toThrow('Another Admin');expect(m.setJSON.mock.calls[0][2]).toEqual({onlyIfNew:true});});
+it('fails closed without etag or with stale version',async()=>{m.getWithMetadata.mockResolvedValue({data:initialCosts()});await expect(updateCosts(command,0,'admin')).rejects.toThrow('version unavailable');m.getWithMetadata.mockResolvedValue({data:{...initialCosts(),version:2},etag:'v2'});await expect(updateCosts(command,0,'admin')).rejects.toThrow('Another Admin');expect(m.setJSON).not.toHaveBeenCalled();});
+it('does not turn unavailable storage into empty balances',async()=>{m.get.mockRejectedValue(Error('unavailable'));await expect(readCosts()).rejects.toThrow('unavailable');});

@@ -1,0 +1,75 @@
+{
+  "result": {
+    "releaseSummary": "Added concurrent Blob CAS write tests and improved error handling for cost updates. Implemented admin-only reporting dashboard for manual accounting without affecting provider billing.",
+    "riskLevel": "medium",
+    "decision": "NEEDS FIXES",
+    "changedAreas": [
+      "feature",
+      "API",
+      "UI",
+      "data/store"
+    ],
+    "risks": [
+      "Potential broken routes in the new API endpoints.",
+      "Admin authentication leaks if not properly tested.",
+      "OpenAI API issues due to changes in data handling.",
+      "Data loss risks during concurrent writes.",
+      "Performance issues with new cost calculations."
+    ],
+    "smokeTests": [
+      "Verify that the new API endpoints return expected responses.",
+      "Check that admin-only routes are inaccessible to non-admin users."
+    ],
+    "regressionTests": [
+      "Run existing tests to ensure no other functionalities are broken.",
+      "Test all API routes for proper authentication and authorization."
+    ],
+    "edgeCases": [
+      "Test concurrent writes to ensure only one succeeds.",
+      "Check behavior when invalid data is sent to the API."
+    ],
+    "adminChecks": [
+      "Ensure admin-only access is enforced on all new routes.",
+      "Verify that financial data is not exposed to non-admin users."
+    ],
+    "thirdPartyChecks": [
+      "Confirm that no new provider calls are made without proper authentication.",
+      "Check that existing provider integrations remain unaffected."
+    ],
+    "rollbackPlan": {
+      "rollbackSteps": [
+        "Revert the feature commit via PR.",
+        "Ensure the additive store is retained."
+      ],
+      "affectedSystems": [
+        "Cost & Credits reporting dashboard",
+        "API endpoints related to costs"
+      ],
+      "databaseChanges": [],
+      "environmentChanges": []
+    },
+    "audit": {
+      "featureBranch": "codex/cost-credits",
+      "changedFiles": [
+        "app/lib/costs/store.test.ts",
+        "app/api/costs/route.test.ts",
+        "app/api/costs/videos/route.test.ts",
+        "app/lib/costs/store.ts",
+        "app/api/costs/route.ts",
+        "app/api/costs/videos/route.ts",
+        "app/lib/costs/videos.ts"
+      ],
+      "testResults": [
+        "Full suite: 365 tests passed, 1 skipped.",
+        "Production build passed."
+      ],
+      "approvalRequired": [
+        "tests pass",
+        "OpenAI review passes",
+        "Bazza approves"
+      ]
+    },
+    "cursorFixPrompt": ""
+  },
+  "model": "gpt-4o-mini"
+}

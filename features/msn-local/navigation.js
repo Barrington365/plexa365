@@ -44,5 +44,5 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'){const previous=owne
 group(menu.querySelector('a[href="/video"]'),[['/video','Videos'],['/playlist','Playlist']],'Video');
 group(menu.querySelector('a[href="/library"]'),[['/library?type=video','Video'],['/library?type=audio','Audio'],['/library?type=image','Images'],['/library?type=background','Backgrounds'],['/library?type=presenter','Presenters']], 'Library');
 if('__PLEXA_ROLE__'==='admin')group(management.querySelector('a[href="/admin"]'),[['/admin/agents','Agents'],['/admin/users-and-permissions','Users & permissions']], 'Admin');
-const toolsLink=management.querySelector('a[href="/tools"]');if(toolsLink)group(toolsLink,[['/plugins','Plugins']],'Tools');
+const toolsLink=management.querySelector('a[href="/tools"]');if(toolsLink)group(toolsLink,[['/plugins','Plugins'],...('__PLEXA_ROLE__'==='admin'?[['/cost-credits','Cost & Credits']]:[]) ],'Tools');
 })();

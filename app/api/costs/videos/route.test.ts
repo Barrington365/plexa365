@@ -1,0 +1,15 @@
+import {beforeEach,it,expect,vi} from 'vitest';
+const m=vi.hoisted(()=>({auth:vi.fn(),read:vi.fn(),write:vi.fn(),snapshot:vi.fn()}));
+vi.mock('@/app/lib/auth/guards',()=>({requireAdmin:m.auth}));
+vi.mock('@/app/lib/costs/store',()=>({readCosts:m.read,updateCosts:m.write,Conflict:class extends Error{}}));
+vi.mock('@/app/lib/studio-workspace/store',()=>({hostedWorkspace:()=>({snapshot:m.snapshot})}));
+import {GET,POST} from './route';
+import {initialCosts} from '@/app/lib/costs/model';
+import {videoCosts} from '@/app/lib/costs/videos';
+const state={projects:[{id:'p'}],jobs:[{id:'j',status:'complete',request:{projectId:'p',kind:'studio'},output:{asset:'v.mp4',duration:60}}]};
+const request=(command:unknown)=>new Request('http://localhost/api/costs/videos',{method:'POST',headers:{origin:'http://localhost','Content-Type':'application/json'},body:JSON.stringify({version:0,command})});
+beforeEach(()=>{vi.resetAllMocks();m.auth.mockResolvedValue({user:{id:'admin'}});m.read.mockResolvedValue(initialCosts());m.snapshot.mockResolvedValue({state});m.write.mockResolvedValue({version:1});});
+it('denies financial reads and reconciliation before reading workspace',async()=>{m.auth.mockResolvedValue({response:new Response(null,{status:403})});expect((await GET(new Request('http://localhost/api/costs/videos'))).status).toBe(403);expect((await POST(request({}))).status).toBe(403);expect(m.snapshot).not.toHaveBeenCalled();});
+it('handles missing project and unavailable workspace honestly',async()=>{expect((await GET(new Request('http://localhost/api/costs/videos?project=missing'))).status).toBe(404);m.snapshot.mockRejectedValue(Error('offline'));expect((await GET(new Request('http://localhost/api/costs/videos'))).status).toBe(503);});
+it('checks evidence against server data and records authenticated actor',async()=>{const command={action:'reconcile',projectId:'p',unit:'GBP',fingerprint:videoCosts(initialCosts(),state,'GBP')[0].fingerprint,notes:'Reviewed all provider invoices and attempts',idempotencyKey:'a'};expect((await POST(request({...command,fingerprint:'0'.repeat(64)}))).status).toBe(409);expect(m.write).not.toHaveBeenCalled();expect((await POST(request(command))).status).toBe(200);expect(m.write.mock.calls[0][2]).toBe('admin');});
+it('blocks cross-origin reconciliation',async()=>{expect((await POST(new Request('http://localhost/api/costs/videos',{method:'POST',headers:{origin:'https://evil.invalid'}}))).status).toBe(403);expect(m.write).not.toHaveBeenCalled();});

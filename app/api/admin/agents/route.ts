@@ -25,13 +25,14 @@ export async function POST(request: Request) {
     }
     let next = await updateAgents(parsed.data, body.version, auth.user.id);
     if (parsed.data.action === "talk") {
-      const agent = next.agents.find((item) => item.id === parsed.data.agentId);
+      const agentId = parsed.data.agentId;
+      const agent = next.agents.find((item) => item.id === agentId);
       if (agent) {
         try {
           const brief = characterBrief(agent);
           const reply = await aiChatText({ task: "admin_dev_gateway", forceProvider: "openai", temperature: 0.4, maxTokens: 350, system: brief.system, user: brief.user });
           const text = reply.text.trim().slice(0, 2000);
-          if (text) next = await updateAgents({ action: "reply", agentId: agent.id, note: text }, next.version, auth.user.id);
+          if (text) next = await updateAgents({ action: "reply", agentId, note: text }, next.version, auth.user.id);
         } catch { /* The admin line stays on screen when a reply cannot be generated. */ }
         if (agent.approved && agent.codexThread && await codexBinary()) {
           try { await queueCodexMessage(agent.codexThread, parsed.data.note); } catch { /* The on-screen conversation does not depend on the Codex queue. */ }
