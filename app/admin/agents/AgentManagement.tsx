@@ -26,7 +26,7 @@ function TalkBox({busy, name, onSend}:{busy:boolean;name:string;onSend:(note:str
 }
 function CodexMessage({busy, disabled, onSave}:{busy:boolean;disabled:boolean;onSave:(note:string)=>Promise<boolean>}) {
   async function submit(e:FormEvent<HTMLFormElement>) { e.preventDefault(); const form=e.currentTarget; if(await onSave(String(new FormData(form).get("note") ?? ""))) form.reset(); }
-  return <form onSubmit={submit} className="mt-4 grid gap-2"><label className="text-sm">Message for this agent's Codex session<textarea name="note" required maxLength={4000} className={input}/></label><button disabled={busy||disabled} className={button}>Queue message to Codex · keep paused</button></form>;
+  return <form onSubmit={submit} className="mt-4 grid gap-2"><label className="text-sm">Message for this agent&apos;s Codex session<textarea name="note" required maxLength={4000} className={input}/></label><button disabled={busy||disabled} className={button}>Queue message to Codex · keep paused</button></form>;
 }
 const owners = roles.map(r=>r[0]);
 const scope:Field[]=[{name:"brand",label:"Brand"},{name:"workspace",label:"Workspace"}];

@@ -1,0 +1,10 @@
+import {beforeEach,it,expect,vi} from 'vitest';
+const mocks=vi.hoisted(()=>({auth:vi.fn(),read:vi.fn(),write:vi.fn()}));
+vi.mock('@/app/lib/auth/guards',()=>({requireAdmin:mocks.auth}));
+vi.mock('@/app/lib/costs/store',()=>({readCosts:mocks.read,updateCosts:mocks.write,Conflict:class extends Error{},InvalidCostCommand:class extends Error{}}));
+import {GET,POST} from './route';
+beforeEach(()=>{vi.resetAllMocks();mocks.auth.mockResolvedValue({user:{id:'admin'}});});
+it('rejects financial reads and writes without Admin authentication',async()=>{mocks.auth.mockResolvedValue({response:new Response(null,{status:403})});expect((await GET(new Request('http://localhost/api/costs'))).status).toBe(403);expect((await POST(new Request('http://localhost/api/costs',{method:'POST'}))).status).toBe(403);expect(mocks.write).not.toHaveBeenCalled();});
+it('rejects cross-origin writes',async()=>{expect((await POST(new Request('http://localhost/api/costs',{method:'POST',headers:{origin:'https://untrusted.invalid'}}))).status).toBe(403);expect(mocks.write).not.toHaveBeenCalled();});
+it('rejects provider purchases and uses the authenticated author',async()=>{const req=(command:unknown)=>new Request('http://localhost/api/costs',{method:'POST',headers:{origin:'http://localhost','Content-Type':'application/json'},body:JSON.stringify({version:0,command})});expect((await POST(req({action:'purchase',amount:20}))).status).toBe(400);mocks.write.mockResolvedValue({version:1});expect((await POST(req({action:'target',unit:'GBP',amount:.5,idempotencyKey:'a'}))).status).toBe(200);expect(mocks.write.mock.calls[0][2]).toBe('admin');});
+it('does not expose provider/storage errors to clients',async()=>{mocks.write.mockRejectedValue(Error('secret internal storage detail'));const response=await POST(new Request('http://localhost/api/costs',{method:'POST',headers:{origin:'http://localhost','Content-Type':'application/json'},body:JSON.stringify({version:0,command:{action:'target',unit:'GBP',amount:.5,idempotencyKey:'a'}})}));expect(response.status).toBe(503);expect(await response.text()).not.toContain('secret internal');});

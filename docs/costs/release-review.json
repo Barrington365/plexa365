@@ -1,0 +1,57 @@
+{
+  "result": {
+    "releaseSummary": "Reviewed changes related to admin authentication and cost management routes.",
+    "riskLevel": "medium",
+    "decision": "NEEDS FIXES",
+    "changedAreas": [
+      "API",
+      "data/store"
+    ],
+    "risks": [
+      "{\"file\":\"app/api/costs/route.ts\",\"reason\":\"Missing verification for cost updates and reads without proper admin authentication.\",\"fix\":\"Ensure that all routes correctly enforce admin authentication and handle unauthorized access.\"}",
+      "{\"file\":\"app/api/costs/videos/route.ts\",\"reason\":\"Potential for unauthorized access to video cost records.\",\"fix\":\"Verify that all access to video costs is properly authenticated and unauthorized requests return appropriate errors.\"}"
+    ],
+    "smokeTests": [
+      "Verify that all admin routes return 403 for unauthorized users.",
+      "Check that valid admin users can access and modify costs."
+    ],
+    "regressionTests": [
+      "Ensure that existing tests for cost updates and reads pass without modification."
+    ],
+    "edgeCases": [
+      "Test behavior when multiple admins attempt to update costs concurrently."
+    ],
+    "adminChecks": [
+      "Confirm that admin-only routes are protected against unauthorized access."
+    ],
+    "thirdPartyChecks": [],
+    "rollbackPlan": {
+      "rollbackSteps": [
+        "Revert to the previous stable version of the cost management API."
+      ],
+      "affectedSystems": [
+        "Cost management API"
+      ],
+      "databaseChanges": [],
+      "environmentChanges": []
+    },
+    "audit": {
+      "featureBranch": "codex/cost-credits",
+      "changedFiles": [
+        "app/api/costs/route.ts",
+        "app/api/costs/videos/route.ts",
+        "app/lib/costs/store.ts"
+      ],
+      "testResults": [
+        "All tests pass with focused 27 tests."
+      ],
+      "approvalRequired": [
+        "tests pass",
+        "OpenAI review passes",
+        "Bazza approves"
+      ]
+    },
+    "cursorFixPrompt": "Ensure all routes have proper admin authentication checks and that unauthorized access is handled correctly."
+  },
+  "model": "gpt-4o-mini"
+}
