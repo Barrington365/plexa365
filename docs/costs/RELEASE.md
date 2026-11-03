@@ -20,3 +20,11 @@ Revert the feature merge via a new pull request and redeploy the previous releas
 
 ## Deployment
 Not merged or deployed. Repository release review gate remains unresolved. Production was observed on ancestor `ac92d53`; current main is `8870b67`, so release will also include main's previously merged agent UI changes, without activating agents.
+
+## Follow-up fixes — 3 November 2026
+- Cost writes now distinguish validation/conflict from storage outages. Unknown exceptions return fixed 503 messages; invalid commands also use fixed text, not exception details.
+- Video reconciliation rejects negative versions and has explicit concurrent ledger/reconciliation CAS coverage.
+- Added integration tests using real HMAC session verification and real Admin guard: anonymous/tampered401; editor/viewer/inactive/unverified403 even with an Admin role in a signed token; current verified Admin200.
+- Release-review parsing now preserves structured findings (previously lost as `[object Object]`). Blocking outputs without remediation are rejected, leaving merge blocked. Tests cover validation cases. The approval threshold is unchanged.
+- Latest full release gate: 378 passed, 1 skipped; TypeScript, lint and production build passed. `git diff --check` passed.
+- Latest review remains NEEDS FIXES. It requests authentication verification already covered by `app/api/costs/auth.integration.test.ts`. The complete supplied evidence fit the 24,000-character input limit. No approval was inferred and no merge/deploy performed.

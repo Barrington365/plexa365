@@ -9,6 +9,11 @@ const file = path.join(projectRoot(), "data/local/plexa-cost-controls.json");
 const key = "management.json";
 const store = () => getStore({ name:"plexa-cost-controls", consistency:"strong" });
 export class Conflict extends Error {}
+export class InvalidCostCommand extends Error {}
+function apply(data: CostData, command: Command, actor: string, now: string, uid: string) {
+  try { return applyCostCommand(data, command, actor, "admin", now, uid); }
+  catch { throw new InvalidCostCommand("Invalid or duplicate cost command. Refresh and check the entered values."); }
+}
 export async function readCosts(): Promise<CostData> {
   if (shouldUseNetlifyBlobStore()) return (await store().get(key, {type:"json"})) ?? initialCosts();
   try { return JSON.parse(await fs.readFile(file,"utf8")); }
@@ -21,7 +26,7 @@ export async function updateCosts(command: Command, version: number, actor: stri
     const current = await s.getWithMetadata(key, {type:"json"});
     const data: CostData = current?.data ?? initialCosts();
     if (data.version !== version) throw new Conflict("Another Admin saved changes. Refresh before saving.");
-    const next = applyCostCommand(data, command, actor, "admin", now, uid);
+    const next = apply(data, command, actor, now, uid);
     if (current && !current.etag) throw new Error("Storage version unavailable; changes were not saved.");
     const result = await s.setJSON(key, next, current ? {onlyIfMatch:current.etag!} : {onlyIfNew:true});
     if (!result.modified) throw new Conflict("Another Admin saved changes. Refresh before saving.");
@@ -34,7 +39,7 @@ export async function updateCosts(command: Command, version: number, actor: stri
   try {
     const data = await readCosts();
     if (data.version !== version) throw new Conflict("Another Admin saved changes. Refresh before saving.");
-    const next = applyCostCommand(data,command,actor,"admin",now,uid);
+    const next = apply(data,command,actor,now,uid);
     const temp = `${file}.${uid}.tmp`;
     await fs.writeFile(temp,JSON.stringify(next,null,2),{mode:0o600});
     await fs.rename(temp,file);

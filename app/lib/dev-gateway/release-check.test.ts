@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeReleaseCheckResult } from "@/app/lib/dev-gateway/release-check";
+import { normalizeReleaseCheckResult, validateReleaseCheckResult } from "@/app/lib/dev-gateway/release-check";
 
 describe("normalizeReleaseCheckResult", () => {
   it("normalizes release QA output and defaults unsafe enums", () => {
@@ -27,4 +27,26 @@ describe("normalizeReleaseCheckResult", () => {
     expect(normalizeReleaseCheckResult({ decision: "SAFE TO TEST" }).decision).toBe("SAFE TO MERGE");
     expect(normalizeReleaseCheckResult({ decision: "BLOCK RELEASE" }).decision).toBe("BLOCK MERGE");
   });
+});
+
+it("rejects an incomplete blocking review without weakening the merge gate", () => {
+  const review = normalizeReleaseCheckResult({releaseSummary: "Reviewed", decision: "NEEDS FIXES", risks: ["auth"]});
+  expect(() => validateReleaseCheckResult(review)).toThrow("Merge remains blocked");
+  expect(validateReleaseCheckResult({...review,cursorFixPrompt:"Supply anonymous route verification for /api/costs."}).decision).toBe("NEEDS FIXES");
+});
+
+it("preserves structured reviewer findings instead of hiding their details", () => {
+ const finding={file:"app/api/costs/route.ts",reason:"Missing verification",fix:"Supply authenticated evidence"};
+ expect(normalizeReleaseCheckResult({risks:[finding]}).risks).toEqual([JSON.stringify(finding)]);
+});
+
+it("fails closed for missing summary, risks or remediation", () => {
+ for (const decision of ["NEEDS FIXES", "BLOCK MERGE"] as const) {
+  const base=normalizeReleaseCheckResult({releaseSummary:"Reviewed",decision,risks:["Missing route proof"],cursorFixPrompt:"Supply route proof"});
+  expect(validateReleaseCheckResult(base).decision).toBe(decision);
+  for(const invalid of [{...base,releaseSummary:""},{...base,risks:[]},{...base,cursorFixPrompt:"  "}]) expect(()=>validateReleaseCheckResult(invalid)).toThrow();
+ }
+ const safe=normalizeReleaseCheckResult({releaseSummary:"Verified",decision:"SAFE TO MERGE"});
+ expect(validateReleaseCheckResult(safe).decision).toBe("SAFE TO MERGE");
+ expect(()=>validateReleaseCheckResult({...safe,releaseSummary:""})).toThrow();
 });

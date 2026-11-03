@@ -1,7 +1,7 @@
 import {beforeEach,it,expect,vi} from 'vitest';
 const m=vi.hoisted(()=>({auth:vi.fn(),read:vi.fn(),write:vi.fn(),snapshot:vi.fn()}));
 vi.mock('@/app/lib/auth/guards',()=>({requireAdmin:m.auth}));
-vi.mock('@/app/lib/costs/store',()=>({readCosts:m.read,updateCosts:m.write,Conflict:class extends Error{}}));
+vi.mock('@/app/lib/costs/store',()=>({readCosts:m.read,updateCosts:m.write,Conflict:class extends Error{},InvalidCostCommand:class extends Error{}}));
 vi.mock('@/app/lib/studio-workspace/store',()=>({hostedWorkspace:()=>({snapshot:m.snapshot})}));
 import {GET,POST} from './route';
 import {initialCosts} from '@/app/lib/costs/model';
@@ -13,3 +13,4 @@ it('denies financial reads and reconciliation before reading workspace',async()=
 it('handles missing project and unavailable workspace honestly',async()=>{expect((await GET(new Request('http://localhost/api/costs/videos?project=missing'))).status).toBe(404);m.snapshot.mockRejectedValue(Error('offline'));expect((await GET(new Request('http://localhost/api/costs/videos'))).status).toBe(503);});
 it('checks evidence against server data and records authenticated actor',async()=>{const command={action:'reconcile',projectId:'p',unit:'GBP',fingerprint:videoCosts(initialCosts(),state,'GBP')[0].fingerprint,notes:'Reviewed all provider invoices and attempts',idempotencyKey:'a'};expect((await POST(request({...command,fingerprint:'0'.repeat(64)}))).status).toBe(409);expect(m.write).not.toHaveBeenCalled();expect((await POST(request(command))).status).toBe(200);expect(m.write.mock.calls[0][2]).toBe('admin');});
 it('blocks cross-origin reconciliation',async()=>{expect((await POST(new Request('http://localhost/api/costs/videos',{method:'POST',headers:{origin:'https://evil.invalid'}}))).status).toBe(403);expect(m.write).not.toHaveBeenCalled();});
+it('returns a retryable error without exposing workspace internals',async()=>{m.snapshot.mockRejectedValue(Error('private workspace details'));const response=await POST(request({action:'reconcile',projectId:'p',unit:'GBP',fingerprint:'0'.repeat(64),notes:'Reviewed all attempts',idempotencyKey:'a'}));expect(response.status).toBe(503);expect(await response.text()).not.toContain('private workspace');expect(m.write).not.toHaveBeenCalled();});

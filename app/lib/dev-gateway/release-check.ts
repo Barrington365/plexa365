@@ -57,7 +57,7 @@ export const EMPTY_RELEASE_CHECK_RESULT: ReleaseCheckResult = {
 
 function asStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
-  return value.map((item) => String(item).trim()).filter(Boolean);
+  return value.map((item) => (item && typeof item === "object" ? JSON.stringify(item) : String(item)).trim()).filter(Boolean);
 }
 
 function normalizeDecision(value: unknown): ReleaseCheckDecision {
@@ -132,6 +132,10 @@ function buildPrompt(input: string): string {
     "- No unrelated refactors during bug fixes.",
     "- Be conservative with admin/auth, data-store, OpenAI/API, environment-variable and deployment risk.",
     "- If evidence is incomplete, say so in risks and choose NEEDS FIXES or BLOCK MERGE if risk is severe.",
+    "- Every blocking risk must identify a concrete defect or a specific missing piece of evidence in the supplied material. Name the affected file/flow and what must be fixed or verified.",
+    "- Consider supplied test results when assessing each risk. Do not report category headings alone as findings.",
+    "- For NEEDS FIXES or BLOCK MERGE, cursorFixPrompt must contain actionable remediation or the exact evidence required. Do not leave it empty.",
+    "- SAFE TO MERGE is a technical recommendation only; it never replaces the separate human approval or executes a merge.",
     "- Return strict JSON only, no markdown.",
     "",
     "Check these areas:",
@@ -146,6 +150,13 @@ function buildPrompt(input: string): string {
     "Release material:",
     input.slice(0, 24000),
   ].join("\n");
+}
+
+export function validateReleaseCheckResult(result: ReleaseCheckResult): ReleaseCheckResult {
+  if (!result.releaseSummary || (result.decision !== "SAFE TO MERGE" && (!result.risks.length || !result.cursorFixPrompt.trim()))) {
+    throw new Error("Release review incomplete: blocking reviews must identify risks and provide actionable fixes or missing evidence. Merge remains blocked.");
+  }
+  return result;
 }
 
 export async function runReleaseCheck(input: string): Promise<{ result: ReleaseCheckResult; model: string }> {
@@ -180,5 +191,5 @@ export async function runReleaseCheck(input: string): Promise<{ result: ReleaseC
   };
   if (!response.ok) throw new Error(json.error?.message || `OpenAI release check failed (${response.status}).`);
   const content = json.choices?.[0]?.message?.content ?? "{}";
-  return { result: normalizeReleaseCheckResult(extractJsonObject(content)), model };
+  return { result: validateReleaseCheckResult(normalizeReleaseCheckResult(extractJsonObject(content))), model };
 }

@@ -1,0 +1,17 @@
+import {beforeEach,afterEach,it,expect,vi} from 'vitest';
+const m=vi.hoisted(()=>({auth:vi.fn(),read:vi.fn(),write:vi.fn(),snapshot:vi.fn()}));
+vi.mock('@/app/lib/auth/store',()=>({readAuthData:m.auth}));
+vi.mock('@/app/lib/costs/store',()=>({readCosts:m.read,updateCosts:m.write,Conflict:class extends Error{},InvalidCostCommand:class extends Error{}}));
+vi.mock('@/app/lib/studio-workspace/store',()=>({hostedWorkspace:()=>({snapshot:m.snapshot})}));
+import {createSessionToken} from '@/app/lib/auth/sessions';
+import {GET,POST} from './route';
+import {GET as videosGET,POST as videosPOST} from './videos/route';
+import {initialCosts} from '@/app/lib/costs/model';
+const calls=[GET,POST,videosGET,videosPOST];
+const token=()=>createSessionToken({userId:'test',email:'test@example.invalid',role:'admin'});
+const request=(cookie?:string)=>new Request('https://example.invalid/api/costs',{method:'POST',headers:{origin:'https://example.invalid',...(cookie?{cookie:`plexa_session=${cookie}`}:{})},body:JSON.stringify({version:0,command:{action:'target',unit:'GBP',amount:.5,idempotencyKey:'test'}})});
+beforeEach(()=>{vi.resetAllMocks();vi.stubEnv('PLEXA_SESSION_SECRET','isolated-cost-test-secret');m.read.mockResolvedValue(initialCosts());m.snapshot.mockResolvedValue({state:{projects:[],jobs:[]}});m.write.mockResolvedValue({version:1});});
+afterEach(()=>vi.unstubAllEnvs());
+it('uses actual session verification to reject anonymous and tampered cookies on every cost route',async()=>{for(const call of calls){expect((await call(request())).status).toBe(401);expect((await call(request(token()+'tampered'))).status).toBe(401);}expect(m.read).not.toHaveBeenCalled();expect(m.snapshot).not.toHaveBeenCalled();expect(m.write).not.toHaveBeenCalled();});
+it('checks current server roles even if signed token claims admin',async()=>{for(const user of [{role:'editor',active:true,emailVerifiedAt:'2026-01-01'},{role:'viewer',active:true,emailVerifiedAt:'2026-01-01'},{role:'admin',active:false,emailVerifiedAt:'2026-01-01'},{role:'admin',active:true}]){m.auth.mockResolvedValue({users:{test:user}});for(const call of calls)expect((await call(request(token()))).status).toBe(403);}expect(m.read).not.toHaveBeenCalled();expect(m.snapshot).not.toHaveBeenCalled();expect(m.write).not.toHaveBeenCalled();});
+it('allows verified active Admin to read and save using real guards',async()=>{m.auth.mockResolvedValue({users:{test:{id:'test',role:'admin',active:true,emailVerifiedAt:'2026-01-01'}}});expect((await GET(request(token()))).status).toBe(200);expect((await videosGET(request(token()))).status).toBe(200);expect((await POST(request(token()))).status).toBe(200);expect(m.write.mock.calls[0][2]).toBe('test');});
