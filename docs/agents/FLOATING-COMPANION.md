@@ -31,7 +31,7 @@ Access uses the existing verified user and exact agent scope policy: Admin all e
 - No live worker subscription exists in this main checkout. Task updates refresh on navigation, return to the tab, or manual Refresh; there is no invented progress or polling loop. Background push notifications are not implemented.
 - The existing broader learning/worker development is not merged by this UI upgrade. The read-only lesson adapter shows only eligible saved approved records; empty records are reported honestly.
 - Chat and task preparation/execution remain separate. Full execution, task approval and workflow management use the existing Admin page and its existing gates.
-- Preferences use the current auth store. The new patch only changes preferences on the latest user record, not role or credentials; the underlying auth store retains its existing whole-record persistence model.
+- Preferences use isolated per-user records in plexa-companion-preferences. Saving display settings never writes roles, credentials, scopes or the authentication store. Reads and writes verify the current active, verified Admin/Editor. Legacy preferences are read as a fallback; no migration is required.
 - Mobile browser checking below the tool's 480px minimum and a physical tablet check remain outstanding. No CPU or memory benchmark was collected; implementation avoids polling and hidden animations.
 
 ## Desktop feasibility
@@ -47,6 +47,6 @@ Stage 1 floats inside Plexa only. A Tauri shell is a reasonable first candidate 
 - `app/api/agents/companion/route.ts`: authenticated adapter; route tests.
 - `app/lib/agents/access.ts`, `companion.ts`, companion tests: permissions, projections, context, learning.
 - `app/lib/agents/model.ts`: conversation attribution.
-- `app/lib/auth/types.ts`, `store.ts`: saved user preferences and scoped access metadata.
+- `app/lib/auth/types.ts`: legacy preference fallback and scoped access metadata. `app/lib/agents/companion-preferences.ts`: isolated display preference persistence.
 
 Release recommendation: development implementation available for review; complete the remaining scoped-Editor and small-device acceptance checks before requesting production deployment approval.

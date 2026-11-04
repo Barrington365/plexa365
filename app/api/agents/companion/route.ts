@@ -1,6 +1,6 @@
 import {z} from 'zod';
 import {requireUser} from '@/app/lib/auth/guards';
-import {saveCompanionPreferences} from '@/app/lib/auth/store';
+import {saveCompanionPreferences,readCompanionPreferences} from '@/app/lib/agents/companion-preferences';
 import {readAgents,updateAgents,Conflict} from '@/app/lib/agents/store';
 import {canAccessAgent} from '@/app/lib/agents/access';
 import {approvedLessons,companionData,preferencesSchema,verifiedProject,visibleDialogue} from '@/app/lib/agents/companion';
@@ -13,7 +13,7 @@ const json=(value:unknown,status=200)=>Response.json(value,{status,headers:{'Cac
 export async function GET(request:Request){
  const auth=await requireUser(request);if('response'in auth)return auth.response;
  if(!['admin','editor'].includes(auth.user.role))return json({error:'Agent access required.'},403);
- try{const data=await readAgents();const config=await loadAiProviderConfig();const latest=await requireUser(request);if('response'in latest)return latest.response;if(!['admin','editor'].includes(latest.user.role))return json({error:'Agent access required.'},403);return json({...companionData(data,latest.user),openaiConfigured:config.openaiConfigured});}catch{return json({error:'Agent records unavailable.'},503);}
+ try{const preferences=await readCompanionPreferences(auth.user.id);const data=await readAgents();const config=await loadAiProviderConfig();const latest=await requireUser(request);if('response'in latest)return latest.response;if(!['admin','editor'].includes(latest.user.role))return json({error:'Agent access required.'},403);return json({...companionData(data,{...latest.user,agentCompanion:preferences??latest.user.agentCompanion}),openaiConfigured:config.openaiConfigured});}catch{return json({error:'Agent records unavailable.'},503);}
 }
 const input=z.discriminatedUnion('action',[
  z.object({action:z.literal('preferences'),preferences:preferencesSchema}),
@@ -28,6 +28,7 @@ export async function POST(request:Request){
   if(body.action==='preferences'){
    await saveCompanionPreferences(auth.user.id,body.preferences);return json({preferences:body.preferences});
   }
+  auth.user.agentCompanion=(await readCompanionPreferences(auth.user.id))??auth.user.agentCompanion;
   const current=await readAgents();const agent=current.agents.find(a=>a.id===body.agentId);
   if(!agent||!canAccessAgent(auth.user,agent))return json({error:'Agent not available in your assigned scope.'},403);
   if(current.version!==body.version)throw new Conflict('Records changed. Refresh before sending.');

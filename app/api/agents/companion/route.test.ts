@@ -1,6 +1,6 @@
 import {beforeEach,describe,it,expect,vi} from 'vitest';
 vi.mock('@/app/lib/auth/guards',()=>({requireUser:vi.fn()}));
-vi.mock('@/app/lib/auth/store',()=>({saveCompanionPreferences:vi.fn()}));
+vi.mock('@/app/lib/agents/companion-preferences',()=>({saveCompanionPreferences:vi.fn(),readCompanionPreferences:vi.fn()}));
 vi.mock('@/app/lib/agents/store',()=>({readAgents:vi.fn(),updateAgents:vi.fn(),Conflict:class extends Error{}}));
 vi.mock('@/app/lib/ai/client',()=>({aiChatText:vi.fn()}));
 vi.mock('@/app/lib/ai/config',()=>({loadAiProviderConfig:vi.fn()}));
@@ -30,6 +30,13 @@ describe('companion API',()=>{
  it('rejects role revocation before dispatching chat',async()=>{
   vi.mocked(requireUser).mockResolvedValueOnce({user:{id:'u',role:'admin',active:true,emailVerifiedAt:'now'} as never}).mockResolvedValue({user:{id:'u',role:'viewer',active:true,emailVerifiedAt:'now'} as never});
   expect((await POST(request(talk))).status).toBe(403);expect(updateAgents).not.toHaveBeenCalled();expect(aiChatText).not.toHaveBeenCalled();
+ });
+ it('does not save a reply after access is revoked during provider work',async()=>{
+  const d=initialData();vi.mocked(updateAgents).mockResolvedValue(d);
+  vi.mocked(aiChatText).mockImplementation(async()=>{vi.mocked(requireUser).mockResolvedValue({user:{id:'u',role:'viewer',active:true,emailVerifiedAt:'now'} as never});return {text:'Reply',provider:'openai'} as never;});
+  expect((await POST(request(talk))).status).toBe(403);
+  expect(updateAgents).toHaveBeenCalledTimes(1);
+  expect(vi.mocked(updateAgents).mock.calls[0][0].action).toBe('talk');
  });
  it('reports provider failures without pretending a response exists',async()=>{vi.mocked(updateAgents).mockResolvedValue(initialData());vi.mocked(aiChatText).mockRejectedValue(Error('provider offline'));const response=await POST(request(talk));expect(response.status).toBe(502);expect((await response.json()).messageSaved).toBe(true);expect(updateAgents).toHaveBeenCalledTimes(1);});
 });

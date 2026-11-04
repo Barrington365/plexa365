@@ -82,12 +82,3 @@ export function sortedPublicUsers(data: PlexaAuthData): PublicPlexaUser[] {
     .map(publicUser)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
-
-/** Patch preferences against current user data; never write the request's role or credentials. */
-export async function saveCompanionPreferences(userId: string, preferences: NonNullable<PlexaUser['agentCompanion']>): Promise<void> {
-  const data = await readAuthData();
-  const user = data.users[userId];
-  if (!user?.active || !user.emailVerifiedAt || !['admin', 'editor'].includes(user.role)) throw new Error('Agent access required.');
-  data.users[userId] = { ...user, agentCompanion: preferences, updatedAt: new Date().toISOString() };
-  await writeAuthData(data);
-}

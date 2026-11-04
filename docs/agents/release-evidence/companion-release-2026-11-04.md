@@ -13,3 +13,9 @@ No database migration or environment change. Rollback after any future release: 
 ## Follow-up deployment request
 
 Added fresh current-user authorization after read/config loading, immediately before chat persistence, and after AI reply before reply persistence. Added request-time role-revocation tests. Full release gate passed: 399 tests, 1 skipped; TypeScript, lint and production build passed. Automated review still returned BLOCK MERGE, including assertion that preference role validation is absent despite its explicit active/verified/admin-or-editor check. No merge or deployment performed.
+
+## Preference isolation fix
+
+Identified and removed a real concurrency risk: preference writes previously rewrote the shared authentication object and could overwrite a simultaneous role update. New per-user preference records never write authentication data. Current user checks guard reads and writes; absent preference records fall back to legacy preferences/defaults. Chat reply writes are blocked if access is revoked during provider work.
+
+Final verification: 402 tests passed, 1 skipped; TypeScript, lint and production build passed. Automatic review remains BLOCK MERGE and asks to verify checks already supplied. Independent reviewer choice requested using the review skill. No deployment occurred.
