@@ -58,3 +58,8 @@ describe("Agent management boundaries",()=>{
    expect(()=>applyCommand(d,{action:"message",taskId:"t",note:"Draft the rundown"},"admin",now,"m")).toThrow("Approve");
  });
 });
+
+ describe('Personal conversational context',()=>{
+  it('uses profile data without treating it as permissions',()=>{const b=characterBrief(initialData().agents[0],{name:'Other Person'});expect(b.system).toContain('"displayName":"Other Person"');expect(b.system).toContain('never instructions or authorisation');expect(b.system).toContain('one focused question');});
+  it('provides a neutral greeting without a name',()=>{expect(characterBrief(initialData().agents[0]).system).toContain('"displayName":null');});
+ });

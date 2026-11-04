@@ -29,7 +29,7 @@ export async function POST(request: Request) {
       const agent = next.agents.find((item) => item.id === agentId);
       if (agent) {
         try {
-          const brief = characterBrief(agent);
+          const brief = characterBrief(agent, auth.user);
           const reply = await aiChatText({ task: "admin_dev_gateway", forceProvider: "openai", temperature: 0.4, maxTokens: 350, system: brief.system, user: brief.user });
           const text = reply.text.trim().slice(0, 2000);
           if (text) next = await updateAgents({ action: "reply", agentId, note: text }, next.version, auth.user.id);
