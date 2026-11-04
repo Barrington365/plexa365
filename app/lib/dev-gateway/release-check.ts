@@ -120,7 +120,8 @@ function extractJsonObject(text: string): unknown {
   }
 }
 
-function buildPrompt(input: string): string {
+export function buildPrompt(input: string): string {
+  if (input.length > 24000) throw new Error("Release material exceeds 24000 characters. Supply a complete focused review package; evidence must not be silently truncated. Merge remains blocked.");
   return [
     "You are Plexa Dev Gateway Release Check / QA Review.",
     "Review the supplied release notes, git diff, changed files, Cursor plan or deployment notes before any merge to main.",
@@ -148,7 +149,7 @@ function buildPrompt(input: string): string {
     JSON.stringify(EMPTY_RELEASE_CHECK_RESULT, null, 2),
     "",
     "Release material:",
-    input.slice(0, 24000),
+    input,
   ].join("\n");
 }
 
@@ -160,6 +161,7 @@ export function validateReleaseCheckResult(result: ReleaseCheckResult): ReleaseC
 }
 
 export async function runReleaseCheck(input: string): Promise<{ result: ReleaseCheckResult; model: string }> {
+  const prompt = buildPrompt(input);
   const key = await getServerSecretAsync("OPENAI_API_KEY");
   if (!key) throw new Error("OpenAI API key is not configured.");
   const settings = await readStoredSettingsAsync();
@@ -180,7 +182,7 @@ export async function runReleaseCheck(input: string): Promise<{ result: ReleaseC
           content:
             "You are a senior release QA reviewer for a Next.js editorial AI platform. Return strict JSON only.",
         },
-        { role: "user", content: buildPrompt(input) },
+        { role: "user", content: prompt },
       ],
     }),
     cache: "no-store",

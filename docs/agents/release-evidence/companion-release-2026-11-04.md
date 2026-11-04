@@ -27,3 +27,9 @@ User selected Security Review. Reviewer examined branch at 61578f5 against 14128
 Remediation: compare current identity/role/scopes before dispatch and after AI; filter model history with latest permissions; revalidate project after AI; reauthenticate after reply persistence; error responses contain no agent data. Regression tests cover demotion before provider and during provider success/failure. Full release gate: 405 tests passed, 1 skipped; TypeScript, lint and build passed.
 
 Automatic release review still BLOCK MERGE, asserting missing user and post-AI role checks despite explicit checks in the submitted files. No override or deployment performed. Independent review was run once; remediation is regression-tested, not claimed as independently re-reviewed.
+
+## Release review evidence integrity
+
+Fixed silent truncation at 24000 characters: oversized submissions now fail before provider calls; accepted material is sent in full. Regression test proves boundary behaviour. Full gate: 406 passed, 1 skipped; typecheck, lint and production build passed.
+
+Sent a complete size-checked focused package (20810 bytes). The configured gpt-4o-mini review still returns BLOCK MERGE with general potential-risk statements, despite supplied implementation and regression tests. The decision remains enforced. Asked user whether to use a stronger OpenAI review model under unchanged criteria; no model/settings override performed and no deployment occurred.
