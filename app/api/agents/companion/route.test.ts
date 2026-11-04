@@ -23,6 +23,14 @@ describe('companion API',()=>{
  it('does not fall back to another provider when OpenAI is absent',async()=>{vi.mocked(loadAiProviderConfig).mockResolvedValue({openaiConfigured:false} as never);expect((await POST(request(talk))).status).toBe(503);expect(updateAgents).not.toHaveBeenCalled();expect(aiChatText).not.toHaveBeenCalled();});
  it('rejects missing selected projects before sending',async()=>{vi.mocked(hostedWorkspace).mockReturnValue({projects:{get:async()=>null}} as never);expect((await POST(request({...talk,projectId:'missing'}))).status).toBe(400);expect(aiChatText).not.toHaveBeenCalled();});
  it('persists conversation through existing store without activating tools',async()=>{const d=initialData();vi.mocked(updateAgents).mockImplementation(async(c,v,u)=>applyCommand({...d,version:v},c,u,'now','event'));vi.mocked(aiChatText).mockResolvedValue({text:'I can discuss your draft.',provider:'openai'} as never);const response=await POST(request(talk));expect(response.status).toBe(200);const body=await response.json();expect(body.agents.every((a:{state:string})=>a.state==='Paused')).toBe(true);expect(body.tasks).toEqual([]);expect(vi.mocked(updateAgents).mock.calls.map(c=>c[0].action)).toEqual(['talk','reply']);});
+ it('rejects role revocation during data loading',async()=>{
+  vi.mocked(requireUser).mockResolvedValueOnce({user:{id:'u',role:'admin',active:true,emailVerifiedAt:'now'} as never}).mockResolvedValue({user:{id:'u',role:'viewer',active:true,emailVerifiedAt:'now'} as never});
+  expect((await GET(new Request('https://plexa.test'))).status).toBe(403);
+ });
+ it('rejects role revocation before dispatching chat',async()=>{
+  vi.mocked(requireUser).mockResolvedValueOnce({user:{id:'u',role:'admin',active:true,emailVerifiedAt:'now'} as never}).mockResolvedValue({user:{id:'u',role:'viewer',active:true,emailVerifiedAt:'now'} as never});
+  expect((await POST(request(talk))).status).toBe(403);expect(updateAgents).not.toHaveBeenCalled();expect(aiChatText).not.toHaveBeenCalled();
+ });
  it('reports provider failures without pretending a response exists',async()=>{vi.mocked(updateAgents).mockResolvedValue(initialData());vi.mocked(aiChatText).mockRejectedValue(Error('provider offline'));const response=await POST(request(talk));expect(response.status).toBe(502);expect((await response.json()).messageSaved).toBe(true);expect(updateAgents).toHaveBeenCalledTimes(1);});
 });
 
