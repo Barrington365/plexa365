@@ -33,3 +33,13 @@ Automatic release review still BLOCK MERGE, asserting missing user and post-AI r
 Fixed silent truncation at 24000 characters: oversized submissions now fail before provider calls; accepted material is sent in full. Regression test proves boundary behaviour. Full gate: 406 passed, 1 skipped; typecheck, lint and production build passed.
 
 Sent a complete size-checked focused package (20810 bytes). The configured gpt-4o-mini review still returns BLOCK MERGE with general potential-risk statements, despite supplied implementation and regression tests. The decision remains enforced. Asked user whether to use a stronger OpenAI review model under unchanged criteria; no model/settings override performed and no deployment occurred.
+
+## Authorised stronger review and authenticated Editor smoke test
+
+User approved stronger OpenAI review, with release criteria unchanged. Local review invocation used gpt-4.1; production provider settings were not changed.
+
+Tested built app on port 8120 with a local verified Editor scoped to TEAMtalk / companion-qa. Only Bob/Fiddle appeared. A real OpenAI reply returned while Bob remained Paused. Saved Reduce motion preference persisted through full reload. Screenshot: ../floating-companion/editor-desktop.png. These tests used isolated local records and did not activate production tools.
+
+Real HTTP smoke checks against the built server passed: cross-origin POST 403; Editor request for private Hubble 403; execution action 400; existing session after demotion to Viewer 403. Evidence: companion-http-smoke-2026-11-04.json.
+
+Strong review output is companion-review-strong-2026-11-04.json. It accepts permission evidence but still returns NEEDS FIXES for missing physical mobile UI testing. Browser responsive testing is not represented as a physical-device test. A paired iPhone was detected, but iPhone Mirroring opens its first-run setup, so no physical interaction check was completed. No bypass, merge or production deployment. All previous test/build results remain valid; this follow-up changes documentation/evidence only.
