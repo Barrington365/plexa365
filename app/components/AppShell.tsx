@@ -7,7 +7,7 @@ import { AppNavLink } from "@/app/components/AppNavLink";
 import { StudiosNavMenu } from "@/app/components/StudiosNavMenu";
 import { ThemeToggle } from "@/app/components/ThemeToggle";
 import { PlexaAssistant } from "@/app/components/PlexaAssistant";
-import { PlexaGatewayPopout } from "@/app/components/PlexaGatewayPopout";
+import {AgentCompanion} from "./AgentCompanion";
 
 /** Geometric sans aligned with the logo wordmark style (see /brand/plexa-logo.png). */
 const plexaFont = Montserrat({
@@ -195,7 +195,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </nav>
         </div>
       </footer>
-      <PlexaGatewayPopout triggerLabel="Gateway" floating />
+      <AgentCompanion />
     </div>
   );
 }

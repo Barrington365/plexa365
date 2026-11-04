@@ -1,3 +1,4 @@
+import type {CompanionPreferences} from '@/app/lib/agents/companion';
 export type PlexaUserRole =
   | "admin"
   | "editor"
@@ -13,6 +14,8 @@ export type PlexaUser = {
   email: string;
   role: PlexaUserRole;
   active: boolean;
+  agentCompanion?: CompanionPreferences;
+  agentScopes?: Array<{brand:string; workspace:string}>;
   passwordHash?: string;
   passwordSalt?: string;
   passwordSetAt?: string;

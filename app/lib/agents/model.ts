@@ -27,7 +27,7 @@ export const commandSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("automation"), owner: id, title: text, trigger: text, schedule: text, brand: text, workspace: text, tools: text, costLimit: z.number().finite().min(0), approvalPolicy: text }),
 ]);
 export type Command = z.infer<typeof commandSchema>;
-export type DialogueLine = { at: string; from: "admin" | "agent"; text: string };
+export type DialogueLine = { userId?: string; brand?: string; workspace?: string; at: string; from: "admin" | "agent"; text: string };
 export type Agent = { id: string; name: string; responsibility: string; group: string; state: "Paused"; brand: string; workspace: string; approved: boolean; codexThread: string; dialogue: DialogueLine[] };
 export type CodexNote = { at: string; thread: string; note: string };
 export type Task = { id: string; owner: string; title: string; source: string; brand: string; workspace: string; priority: string; state: typeof states[number]; createdAt: string; updatedAt: string; output?: string; checks?: string; issues?: string; messages: CodexNote[] };
@@ -125,7 +125,7 @@ export function applyCommand(data: Data, command: Command, actor: string, now: s
     subject = task.id;
   } else if (command.action === "talk" || command.action === "reply") {
     const agent = d.agents.find(a => a.id === command.agentId)!;
-    agent.dialogue.push({ at: now, from: command.action === "talk" ? "admin" : "agent", text: command.note });
+    agent.dialogue.push({ userId: actor, brand: agent.brand, workspace: agent.workspace, at: now, from: command.action === "talk" ? "admin" : "agent", text: command.note });
     subject = agent.id;
   } else {
     scoped(command.owner, command.brand, command.workspace);
