@@ -38,6 +38,23 @@ describe('companion API',()=>{
   expect(updateAgents).toHaveBeenCalledTimes(1);
   expect(vi.mocked(updateAgents).mock.calls[0][0].action).toBe('talk');
  });
+ it('denies admin-to-scoped-editor demotion before provider dispatch',async()=>{
+  const d=initialData();const bob=d.agents.find(a=>a.id==='bob')!;
+  vi.mocked(requireUser).mockResolvedValueOnce({user:{id:'u',role:'admin',active:true,emailVerifiedAt:'now'} as never}).mockResolvedValue({user:{id:'u',role:'editor',active:true,emailVerifiedAt:'now',agentScopes:[{brand:bob.brand,workspace:bob.workspace}]} as never});
+  expect((await POST(request(talk))).status).toBe(403);expect(aiChatText).not.toHaveBeenCalled();
+ });
+ it.each([false,true])('never exposes admin data after demotion during provider call, failure=%s',async failure=>{
+  const d=initialData();const bob=d.agents.find(a=>a.id==='bob')!;
+  bob.dialogue=[{at:'now',from:'admin',text:'Private Admin dialogue'}];
+  vi.mocked(updateAgents).mockResolvedValue(d);
+  vi.mocked(aiChatText).mockImplementation(async()=>{
+   vi.mocked(requireUser).mockResolvedValue({user:{id:'u',role:'editor',active:true,emailVerifiedAt:'now',agentScopes:[{brand:bob.brand,workspace:bob.workspace}]} as never});
+   if(failure)throw Error('Provider failed');return {text:'Reply',provider:'openai'} as never;
+  });
+  const response=await POST(request(talk));expect(response.status).toBe(failure?502:403);
+  const body=await response.json();expect(body).not.toHaveProperty('agents');expect(body).not.toHaveProperty('context');expect(JSON.stringify(body)).not.toContain('Private Admin');
+  expect(updateAgents).toHaveBeenCalledTimes(1);
+ });
  it('reports provider failures without pretending a response exists',async()=>{vi.mocked(updateAgents).mockResolvedValue(initialData());vi.mocked(aiChatText).mockRejectedValue(Error('provider offline'));const response=await POST(request(talk));expect(response.status).toBe(502);expect((await response.json()).messageSaved).toBe(true);expect(updateAgents).toHaveBeenCalledTimes(1);});
 });
 

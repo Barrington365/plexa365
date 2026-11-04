@@ -19,3 +19,11 @@ Added fresh current-user authorization after read/config loading, immediately be
 Identified and removed a real concurrency risk: preference writes previously rewrote the shared authentication object and could overwrite a simultaneous role update. New per-user preference records never write authentication data. Current user checks guard reads and writes; absent preference records fall back to legacy preferences/defaults. Chat reply writes are blocked if access is revoked during provider work.
 
 Final verification: 402 tests passed, 1 skipped; TypeScript, lint and production build passed. Automatic review remains BLOCK MERGE and asks to verify checks already supplied. Independent reviewer choice requested using the review skill. No deployment occurred.
+
+## Independent Security Review and remediation
+
+User selected Security Review. Reviewer examined branch at 61578f5 against 14128c3 and reproduced one Medium finding: original Admin identity projected private agent data after demotion to scoped Editor, including provider failure responses.
+
+Remediation: compare current identity/role/scopes before dispatch and after AI; filter model history with latest permissions; revalidate project after AI; reauthenticate after reply persistence; error responses contain no agent data. Regression tests cover demotion before provider and during provider success/failure. Full release gate: 405 tests passed, 1 skipped; TypeScript, lint and build passed.
+
+Automatic release review still BLOCK MERGE, asserting missing user and post-AI role checks despite explicit checks in the submitted files. No override or deployment performed. Independent review was run once; remediation is regression-tested, not claimed as independently re-reviewed.
