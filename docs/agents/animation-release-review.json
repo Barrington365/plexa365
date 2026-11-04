@@ -1,0 +1,54 @@
+{
+  "result": {
+    "releaseSummary": "Presentation-only release for agent animation assets, replacing hardcoded SVG initials with optimized WebP and PNG fallbacks. No API, auth, or data changes.",
+    "riskLevel": "medium",
+    "decision": "NEEDS FIXES",
+    "changedAreas": [
+      "UI",
+      "presentation assets"
+    ],
+    "risks": [
+      "{\"affectedFile\":\"app/admin/agents/AgentCharacter.tsx\",\"issue\":\"The live route for the new character animations needs to be verified after deployment to ensure accessibility and proper fallback functionality.\"}"
+    ],
+    "smokeTests": [
+      "Verify that the character animations load correctly and fallback images are displayed when necessary."
+    ],
+    "regressionTests": [
+      "Ensure that existing functionality related to agent management and character display remains unaffected."
+    ],
+    "edgeCases": [
+      "Test scenarios where the character assets fail to load to confirm that the fallback mechanism works as intended."
+    ],
+    "adminChecks": [
+      "Confirm that no admin permissions or configurations have been altered in the agent management system."
+    ],
+    "thirdPartyChecks": [],
+    "rollbackPlan": {
+      "rollbackSteps": [
+        "Revert the changes made in the animation feature PR."
+      ],
+      "affectedSystems": [
+        "Agent character display"
+      ],
+      "databaseChanges": [],
+      "environmentChanges": []
+    },
+    "audit": {
+      "featureBranch": "feature/agent-animation-assets",
+      "changedFiles": [
+        "app/admin/agents/AgentCharacter.tsx",
+        "docs/agents/CHARACTER-ASSETS.md"
+      ],
+      "testResults": [
+        "378 tests pass, one skipped; TypeScript/lint/build pass."
+      ],
+      "approvalRequired": [
+        "tests pass",
+        "OpenAI review passes",
+        "Bazza approves"
+      ]
+    },
+    "cursorFixPrompt": "Verify the live route for character animations after deployment to ensure proper functionality and accessibility of fallback images."
+  },
+  "model": "gpt-4o-mini"
+}
