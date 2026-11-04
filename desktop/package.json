@@ -1,0 +1,1 @@
+{"name":"plexa-companion-desktop","version":"0.1.0","private":true,"scripts":{"prepare":"node scripts/prepare.mjs","dev":"npm run prepare && tauri dev","build":"npm run prepare && tauri build","check":"node --check ui/desktop.js && node --check scripts/prepare.mjs"},"devDependencies":{"@tauri-apps/cli":"^2.0.0"}}
