@@ -13,7 +13,9 @@ export function AgentCharacter({name, id, large = false, reaction = "idle", onOp
     window.dispatchEvent(new Event('plexa:agent-state-request'));
     return ()=>window.removeEventListener('plexa:agent-state',update);
   },[id]);
-  const eyes=eyeData[id as keyof typeof eyeData];
+  const [eyeStylesReady, setEyeStylesReady] = useState(false);
+  const candidate=eyeData[id as keyof typeof eyeData];
+  const eyes=candidate && Number.isFinite(candidate.height) && candidate.height>0 && typeof candidate.skin==='string' && Array.isArray(candidate.eyes) && candidate.eyes.every(eye=>Array.isArray(eye)&&eye.length===4&&eye.every(Number.isFinite)) ? candidate : null;
   const [hovered, setHovered] = useState(false);
   const [paused, setPaused] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
@@ -27,14 +29,14 @@ export function AgentCharacter({name, id, large = false, reaction = "idle", onOp
     return <span role="img" aria-label={`${name} character unavailable`} className="flex shrink-0 items-center justify-center rounded-full bg-[color:var(--surface-muted)] text-2xl font-bold" style={{width:size,height:size}}>{name.slice(0,1)}</span>;
   }
   const artwork = <span className="plexa-eye-art" data-awake={awake} data-motion={!paused} data-reacting={reacting}>
-    <link rel="stylesheet" href="/agents/eyes.css" />
+    <link rel="stylesheet" href="/agents/eyes.css" onLoad={()=>setEyeStylesReady(true)} onError={()=>setEyeStylesReady(false)} />
     <picture>
       <source media="(prefers-reduced-motion: reduce)" srcSet={`${base}/still.png`} />
       {/* Preserve the supplied animation; Next image optimisation would flatten it. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={failed === src ? `${base}/still.png` : src} alt={`${name} character, ${awake ? "awake" : "resting"}`} width={size} height={size} className="object-contain" loading={large ? "eager" : "lazy"} onError={event => setFailed(new URL(event.currentTarget.currentSrc).pathname)} />
     </picture>
-    {eyes && !failed && <svg className="plexa-eyelids" viewBox={`0 0 256 ${eyes.height}`} aria-hidden="true">{eyes.eyes.map(([x,y,w,h],i)=><g key={i}><rect x={x-1} y={y-1} width={w+2} height={h+2} rx="2" fill={eyes.skin}/><path d={`M ${x} ${y+h*.6} q ${w/2} 3 ${w} 0`} stroke="#30251c" strokeWidth="3" fill="none" strokeLinecap="round"/></g>)}</svg>}
+    {eyes && eyeStylesReady && !failed && <svg className="plexa-eyelids" viewBox={`0 0 256 ${eyes.height}`} aria-hidden="true">{eyes.eyes.map(([x,y,w,h],i)=><g key={i}><rect x={x-1} y={y-1} width={w+2} height={h+2} rx="2" fill={eyes.skin}/><path d={`M ${x} ${y+h*.6} q ${w/2} 3 ${w} 0`} stroke="#30251c" strokeWidth="3" fill="none" strokeLinecap="round"/></g>)}</svg>}
     </span>;
   return <div className="shrink-0 text-center" style={{width:size}} onMouseEnter={()=>setHovered(true)} onMouseLeave={()=>setHovered(false)} onFocus={()=>setHovered(true)} onBlur={()=>setHovered(false)}>
     {onOpen ? <button type="button" onClick={onOpen} aria-label={`Pop out ${name}`} className="rounded-lg focus-visible:outline focus-visible:outline-2">{artwork}</button> : artwork}
