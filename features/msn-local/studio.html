@@ -56,7 +56,7 @@ import {cssScreenTransform} from '/studio-screen-mapping.mjs';
 // voice and metadata live beside id/title/templateId. Coordinates are 1920x1080 pixels.
 const $=id=>document.getElementById(id), clone=v=>structuredClone(v), uid=()=>crypto.randomUUID();
 let articles=[],articleSlots=[''],articleLoading=false,kits=[],projects=[],templates=[],trash=[],images=[],media=[],project=null,sceneIndex=0,layerId=null,dirty=false,busy=false,showTrash=false,position=0,playing=false,lastFrame=0,watched=null,buildDocument=null,nameAction=null,latestVideoJobId=null;
-const defaults=[{id:'news-article',name:'News Article'},{id:'player-club',name:'Player & Club'},{id:'transfer',name:'Transfer'}];
+const defaults=[{id:'news-article',name:'News Article'},{id:'player-club',name:'Player & Club'},{id:'transfer',name:'Transfer'},{id:'teamtalk-live-dual-presenter-v1',name:'TEAMtalk LIVE — Dual Presenter News Studio V1.0'}];
 const el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
 function button(label,fn,cls){const b=el('button',label,cls);b.type='button';b.onclick=fn;return b;}
 function notify(message,error=false){$('notice').textContent=message;$('notice').classList.toggle('error',error);}
