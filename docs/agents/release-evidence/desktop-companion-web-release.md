@@ -10,3 +10,7 @@ The release adds awake/resting eyes and desktop sign-in endpoints. The native Ma
 - Rollback: revert PR 10 and redeploy. The previous version ignores the new credential records; there is no migration or required environment change.
 
 Mac installer acceptance, Developer ID signing, notarisation and distribution remain separate.
+
+Artwork checks on the final release candidate: 421 tests passed, one skipped. The release gate checks all eight coordinate maps against the real PNG dimensions. A separate isolated Next.js build using the release's AgentCharacter.tsx failed as expected on malformed JSON (exit 1, `Cannot parse JSON`) and a missing map (exit 1, `Module not found`).
+
+VoiceOver test procedure: in Safari, focus the character button. Confirm the announced name is “Expand conversation with Bob”; the decorative eyelid SVG must not be an additional stop. Activate with Return and verify the history panel becomes available. The macOS accessibility tree exposed the named button and excluded the decorative overlay; keyboard Return opened the history. VoiceOver was started for an audible check, but the Mac locked before spoken output could be verified. Do not record audio as passed.
