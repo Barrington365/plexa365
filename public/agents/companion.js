@@ -14,6 +14,7 @@
  async function savePreferences(){try{await request({action:'preferences',preferences:prefs});notice='Preferences saved.';}catch(error){notice=error.message;}render();}
  function clamp(){if(!position)return;position.x=Math.max(8,Math.min(position.x,document.documentElement.clientWidth-root.offsetWidth-8));position.y=Math.max(8,Math.min(position.y,(window.visualViewport?.height||innerHeight)-root.offsetHeight-8));root.style.left=position.x+'px';root.style.top=position.y+'px';root.style.right='auto';root.style.bottom='auto';}
  function render(){
+  window.dispatchEvent(new CustomEvent('plexa:agent-state',{detail:{id:data?.agents.length&&!hidden?selected:null}}));
   if(!data?.agents.length){root.replaceChildren();return;}
   const active=agent();root.replaceChildren();root.className=hidden||minimised?'pc-compact':'';
   if(hidden||minimised){root.append(button(hidden?'Agents':active.name,()=>{hidden=false;minimised=false;remember();render();}));clamp();return;}
@@ -52,6 +53,8 @@
  new ResizeObserver(()=>clamp()).observe(root);
  window.plexaCompanion={open:async id=>{if(busy)return;if(!data)await refresh();if(!data?.agents.length)return;if(data?.agents.some(a=>a.id===id))selected=id;hidden=false;minimised=false;remember();render();}};
  window.addEventListener('plexa:agent-open',e=>window.plexaCompanion.open(e.detail?.id));
+ window.addEventListener('plexa:agent-close',e=>{if(!e.detail?.id||e.detail.id===selected){hidden=true;minimised=false;expanded=false;remember();render();}});
+ window.addEventListener('plexa:agent-state-request',()=>render());
  window.addEventListener('plexa:route',()=>void refresh());window.addEventListener('resize',clamp);window.visualViewport?.addEventListener('resize',clamp);document.addEventListener('visibilitychange',()=>{if(document.hidden)render();else void refresh();});
  request().then(next=>{if(prefs?.notifications&&data){const changed=next.tasks.find(t=>data.tasks.some(old=>old.id===t.id&&old.state!==t.state));if(changed)notice=changed.title+' · '+changed.state;}data=next;prefs=next.preferences;selected=prefs.defaultAgent;if(!agent())selected=next.agents[0]?.id;hidden=!prefs.enabled;minimised=prefs.startMinimised;try{const saved=JSON.parse(sessionStorage.getItem('plexa-companion:'+data.userId)||'null');if(saved){if(next.agents.some(a=>a.id===saved.selected))selected=saved.selected;hidden=!prefs.enabled||saved.hidden;minimised=saved.minimised;if(prefs.rememberPosition)position=saved.position;}}catch{}if(!position&&prefs.rememberPosition&&prefs.x+prefs.y>0)position={x:prefs.x,y:prefs.y};render();}).catch(()=>root.replaceChildren());
 })();
