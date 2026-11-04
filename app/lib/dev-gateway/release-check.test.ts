@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeReleaseCheckResult, validateReleaseCheckResult } from "@/app/lib/dev-gateway/release-check";
+import { buildPrompt, normalizeReleaseCheckResult, validateReleaseCheckResult } from "@/app/lib/dev-gateway/release-check";
 
 describe("normalizeReleaseCheckResult", () => {
   it("normalizes release QA output and defaults unsafe enums", () => {
@@ -49,4 +49,10 @@ it("fails closed for missing summary, risks or remediation", () => {
  const safe=normalizeReleaseCheckResult({releaseSummary:"Verified",decision:"SAFE TO MERGE"});
  expect(validateReleaseCheckResult(safe).decision).toBe("SAFE TO MERGE");
  expect(()=>validateReleaseCheckResult({...safe,releaseSummary:""})).toThrow();
+});
+
+it('never silently truncates release evidence',()=>{
+ const complete='x'.repeat(23980)+'END OF EVIDENCE';
+ expect(buildPrompt(complete)).toContain(complete);
+ expect(()=>buildPrompt('x'.repeat(24001))).toThrow('evidence must not be silently truncated');
 });

@@ -1,0 +1,13 @@
+#plexa-companion{position:fixed;right:24px;bottom:24px;z-index:80;width:360px;max-width:calc(100vw - 16px);color:var(--text-primary,#202338);font-family:inherit;font-size:14px;line-height:1.5;display:flex;flex-direction:column;align-items:center;gap:8px;max-height:calc(100dvh - 16px);overflow:auto;pointer-events:auto;background:transparent;height:auto;padding:0;border:0;scrollbar-width:thin}
+#plexa-companion.pc-compact{width:auto;overflow:visible}
+#plexa-companion button,#plexa-companion select{font:inherit;color:inherit;background:var(--surface,#fff);border:1px solid var(--border,#dce0ea);border-radius:24px;padding:8px 12px;cursor:pointer}
+#plexa-companion button:focus-visible,#plexa-companion input:focus-visible,#plexa-companion select:focus-visible{outline:3px solid var(--accent,#6754d8);outline-offset:2px}
+#plexa-companion .pc-controls{display:flex;gap:4px;align-items:center;flex-wrap:wrap;justify-content:center}#plexa-companion .pc-controls>button:first-child{touch-action:none;cursor:move}
+#plexa-companion .pc-panel,#plexa-companion .pc-command{background:var(--surface,#fff);border:1px solid var(--border,#dce0ea);border-radius:24px;padding:16px;width:100%;box-sizing:border-box;box-shadow:0 8px 24px #0002;overflow-wrap:anywhere}
+#plexa-companion .pc-panel p{margin:8px 0;white-space:pre-wrap}#plexa-companion .pc-panel label{display:block}#plexa-companion .pc-panel input{margin-right:8px}#plexa-companion .pc-bubble{max-height:180px;overflow:auto}
+#plexa-companion .pc-character{padding:0;background:transparent;border:0;box-shadow:none;width:150px;flex-shrink:0}#plexa-companion .pc-small{width:100px}#plexa-companion .pc-large{width:200px}#plexa-companion .pc-character img{display:block;width:100%;height:auto;object-fit:contain}
+#plexa-companion .pc-command{display:flex;padding:6px;gap:6px}#plexa-companion .pc-command input{min-width:0;flex:1;border:0;background:transparent;color:inherit;padding:8px;font:inherit;font-size:16px}#plexa-companion .pc-command button{background:var(--accent,#6754d8);color:#fff}
+#plexa-companion .pc-history{max-height:220px;overflow:auto}#plexa-companion .pc-history span,#plexa-companion .pc-history small{display:block}#plexa-companion a{color:var(--accent,#6754d8)}
+@media(max-width:600px){#plexa-companion{right:8px;bottom:80px;width:320px}#plexa-companion .pc-character{width:100px}#plexa-companion .pc-bubble{max-height:120px}}
+
+#plexa-companion .pc-history>strong{display:block;margin-top:12px}

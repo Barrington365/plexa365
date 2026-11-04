@@ -1,0 +1,65 @@
+{
+  "result": {
+    "releaseSummary": "Adds shared floating original animated agent companion with visibility controls and scoped OpenAI chat. Utilizes existing agent store and roles.",
+    "riskLevel": "high",
+    "decision": "BLOCK MERGE",
+    "changedAreas": [
+      "feature",
+      "API",
+      "data/store"
+    ],
+    "risks": [
+      "{\"affectedFile\":\"app/lib/agents/companion-preferences.ts\",\"issue\":\"Potential for unauthorized access to agent preferences due to insufficient role checks.\",\"remediation\":\"Verify that all access checks for user roles are correctly implemented and tested.\"}",
+      "{\"affectedFile\":\"app/api/agents/companion/route.ts\",\"issue\":\"The POST method allows actions that could be executed by unauthorized users if role checks fail.\",\"remediation\":\"Ensure that role checks are enforced before any sensitive actions are taken, especially in the POST method.\"}",
+      "{\"affectedFile\":\"app/api/agents/companion/route.ts\",\"issue\":\"The handling of user roles during asynchronous operations may lead to race conditions.\",\"remediation\":\"Implement stricter checks to ensure user roles are validated at each async boundary.\"}"
+    ],
+    "smokeTests": [
+      "Verify that the floating agent companion appears correctly in the UI.",
+      "Check that visibility controls function as expected."
+    ],
+    "regressionTests": [
+      "Test existing agent functionalities to ensure no regressions occur."
+    ],
+    "edgeCases": [
+      "Test behavior when an editor attempts to access an agent outside their scope."
+    ],
+    "adminChecks": [
+      "Verify that admin users can access all functionalities without restrictions."
+    ],
+    "thirdPartyChecks": [
+      "Ensure that OpenAI API integration is functioning correctly and that fallback mechanisms are in place."
+    ],
+    "rollbackPlan": {
+      "rollbackSteps": [
+        "Revert to the previous stable release branch.",
+        "Restore any affected configurations."
+      ],
+      "affectedSystems": [
+        "Agent management system",
+        "User authentication system"
+      ],
+      "databaseChanges": [],
+      "environmentChanges": []
+    },
+    "audit": {
+      "featureBranch": "codex/floating-agent-companion",
+      "changedFiles": [
+        "app/lib/agents/companion-preferences.ts",
+        "app/api/agents/companion/route.ts",
+        "app/lib/auth/guards.ts",
+        "app/lib/agents/access.ts"
+      ],
+      "testResults": [
+        "All unit tests passed.",
+        "Regression tests passed."
+      ],
+      "approvalRequired": [
+        "tests pass",
+        "OpenAI review passes",
+        "Bazza approves"
+      ]
+    },
+    "cursorFixPrompt": "Review and enhance role validation checks in both the read and write operations for agent preferences. Ensure that all asynchronous operations validate user roles correctly to prevent unauthorized access."
+  },
+  "model": "gpt-4o-mini"
+}

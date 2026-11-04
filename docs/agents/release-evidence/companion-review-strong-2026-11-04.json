@@ -1,0 +1,103 @@
+{
+  "result": {
+    "releaseSummary": "This release introduces a floating animated agent companion UI with Launch, Activate/Deactivate, hover reactions, and scoped OpenAI chat for Admin and assigned Editor users. It adds per-user companion preferences (persisted in a new store), strict agent access control, and robust session/role validation at every async boundary. No tool execution or publishing is enabled. The API and store logic are covered by focused unit and regression tests, including role demotion and access revocation scenarios. All TypeScript, lint, build, and gate tests pass. Real OpenAI conversational flow, UI, and preferences persistence are verified on desktop. No database or environment changes. Rollback is a feature revert.",
+    "riskLevel": "medium",
+    "decision": "NEEDS FIXES",
+    "changedAreas": [
+      "API: /api/agents/companion (GET/POST)",
+      "Data store: companion preferences (new Netlify/local store)",
+      "UI: floating agent companion (not included in supplied files, but referenced in release summary)",
+      "Auth/session: requireUser, role checks, session expiry",
+      "OpenAI API: conversational chat (no tool execution)",
+      "Agent access: canAccessAgent, scope filtering",
+      "Testing: new/updated unit and regression tests"
+    ],
+    "risks": [
+      "{\"area\":\"Mobile/responsive UI\",\"severity\":\"medium\",\"description\":\"Physical mobile devices remain untested. Only browser responsive checks at 480px+ are confirmed. There is no evidence of real device or touch interaction testing for the floating companion UI.\"}",
+      "{\"area\":\"Agent access control\",\"severity\":\"medium\",\"description\":\"While regression tests cover demotion and scope changes, the companionData and canAccessAgent logic is complex and could have edge cases if agent scopes or user roles are updated concurrently. No explicit concurrency or race condition tests are shown.\"}",
+      "{\"area\":\"Preferences store isolation\",\"severity\":\"low\",\"description\":\"Tests confirm preferences cannot overwrite credentials or other users, but there is no evidence of concurrent preference writes or reads under high load.\"}",
+      "{\"area\":\"OpenAI API error handling\",\"severity\":\"low\",\"description\":\"Provider failures are handled and tested, but there is a risk of partial saves or user confusion if OpenAI is intermittently unavailable.\"}",
+      "{\"area\":\"UI/UX: Floating companion\",\"severity\":\"low\",\"description\":\"No UI code or screenshots are included in the supplied files. The summary references a screenshot, but actual UI/UX edge cases (focus, keyboard, accessibility, animation reduce-motion) are not evidenced.\"}"
+    ],
+    "smokeTests": [
+      "GET /api/agents/companion as Admin returns agent data and preferences",
+      "POST /api/agents/companion with action: 'talk' as Admin returns OpenAI reply, agents remain Paused",
+      "POST /api/agents/companion with action: 'preferences' saves and returns updated preferences",
+      "Cross-origin POST returns 403",
+      "Viewer role GET/POST returns 403",
+      "Editor without assigned scope returns 403",
+      "OpenAI not configured returns 503",
+      "ProjectId missing returns 400",
+      "Role demotion during request returns 403",
+      "Provider failure returns 502 with messageSaved: true"
+    ],
+    "regressionTests": [
+      "Role revocation at each async boundary blocks access and never leaks admin data",
+      "Preferences cannot overwrite credentials, roles, or other users",
+      "Missing or inactive users are rejected for preferences read/write",
+      "Agent access is filtered by canAccessAgent and user scopes",
+      "No tool execution or publishing is possible via companion API",
+      "Legacy preferences fallback is preserved"
+    ],
+    "edgeCases": [
+      "Session expiry or HMAC invalidation during multi-step POST",
+      "Editor demoted to viewer during request",
+      "Admin demoted to editor with reduced scope during request",
+      "Preferences store file missing (ENOENT) returns undefined",
+      "OpenAI returns empty response",
+      "Concurrent preference writes (not tested, see risk)"
+    ],
+    "adminChecks": [
+      "Admin can access all agents and preferences",
+      "Editor can only access assigned agents (Bob, Fiddle) and only if scoped",
+      "Viewer cannot access companion API at all",
+      "No admin data is leaked to editors after demotion"
+    ],
+    "thirdPartyChecks": [
+      "OpenAI API is only called if openaiConfigured is true",
+      "No fallback to other providers",
+      "Provider errors are handled and surfaced to user"
+    ],
+    "rollbackPlan": {
+      "rollbackSteps": [
+        "Revert feature branch merge",
+        "Remove companion preferences store files",
+        "Restore previous /api/agents/companion API and agent store logic"
+      ],
+      "affectedSystems": [
+        "Agent companion API",
+        "Companion preferences store",
+        "UI: floating agent companion"
+      ],
+      "databaseChanges": [],
+      "environmentChanges": []
+    },
+    "audit": {
+      "featureBranch": "codex/floating-agent-companion",
+      "changedFiles": [
+        "app/lib/agents/companion-preferences.ts",
+        "app/api/agents/companion/route.ts",
+        "app/lib/auth/guards.ts",
+        "app/lib/agents/access.ts",
+        "app/lib/auth/companion-preferences.test.ts",
+        "app/api/agents/companion/route.test.ts"
+      ],
+      "testResults": [
+        "TypeScript passes",
+        "Lint passes",
+        "Build passes",
+        "All unit and regression tests pass (gate406 tests, 1 skip)",
+        "Real OpenAI conversational reply confirmed",
+        "Desktop UI and preferences persistence confirmed",
+        "Cross-origin, private agent, execution action, demoted viewer session all return correct errors"
+      ],
+      "approvalRequired": [
+        "tests pass",
+        "OpenAI review passes",
+        "Bazza approves"
+      ]
+    },
+    "cursorFixPrompt": "1. Provide evidence of physical mobile device testing for the floating agent companion UI, including touch interaction and responsive layout. 2. Supply at least one screenshot or video of the floating companion UI in use on a real mobile device. 3. Optionally, add a concurrency test for simultaneous preference writes/reads to the companion preferences store to confirm isolation under load. 4. If UI code is included in a separate PR, reference it and ensure accessibility and reduce-motion settings are tested. Once these are addressed, re-submit for review."
+  },
+  "model": "gpt-4.1"
+}

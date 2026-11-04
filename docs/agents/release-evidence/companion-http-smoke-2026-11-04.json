@@ -1,0 +1,30 @@
+[
+  {
+    "name": "cross-origin",
+    "status": 403,
+    "body": {
+      "error": "Agent access and same-origin request required."
+    }
+  },
+  {
+    "name": "private agent",
+    "status": 403,
+    "body": {
+      "error": "Agent not available in your assigned scope."
+    }
+  },
+  {
+    "name": "execution action",
+    "status": 400,
+    "body": {
+      "error": "Invalid companion request."
+    }
+  },
+  {
+    "name": "demoted viewer existing session",
+    "status": 403,
+    "body": {
+      "error": "Agent access required."
+    }
+  }
+]
