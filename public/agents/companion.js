@@ -1,8 +1,8 @@
 /* One companion for React pages and the hosted Studio. No execution endpoints. */
 (()=>{
  if(window.plexaCompanion)return;
- const drafts={};let eyeData={},eyeStylesReady=false;fetch('/agents/eyes.json').then(r=>r.ok?r.json():{}).then(value=>{if(value&&typeof value==='object'&&!Array.isArray(value))eyeData=Object.fromEntries(Object.entries(value).filter(([,v])=>v&&Number.isFinite(v.height)&&v.height>0&&typeof v.skin==='string'&&Array.isArray(v.eyes)&&v.eyes.every(eye=>Array.isArray(eye)&&eye.length===4&&eye.every(Number.isFinite))));if(data)render();}).catch(()=>{});
- const eyeCss=document.createElement('link');eyeCss.rel='stylesheet';eyeCss.href='/agents/eyes.css';eyeCss.onload=()=>{eyeStylesReady=true;if(data)render();};eyeCss.onerror=()=>{eyeStylesReady=false;if(data)render();};document.head.append(eyeCss);
+ const drafts={};let eyeData={},eyeStylesReady=false;fetch('/agents/eyes.json').then(r=>{if(!r.ok)throw Error();return r.json();}).then(value=>{if(value&&typeof value==='object'&&!Array.isArray(value))eyeData=Object.fromEntries(Object.entries(value).filter(([,v])=>v&&Number.isFinite(v.height)&&v.height>0&&typeof v.skin==='string'&&Array.isArray(v.eyes)&&v.eyes.every(eye=>Array.isArray(eye)&&eye.length===4&&eye.every(Number.isFinite))));if(data)render();}).catch(()=>console.warn('Companion: eye artwork metadata unavailable.'));
+ const eyeCss=document.createElement('link');eyeCss.rel='stylesheet';eyeCss.href='/agents/eyes.css';eyeCss.onload=()=>{eyeStylesReady=true;if(data)render();};eyeCss.onerror=()=>{console.warn('Companion: eye artwork stylesheet unavailable.');eyeStylesReady=false;if(data)render();};document.head.append(eyeCss);
  const desktop=window.plexaDesktop;
  const api='/api/agents/companion';let data,selected,busy=false,expanded=false,hidden=true,minimised=false,settings=false,notice='',context=null,prefs,position,drag;
  const root=document.createElement('div');root.id='plexa-companion';root.setAttribute('role','complementary');root.setAttribute('aria-label','Plexa agents');document.body.append(root);

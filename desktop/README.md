@@ -66,3 +66,5 @@ Build the isolated QA variant:
 ```sh
 PLEXA_DESKTOP_DEV_ORIGIN=http://localhost:8123 npm run build --prefix desktop -- --debug --bundles app --config src-tauri/tauri.qa.conf.json
 ```
+
+If eye animation assets are unavailable or invalid, the character stays visible without the eyelid effect. You can still use the character controls.
