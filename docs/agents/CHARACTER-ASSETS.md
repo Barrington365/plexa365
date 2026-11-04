@@ -21,3 +21,7 @@ Hover and keyboard focus play the supplied attention pose. Sending a message pla
 Local browser component checks: pop-out opened and returning preserved the typed draft; send used thinking.webp while pending; saved-message acknowledgement cleared the draft; keyboard focus selected hover.webp. The send check used a local stub and did not send a production message.
 
 Additional browser edge cases passed: blocked popup leaves the form available with a useful error; external window closure restores the draft automatically. Send is disabled while pending. All eight role IDs have all three reaction files.
+
+## Eye states
+
+All eight characters use the shared `eyes.json` placement map and `eyes.css` eyelid layer over their existing static portrait. Open characters blink briefly every 5.6 seconds; inactive/hidden/minimised characters have closed eyes in the Agents cards. Awake means the companion is open, not that production tools are running. Hover/thinking reactions keep the original animated artwork without a misaligned eyelid overlay. Reduced motion and animation pause suppress blinking. No new images, provider generation, permissions or API commands are involved.

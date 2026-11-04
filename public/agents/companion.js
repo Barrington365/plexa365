@@ -1,7 +1,8 @@
 /* One companion for React pages and the hosted Studio. No execution endpoints. */
 (()=>{
  if(window.plexaCompanion)return;
- const drafts={};
+ const drafts={};let eyeData={};fetch('/agents/eyes.json').then(r=>r.ok?r.json():{}).then(value=>{eyeData=value;if(data)render();}).catch(()=>{});
+ const eyeCss=document.createElement('link');eyeCss.rel='stylesheet';eyeCss.href='/agents/eyes.css';document.head.append(eyeCss);
  const api='/api/agents/companion';let data,selected,busy=false,expanded=false,hidden=true,minimised=false,settings=false,notice='',context=null,prefs,position,drag;
  const root=document.createElement('div');root.id='plexa-companion';root.setAttribute('role','complementary');root.setAttribute('aria-label','Plexa agents');document.body.append(root);
  const css=document.createElement('link');css.rel='stylesheet';css.href='/agents/companion.css';document.head.append(css);
@@ -14,7 +15,7 @@
  async function savePreferences(){try{await request({action:'preferences',preferences:prefs});notice='Preferences saved.';}catch(error){notice=error.message;}render();}
  function clamp(){const viewport=window.visualViewport;const width=viewport?.width||document.documentElement.clientWidth;const height=viewport?.height||innerHeight;const left=viewport?.offsetLeft||0;const top=viewport?.offsetTop||0;root.style.maxWidth=Math.max(0,width-16)+'px';root.style.maxHeight=Math.max(0,height-16)+'px';if(!position&&(!viewport||viewport.scale===1)){root.style.left='';root.style.top='';root.style.right='';root.style.bottom='';return;}const desired=position||{x:left+width-root.offsetWidth-8,y:top+height-root.offsetHeight-8};const x=Math.max(left+8,Math.min(desired.x,left+width-root.offsetWidth-8));const y=Math.max(top+8,Math.min(desired.y,top+height-root.offsetHeight-8));if(position)position={x,y};root.style.left=x+'px';root.style.top=y+'px';root.style.right='auto';root.style.bottom='auto';}
  function render(){
-  window.dispatchEvent(new CustomEvent('plexa:agent-state',{detail:{id:data?.agents.length&&!hidden?selected:null}}));
+  window.dispatchEvent(new CustomEvent('plexa:agent-state',{detail:{id:data?.agents.length&&!hidden&&!minimised?selected:null}}));
   if(!data?.agents.length){root.replaceChildren();return;}
   const active=agent();root.replaceChildren();root.className=hidden||minimised?'pc-compact':'';
   if(hidden||minimised){root.append(button(hidden?'Agents':active.name,()=>{hidden=false;minimised=false;remember();render();}));clamp();return;}
@@ -35,8 +36,10 @@
   const figure=button('',()=>{expanded=!expanded;render();},'Expand conversation with '+active.name);figure.className='pc-character pc-'+prefs.size;
   const img=el('img',null,{alt:active.name,width:'256',height:'256',decoding:'async',loading:'lazy'});
   const animated=prefs.animation&&!prefs.reducedMotion&&!matchMedia('(prefers-reduced-motion: reduce)').matches&&!document.hidden;
-  const pose=busy?'thinking':active.state==='Completed'?'success':active.state==='Working'?'thinking':'idle';img.src='/agents/'+active.id+'/'+(animated?pose+'.webp':'still.png');img.onerror=()=>{img.onerror=null;img.src='/agents/'+active.id+'/still.png';};
-  figure.onpointerenter=figure.onfocus=()=>{if(animated&&!busy)img.src='/agents/'+active.id+'/hover.webp';};figure.onpointerleave=figure.onblur=()=>{if(animated)img.src='/agents/'+active.id+'/'+pose+'.webp';};figure.append(img);root.append(figure);
+  const pose=busy?'thinking':active.state==='Completed'?'success':active.state==='Working'?'thinking':'idle';img.src='/agents/'+active.id+'/'+(animated&&pose!=='idle'?pose+'.webp':'still.png');img.onerror=()=>{img.onerror=null;img.src='/agents/'+active.id+'/still.png';};
+  const art=el('span',null,{class:'plexa-eye-art','data-awake':'true','data-motion':String(animated),'data-reacting':String(pose!=='idle')});art.append(img);
+  const eyes=eyeData[active.id];if(eyes){const ns='http://www.w3.org/2000/svg';const svg=document.createElementNS(ns,'svg');svg.setAttribute('class','plexa-eyelids');svg.setAttribute('viewBox','0 0 256 '+eyes.height);svg.setAttribute('aria-hidden','true');eyes.eyes.forEach(([x,y,w,h])=>{const rect=document.createElementNS(ns,'rect');Object.entries({x:x-1,y:y-1,width:w+2,height:h+2,rx:2,fill:eyes.skin}).forEach(([k,v])=>rect.setAttribute(k,v));const line=document.createElementNS(ns,'path');Object.entries({d:`M ${x} ${y+h*.6} q ${w/2} 3 ${w} 0`,stroke:'#30251c','stroke-width':3,fill:'none','stroke-linecap':'round'}).forEach(([k,v])=>line.setAttribute(k,v));svg.append(rect,line);});art.append(svg);}
+  figure.onpointerenter=figure.onfocus=()=>{if(animated&&!busy){art.dataset.reacting='true';img.src='/agents/'+active.id+'/hover.webp';}};figure.onpointerleave=figure.onblur=()=>{art.dataset.reacting=String(pose!=='idle');img.src='/agents/'+active.id+'/'+(animated&&pose!=='idle'?pose+'.webp':'still.png');};figure.append(art);root.append(figure);
   if(prefs.command){const form=el('form',null,{class:'pc-command'});const text=el('input',null,{placeholder:'Message '+active.name,'aria-label':'Message '+active.name,maxlength:'2000',required:''});text.value=drafts[selected]||'';text.oninput=()=>{drafts[selected]=text.value;};text.disabled=busy;
    const send=el('button',busy?'…':'↑',{type:'submit','aria-label':'Send message'});send.disabled=busy;form.append(text,send);
    form.onsubmit=async e=>{e.preventDefault();const note=text.value.trim();if(!note||busy)return;busy=true;notice='Waiting for an AI reply…';render();try{const projectId=location.pathname==='/workspace/studio'?new URLSearchParams(location.search).get('project'):null;const next=await request({action:'talk',agentId:selected,version:data.version,note,...(projectId?{projectId}:{})});data={...data,...next};context=next.context;drafts[selected]='';notice='';expanded=true;}catch(error){if(error.result?.agents)data={...data,...error.result};if(error.result?.messageSaved)drafts[selected]='';notice=error.message;}finally{busy=false;render();}};root.append(form);
