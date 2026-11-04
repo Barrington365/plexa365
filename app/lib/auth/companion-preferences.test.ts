@@ -17,3 +17,8 @@ it('rejects a user whose current role was revoked before preference save',async(
  vi.mocked(fs.readFile).mockResolvedValue(JSON.stringify({users:{u:{id:'u',role:'viewer',active:true,emailVerifiedAt:'now'}}}));
  await expect(saveCompanionPreferences('u',defaultPreferences)).rejects.toThrow();expect(fs.writeFile).not.toHaveBeenCalled();
 });
+
+it.each([{active:false,emailVerifiedAt:'now'},{active:true,emailVerifiedAt:null}])('rejects inactive or unverified current user %j',async state=>{
+ vi.mocked(fs.readFile).mockResolvedValue(JSON.stringify({users:{u:{id:'u',role:'admin',...state}}}));
+ await expect(saveCompanionPreferences('u',defaultPreferences)).rejects.toThrow();expect(fs.writeFile).not.toHaveBeenCalled();
+});

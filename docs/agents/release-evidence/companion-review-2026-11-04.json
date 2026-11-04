@@ -1,0 +1,65 @@
+{
+  "result": {
+    "releaseSummary": "Enhancements to the companion API with improved user authentication checks and new tests for role verification.",
+    "riskLevel": "high",
+    "decision": "BLOCK MERGE",
+    "changedAreas": [
+      "feature",
+      "API",
+      "data/store"
+    ],
+    "risks": [
+      "{\"affectedFile\":\"app/lib/auth/guards.ts\",\"issue\":\"The requireUser function does not adequately handle cases where user roles are revoked after authentication, potentially allowing unauthorized access.\",\"remediation\":\"Add checks to ensure that user roles are verified immediately before any sensitive actions are taken.\"}",
+      "{\"affectedFile\":\"app/lib/auth/store.ts\",\"issue\":\"The saveCompanionPreferences function does not prevent users with revoked roles from saving preferences, which could lead to unauthorized changes.\",\"remediation\":\"Implement additional checks to ensure that the user's role is validated right before writing preferences.\"}",
+      "{\"affectedFile\":\"app/api/agents/companion/route.ts\",\"issue\":\"The API does not consistently enforce role checks before allowing access to agent data, which could expose sensitive information.\",\"remediation\":\"Ensure that all API routes validate user roles and permissions before processing requests.\"}"
+    ],
+    "smokeTests": [
+      "Verify that all API endpoints return the correct status codes based on user roles.",
+      "Check that preferences can only be saved by users with valid roles."
+    ],
+    "regressionTests": [
+      "Run existing tests to ensure that no previous functionality is broken due to new changes.",
+      "Test that revoked users cannot access or modify agent data."
+    ],
+    "edgeCases": [
+      "Test behavior when a user's role is revoked immediately after authentication.",
+      "Check how the system behaves when multiple users with different roles attempt to access the same agent data."
+    ],
+    "adminChecks": [
+      "Ensure that admin users can still access all functionalities without restrictions.",
+      "Verify that editor users can only access their assigned agents."
+    ],
+    "thirdPartyChecks": [
+      "Confirm that the OpenAI API integration is functioning as expected and that error handling is robust."
+    ],
+    "rollbackPlan": {
+      "rollbackSteps": [
+        "Revert the changes made in the latest feature branch.",
+        "Restore the previous version of the affected files."
+      ],
+      "affectedSystems": [
+        "API authentication and authorization mechanisms"
+      ],
+      "databaseChanges": [],
+      "environmentChanges": []
+    },
+    "audit": {
+      "featureBranch": "feature/companion-api-enhancements",
+      "changedFiles": [
+        "app/api/agents/companion/route.ts",
+        "app/lib/auth/guards.ts",
+        "app/lib/auth/store.ts"
+      ],
+      "testResults": [
+        "All previous tests passed, but new tests for role verification need to be added."
+      ],
+      "approvalRequired": [
+        "tests pass",
+        "OpenAI review passes",
+        "Bazza approves"
+      ]
+    },
+    "cursorFixPrompt": "Implement additional checks in requireUser and saveCompanionPreferences to ensure that user roles are verified immediately before any sensitive actions are taken."
+  },
+  "model": "gpt-4o-mini"
+}

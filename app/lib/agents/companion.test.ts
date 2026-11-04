@@ -16,3 +16,11 @@ it('retrieves existing approved lessons with exact project and agent boundaries'
  Object.assign(d,{lessons:[l,{...l,id:'unapproved',approvedBy:undefined},{...l,id:'foreign',brand:'F365'}]});
  expect(approvedLessons(d,d.agents[0],'p').map(l=>l.id)).toEqual(['l']);expect(approvedLessons(d,d.agents[0],'other')).toEqual([]);
 });
+
+import {visibleDialogue} from './companion';
+it('direct dialogue reads reject inactive, unverified and revoked users',()=>{
+ const agent=fixture().agents[0];agent.dialogue=[{at:'now',from:'admin',text:'Private'}];
+ for(const patch of [{active:false,role:'admin'},{emailVerifiedAt:null,role:'admin'},{role:'viewer'}]){
+ expect(visibleDialogue(agent,{...user,...patch} as PlexaUser)).toEqual([]);
+ }
+});
