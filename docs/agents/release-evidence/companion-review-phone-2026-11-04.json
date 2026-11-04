@@ -1,0 +1,111 @@
+{
+  "result": {
+    "releaseSummary": "This release introduces a floating agent companion UI for authenticated admin and editor users, with persistent per-user preferences and responsive/mobile support. The backend API enforces strict access controls, supports preference storage (local or Netlify Blob), and ensures no agent execution is possible from the companion. The UI is tested on desktop and physical iPhone Safari, with Android hardware testing deferred. Negative API tests confirm robust permission enforcement, including cross-origin, role, and session changes. No schema, environment, or data migration changes are present. Rollback is a simple revert.",
+    "riskLevel": "medium",
+    "decision": "NEEDS FIXES",
+    "changedAreas": [
+      "feature: floating agent companion UI",
+      "UI: responsive/mobile companion panel",
+      "API: /api/agents/companion GET/POST",
+      "data/store: per-user companion preferences (local/Netlify Blob)",
+      "auth: admin/editor-only access, strict session/role checks",
+      "OpenAI: conversational reply (tools paused, no execution)",
+      "public assets: companion.js, companion.css",
+      "test: companion API, preferences, access, release QA"
+    ],
+    "risks": [
+      "{\"area\":\"Mobile/Responsive UI\",\"description\":\"Physical Android device was not tested. There is a documented risk that Chrome/Firefox on Android may handle viewport/keyboard differently, potentially causing input or controls to be inaccessible.\",\"severity\":\"medium\",\"evidence\":\"QA follow-up ticket is open; iPhone and desktop passed, but Android hardware was unavailable.\",\"affectedFiles\":[\"public/agents/companion.js\",\"public/agents/companion.css\"]}",
+      "{\"area\":\"API Auth/Access Control\",\"description\":\"API route enforces admin/editor-only access and checks on every request, including async boundaries. Negative tests for demoted users, cross-origin, and private agents passed. No evidence of privilege escalation or data leak.\",\"severity\":\"low\",\"evidence\":\"All negative API tests passed; code reviewed for explicit role/scope checks.\",\"affectedFiles\":[\"app/api/agents/companion/route.ts\",\"app/lib/agents/access.ts\",\"app/lib/auth/guards.ts\"]}",
+      "{\"area\":\"OpenAI Integration\",\"description\":\"Conversational reply is limited to display only; tools remain paused. No agent execution is possible. OpenAI config is checked before use. No evidence of prompt injection or context leak.\",\"severity\":\"low\",\"evidence\":\"Prompt is hardcoded to prevent execution; OpenAI config checked; test coverage present.\",\"affectedFiles\":[\"app/api/agents/companion/route.ts\"]}",
+      "{\"area\":\"Data/Store\",\"description\":\"Preferences are per-user, isolated, and cannot overwrite credentials, roles, or other users' records. Legacy fallback is read-only. No schema or migration changes.\",\"severity\":\"low\",\"evidence\":\"Code and tests confirm isolation; no write to auth store.\",\"affectedFiles\":[\"app/lib/agents/companion-preferences.ts\"]}",
+      "{\"area\":\"Test Coverage\",\"description\":\"All relevant tests (unit, API, smoke, regression) passed except for one unrelated skipped test (SixLogics live football API). Android hardware UI test is missing.\",\"severity\":\"medium\",\"evidence\":\"Test output and release evidence confirm coverage except for Android hardware.\",\"affectedFiles\":[\"app/api/agents/companion/route.test.ts\",\"app/lib/agents/companion.test.ts\",\"app/lib/auth/companion-preferences.test.ts\"]}"
+    ],
+    "smokeTests": [
+      "API: /api/agents/companion GET/POST with admin/editor (positive and negative cases)",
+      "UI: Open/close, minimise/reopen, drag, keyboard show/hide, input/send visibility on desktop and iPhone Safari",
+      "Preferences: Save and reload, reduce motion, default agent, start minimised",
+      "OpenAI: Real conversational reply, tools remain paused",
+      "Responsive: 480px desktop, iPhone Safari, viewport clamp/zoom"
+    ],
+    "regressionTests": [
+      "Negative API: unauthenticated, viewer, cross-origin, private agent, execution action, demoted user",
+      "Session/role revocation across async boundaries",
+      "Legacy preferences fallback (GET only, no role/access copied)",
+      "No agent activation or execution possible"
+    ],
+    "edgeCases": [
+      "Session changes during async API flow (role/scope revocation)",
+      "Preferences store fallback to legacy GET",
+      "Input zoom/clipping on mobile (font-size 16px, viewport clamp)",
+      "No agents available for user",
+      "Agent removed from user scope during session"
+    ],
+    "adminChecks": [
+      "Admin-only access to all agents",
+      "Editor access limited to scoped agents (Bob, Fiddle)",
+      "No sensitive data in error responses",
+      "No admin/editor privilege escalation"
+    ],
+    "thirdPartyChecks": [
+      "OpenAI: Config checked before use, prompt disables execution, reply limited to display",
+      "Netlify Blob: Used for preferences if enabled, fallback to local store"
+    ],
+    "rollbackPlan": {
+      "rollbackSteps": [
+        "Revert feature branch merge",
+        "Redeploy previous main commit"
+      ],
+      "affectedSystems": [
+        "Agent companion UI",
+        "Companion preferences store"
+      ],
+      "databaseChanges": [],
+      "environmentChanges": []
+    },
+    "audit": {
+      "featureBranch": "codex/floating-agent-companion",
+      "changedFiles": [
+        "app/admin/agents/AgentConversation.tsx",
+        "app/admin/agents/AgentManagement.tsx",
+        "app/api/agents/companion/route.test.ts",
+        "app/api/agents/companion/route.ts",
+        "app/components/AgentCompanion.tsx",
+        "app/components/AppShell.tsx",
+        "app/lib/agents/access.ts",
+        "app/lib/agents/companion-preferences.ts",
+        "app/lib/agents/companion.test.ts",
+        "app/lib/agents/companion.ts",
+        "app/lib/agents/model.ts",
+        "app/lib/auth/companion-preferences.test.ts",
+        "app/lib/auth/types.ts",
+        "app/lib/dev-gateway/release-check.test.ts",
+        "app/lib/dev-gateway/release-check.ts",
+        "app/workspace/[[...path]]/route.ts",
+        "docs/agents/FLOATING-COMPANION.md",
+        "docs/agents/floating-companion/editor-desktop.png",
+        "docs/agents/floating-companion/narrow.png",
+        "docs/agents/floating-companion/studio.png",
+        "docs/agents/release-evidence/companion-http-smoke-2026-11-04.json",
+        "docs/agents/release-evidence/companion-release-2026-11-04.md",
+        "docs/agents/release-evidence/companion-review-2026-11-04.json",
+        "docs/agents/release-evidence/companion-review-strong-2026-11-04.json",
+        "public/agents/companion.css",
+        "public/agents/companion.js"
+      ],
+      "testResults": [
+        "app/api/agents/companion/route.test.ts: 15 tests passed",
+        "app/lib/agents/companion.test.ts: 6 tests passed",
+        "app/lib/auth/companion-preferences.test.ts: 6 tests passed",
+        "app/lib/dev-gateway/release-check.test.ts: 6 tests passed",
+        "Total: 406 passed, 1 skipped (unrelated SixLogics live football API)"
+      ],
+      "approvalRequired": [
+        "tests pass",
+        "OpenAI review passes",
+        "Bazza approves"
+      ]
+    },
+    "cursorFixPrompt": "Before merge, physical Android hardware QA must be performed for the floating companion UI. Test on Android Chrome (and Firefox if available): open/close, minimise/reopen, drag, keyboard show/hide, input/send visibility, zoom, saved preferences, and one scoped conversational reply. Capture screenshots and browser/device versions. If any controls are inaccessible or major UI bugs are found, revert the companion release and redeploy the previous main commit. Attach evidence to the release ticket. No other blocking issues found."
+  },
+  "model": "gpt-4.1"
+}

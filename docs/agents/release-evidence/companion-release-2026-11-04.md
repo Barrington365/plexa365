@@ -43,3 +43,17 @@ Tested built app on port 8120 with a local verified Editor scoped to TEAMtalk / 
 Real HTTP smoke checks against the built server passed: cross-origin POST 403; Editor request for private Hubble 403; execution action 400; existing session after demotion to Viewer 403. Evidence: companion-http-smoke-2026-11-04.json.
 
 Strong review output is companion-review-strong-2026-11-04.json. It accepts permission evidence but still returns NEEDS FIXES for missing physical mobile UI testing. Browser responsive testing is not represented as a physical-device test. A paired iPhone was detected, but iPhone Mirroring opens its first-run setup, so no physical interaction check was completed. No bypass, merge or production deployment. All previous test/build results remain valid; this follow-up changes documentation/evidence only.
+
+## Physical iPhone check and viewport repair
+
+On 4 November, tested the paired iPhone 16 Pro Max using Safari through iPhone Mirroring. This was real hardware with mirrored taps, not browser device emulation. Used the isolated Next development server and local verified Editor account. The production build was checked separately; its secure cookies were not relaxed for LAN HTTP.
+
+Confirmed character display, minimise/reopen, a new real OpenAI reply to “Mobile check: confirm tools stay paused.”, and a saved Reduce motion preference surviving refresh. Bob remained Paused. Screenshots: ../floating-companion/iphone-chat.png and ../floating-companion/iphone-preferences.png. Physical Android was not tested.
+
+Found Safari input zoom could clip the companion. Set the command field to 16px and clamp the companion to visualViewport dimensions and offsets during zoom, scrolling and keyboard changes. Retested on iPhone: send button and controls visible, chat worked. Existing Studio sidebar takes substantial width on phone; a broader Studio layout redesign is outside this release.
+
+Repeated full release gate after the fix: TypeScript, lint, production build, 406 tests passed and one skipped. JavaScript syntax check passed. Only companion CSS/JS changed in this follow-up. No production settings or agent execution state changed. Rollback remains revert the feature merge and redeploy.
+
+Review clarifications: the single skipped test is the unrelated SixLogics live football fixture test, conditional on absent SIXLOGICS credentials. All companion tests ran. GET is authenticated and read-only, has no cross-origin CORS opt-in, and uses HttpOnly SameSite=Lax sessions; mutating POST additionally checks origin. Legacy preference fallback is read only from the freshly authenticated user's agentCompanion field, with role/scope filtering still performed on that latest user. It does not copy privileges or write authentication records. Physical Android remains untested.
+
+Final stronger review for this follow-up: NEEDS FIXES. No other blocking issues found; reviewer requires physical Android hardware QA despite the documented limitation/follow-up. See companion-review-phone-2026-11-04.json. Physical iPhone is verified; Android is not. No merge or live deployment performed. Local LAN test server stopped after QA. Changes remain on the existing release PR.
