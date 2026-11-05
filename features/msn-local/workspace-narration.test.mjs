@@ -21,12 +21,14 @@ test('TEAMtalk narration speaks Daniel and Maya separately and does not charge e
  await w.update(s=>{for(const [asset,name] of [['uploads/daniel-presenting.mp4','Football365-Daniel-Brooks-V2-Presenting.mp4'],['uploads/daniel-listening.mp4','Football365-Daniel-Brooks-Listening.mp4'],['uploads/maya-presenting.mp4','Football365-Maya-Bennett-Presenting.mp4'],['uploads/maya-listening.mp4','Football365-Maya-Bennett-Listening.mp4']])s.assets[asset]={asset,name,bytes:1,sha256:'a'.repeat(64),chunks:[]};return true;});
  const calls=[];
  const alignment=text=>{const n=text.length,step=.8/n;return {characters:[...text],character_start_times_seconds:[...text].map((_,i)=>i*step),character_end_times_seconds:[...text].map((_,i)=>(i+1)*step)};};
- const fetcher=async(url,options)=>{if(String(url).includes('/v2/voices'))return Response.json({voices:[{voice_id:'2yqdQ7uuPQDBMgFA8dgu',name:'Planet F1 - Male - Sam',category:'cloned'},{voice_id:'ZF6FPAbjXT4488VcRRnw',name:'Amelia - Enthusiastic and Expressive',category:'professional'}],has_more:false});const text=JSON.parse(options.body).text;calls.push({url:String(url),text});return Response.json({audio_base64:audio.toString('base64'),alignment:alignment(text)});};
+ const fetcher=async(url,options)=>{if(String(url).includes('/v2/voices'))return Response.json({voices:[{voice_id:'2yqdQ7uuPQDBMgFA8dgu',name:'Planet F1 - Male - Sam',category:'cloned'},{voice_id:'ZF6FPAbjXT4488VcRRnw',name:'Amelia - Enthusiastic and Expressive',category:'professional'}],has_more:false});const body=JSON.parse(options.body);calls.push({url:String(url),text:body.text,settings:body.voice_settings});return Response.json({audio_base64:audio.toString('base64'),alignment:alignment(body.text)});};
  const job=await queueWorkspaceNarration(w,{projectId:saved.id,voiceId:'ZF6FPAbjXT4488VcRRnw',expectedUpdatedAt:saved.updatedAt},'user');
  await runWorkspaceNarration(w,job.id,'test-key',fetcher);
  const project=await w.projects.get(saved.id);
  assert.equal(calls.length,2);
  assert.match(calls[0].url,/2yqdQ7uuPQDBMgFA8dgu/);
+ assert.deepEqual(calls[0].settings,{speed:1.06,stability:0.38,style:0.35,similarity_boost:0.75,use_speaker_boost:false});
+ assert.deepEqual(calls[1].settings,calls[0].settings);
  assert.match(calls[0].text,/Chelsea will keep Colwill/);
  assert.match(calls[0].text,/Kane stays at Bayern/);
  assert.doesNotMatch(calls[0].text,/Sesko/);

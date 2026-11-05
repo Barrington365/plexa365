@@ -6,7 +6,7 @@ import {accountVoices,timedPlan} from './elevenlabs.mjs';
 import {parseBuffer} from 'music-metadata';
 import {patchWorkspaceJob} from './workspace-render.mjs';
 import {run} from './engine.mjs';
-import {TEAMTALK_LIVE_PROFILE,TEAMTALK_PRESENTERS,parseTeamtalkTurns,resolveTeamtalkPresenterClips,speakerScript,teamtalkNarrationPlan} from './teamtalk-live.mjs';
+import {TEAMTALK_DELIVERY,TEAMTALK_LIVE_PROFILE,TEAMTALK_PRESENTERS,parseTeamtalkTurns,resolveTeamtalkPresenterClips,speakerScript,teamtalkNarrationPlan} from './teamtalk-live.mjs';
 const model='eleven_multilingual_v2';
 
 export async function queueWorkspaceNarration(workspace,body,userId){
@@ -27,12 +27,15 @@ export async function queueWorkspaceNarration(workspace,body,userId){
  });
 }
 
-async function storedNarration(workspace,{projectId,title,script,voice,key,fetcher,jobId}){
- const hash=createHash('sha256').update(JSON.stringify({projectId,script,voiceId:voice.id,model})).digest('hex');
+async function storedNarration(workspace,{projectId,title,script,voice,key,fetcher,jobId,voiceSettings}){
+ const identity={projectId,script,voiceId:voice.id,model};
+ if(voiceSettings) identity.voiceSettings=voiceSettings;
+ const hash=createHash('sha256').update(JSON.stringify(identity)).digest('hex');
  let record=(await workspace.snapshot()).state.narrationRecords?.[hash];
  if(!record){
   await workspace.update(s=>{s.narrationRequests??={};if(s.narrationRequests[hash])throw Error('A previous request has an unresolved outcome. Check ElevenLabs history before retrying to avoid duplicate charges.');s.narrationRequests[hash]={jobId,requestedAt:new Date().toISOString()};return true;});
-  const response=await fetcher('https://api.elevenlabs.io/v1/text-to-speech/'+encodeURIComponent(voice.id)+'/with-timestamps',{method:'POST',headers:{'xi-api-key':key,'Content-Type':'application/json'},body:JSON.stringify({text:script,model_id:model}),signal:AbortSignal.timeout(120000)});
+  const payload={text:script,model_id:model};if(voiceSettings)payload.voice_settings=voiceSettings;
+  const response=await fetcher('https://api.elevenlabs.io/v1/text-to-speech/'+encodeURIComponent(voice.id)+'/with-timestamps',{method:'POST',headers:{'xi-api-key':key,'Content-Type':'application/json'},body:JSON.stringify(payload),signal:AbortSignal.timeout(120000)});
   if(!response.ok){if(response.status>=400&&response.status<500)await workspace.update(s=>{delete s.narrationRequests[hash];return true;});throw Error('ElevenLabs generation failed (HTTP '+response.status+'). No automatic paid retry was made.');}
   const data=await response.json();if(typeof data.audio_base64!=='string'||data.audio_base64.length>40e6)throw Error('Invalid provider audio response. Check generation history before retrying.');
   const bytes=Buffer.from(data.audio_base64,'base64'),metadata=await parseBuffer(bytes,{mimeType:'audio/mpeg'},{duration:true}),duration=metadata.format.duration;
@@ -87,10 +90,10 @@ async function runTeamtalkNarration(workspace,job,key,fetcher){
  const turns=parseTeamtalkTurns(p.script);
  const danielText=speakerScript(turns,'daniel'),mayaText=speakerScript(turns,'maya');
  await patchWorkspaceJob(workspace,job.id,{stage:'Generating Planet F1 - Male - Sam',progress:20});
- const daniel=await storedNarration(workspace,{projectId:p.id,title:p.title,script:danielText,voice:danielVoice,key,fetcher,jobId:job.id});
+ const daniel=await storedNarration(workspace,{projectId:p.id,title:p.title,script:danielText,voice:danielVoice,key,fetcher,jobId:job.id,voiceSettings:TEAMTALK_DELIVERY});
  if((await workspace.snapshot()).state.jobs.find(item=>item.id===job.id)?.cancelRequestedAt)throw Error('Narration cancelled. Any generated audio is retained in the Library.');
  await patchWorkspaceJob(workspace,job.id,{stage:'Generating Amelia - Enthusiastic and Expressive',progress:55});
- const maya=await storedNarration(workspace,{projectId:p.id,title:p.title,script:mayaText,voice:mayaVoice,key,fetcher,jobId:job.id});
+ const maya=await storedNarration(workspace,{projectId:p.id,title:p.title,script:mayaText,voice:mayaVoice,key,fetcher,jobId:job.id,voiceSettings:TEAMTALK_DELIVERY});
  const plan=teamtalkNarrationPlan({script:p.script,danielAlignment:daniel.alignment,mayaAlignment:maya.alignment,scenes:p.scenes,fps:p.fps,clips,danielDuration:daniel.duration,mayaDuration:maya.duration});
  await patchWorkspaceJob(workspace,job.id,{stage:'Mixing both presenter voices',progress:80});
  const mixed=await mixSpeech(workspace,daniel,maya,plan);
