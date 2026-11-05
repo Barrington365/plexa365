@@ -33,6 +33,8 @@ export const TEAMTALK_PRESENTERS = [
 
 /** Same controls as the existing Energetic sports presenter profile. The account voices stay Sam and Amelia. */
 export const TEAMTALK_DELIVERY = {speed: 1.06, stability: 0.38, style: 0.35, similarity_boost: 0.75, use_speaker_boost: false};
+/** Amelia reads slower than Sam at the same pace, so Maya is a step quicker and a little more expressive. */
+export const TEAMTALK_MAYA_DELIVERY = {speed: 1.14, stability: 0.32, style: 0.48, similarity_boost: 0.75, use_speaker_boost: false};
 
 /** Person bounds measured on the existing green-screen presenter clips. Placed on the floor between the two screens. */
 const TEAMTALK_PRESENTER_CROP = {x: 760, y: 120, width: 400, height: 920};

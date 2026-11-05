@@ -28,7 +28,7 @@ test('TEAMtalk narration speaks Daniel and Maya separately and does not charge e
  assert.equal(calls.length,2);
  assert.match(calls[0].url,/2yqdQ7uuPQDBMgFA8dgu/);
  assert.deepEqual(calls[0].settings,{speed:1.06,stability:0.38,style:0.35,similarity_boost:0.75,use_speaker_boost:false});
- assert.deepEqual(calls[1].settings,calls[0].settings);
+ assert.deepEqual(calls[1].settings,{speed:1.14,stability:0.32,style:0.48,similarity_boost:0.75,use_speaker_boost:false});
  assert.match(calls[0].text,/Chelsea will keep Colwill/);
  assert.match(calls[0].text,/Kane stays at Bayern/);
  assert.doesNotMatch(calls[0].text,/Sesko/);

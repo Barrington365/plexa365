@@ -6,7 +6,7 @@ import {accountVoices,timedPlan} from './elevenlabs.mjs';
 import {parseBuffer} from 'music-metadata';
 import {patchWorkspaceJob} from './workspace-render.mjs';
 import {run} from './engine.mjs';
-import {TEAMTALK_DELIVERY,TEAMTALK_LIVE_PROFILE,TEAMTALK_PRESENTERS,parseTeamtalkTurns,resolveTeamtalkPresenterClips,speakerScript,teamtalkNarrationPlan} from './teamtalk-live.mjs';
+import {TEAMTALK_DELIVERY,TEAMTALK_MAYA_DELIVERY,TEAMTALK_LIVE_PROFILE,TEAMTALK_PRESENTERS,parseTeamtalkTurns,resolveTeamtalkPresenterClips,speakerScript,teamtalkNarrationPlan} from './teamtalk-live.mjs';
 const model='eleven_multilingual_v2';
 
 export async function queueWorkspaceNarration(workspace,body,userId){
@@ -93,7 +93,7 @@ async function runTeamtalkNarration(workspace,job,key,fetcher){
  const daniel=await storedNarration(workspace,{projectId:p.id,title:p.title,script:danielText,voice:danielVoice,key,fetcher,jobId:job.id,voiceSettings:TEAMTALK_DELIVERY});
  if((await workspace.snapshot()).state.jobs.find(item=>item.id===job.id)?.cancelRequestedAt)throw Error('Narration cancelled. Any generated audio is retained in the Library.');
  await patchWorkspaceJob(workspace,job.id,{stage:'Generating Amelia - Enthusiastic and Expressive',progress:55});
- const maya=await storedNarration(workspace,{projectId:p.id,title:p.title,script:mayaText,voice:mayaVoice,key,fetcher,jobId:job.id,voiceSettings:TEAMTALK_DELIVERY});
+ const maya=await storedNarration(workspace,{projectId:p.id,title:p.title,script:mayaText,voice:mayaVoice,key,fetcher,jobId:job.id,voiceSettings:TEAMTALK_MAYA_DELIVERY});
  const plan=teamtalkNarrationPlan({script:p.script,danielAlignment:daniel.alignment,mayaAlignment:maya.alignment,scenes:p.scenes,fps:p.fps,clips,danielDuration:daniel.duration,mayaDuration:maya.duration});
  await patchWorkspaceJob(workspace,job.id,{stage:'Mixing both presenter voices',progress:80});
  const mixed=await mixSpeech(workspace,daniel,maya,plan);
