@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import {createHash} from 'node:crypto';
 import {uploadStudioAsset} from './studio-assets.mjs';
+import {TEAMTALK_LIVE_PROFILE} from './teamtalk-live.mjs';
 import {run} from './engine.mjs';
 export async function audioInfo(file){let log;try{log=await run(['-hide_banner','-i',file]);}catch(e){log=e.message;}const m=log.match(/Duration: (\d+):(\d+):([\d.]+)/);if(!m||!log.includes('Audio:'))throw Error('Generated audio is unreadable.');return {audio:true,duration:+m[1]*3600 + +m[2]*60 + +m[3]};}
 
@@ -51,6 +52,7 @@ export function createElevenLabs({root,projects,fetcher=fetch,initialKey=process
    if(busy)throw Error('A narration is already being generated.');if(!key)throw Error('Connect ElevenLabs in Audio first.');busy=true;
    try{
     const p=await projects.get(projectId);if(p.trashedAt||p.updatedAt!==expectedUpdatedAt)throw Error('Project changed. Reload before generating.');
+    if(p.productionProfile===TEAMTALK_LIVE_PROFILE)throw Error('TEAMtalk LIVE uses both presenter voices. Generate narration from Studio so Daniel and Maya are spoken separately.');
     const script=p.script?.trim();if(!script||script.length>10000)throw Error('Use a script of 1–10,000 characters.');
     if(script.split(/\n\s*\n/).length!==p.scenes.length)throw Error('Use one script paragraph per scene.');
     if(p.scenes.some(s=>s.video?.asset)||p.music?.asset)throw Error('Automatic narration timing currently supports image scenes without music. Retain this project and use a separate draft for those tracks.');
