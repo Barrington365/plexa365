@@ -31,6 +31,9 @@ export const TEAMTALK_PRESENTERS = [
   {id: 'maya-bennett', name: 'Maya Bennett', position: 'right', style: 'Upbeat, expressive, confident and engaging', voice: 'Amelia - Enthusiastic and Expressive', elevenlabsVoiceId: 'ZF6FPAbjXT4488VcRRnw'},
 ];
 
+/** Same controls as the existing Energetic sports presenter profile. The account voices stay Sam and Amelia. */
+export const TEAMTALK_DELIVERY = {speed: 1.06, stability: 0.38, style: 0.35, similarity_boost: 0.75, use_speaker_boost: false};
+
 /** Person bounds measured on the existing green-screen presenter clips. Placed on the floor between the two screens. */
 const TEAMTALK_PRESENTER_CROP = {x: 760, y: 120, width: 400, height: 920};
 export const TEAMTALK_DANIEL_BOX = {x: 587, y: 465, width: 158, height: 362, chroma: '#00d600', crop: TEAMTALK_PRESENTER_CROP};
