@@ -83,6 +83,13 @@ test('story media uses the article original and the current crest, and leaves an
   assert.equal(bayern.articleImage, '');
   assert.equal(bayern.crest, '');
   assert.deepEqual(bayern.missing, ['article-image', 'club-crest']);
+  const approved = resolveTeamtalkStoryMedia({sourceUrl: 'https://www.teamtalk.com/kane', club: 'Bayern Munich'}, [], [...assets, {name: 'Bayern Munich - club logo - football-logos.cc.png', asset: 'images/bayern.png'}]);
+  assert.equal(approved.crest, 'images/bayern.png');
+  assert.equal(approved.crestSource, 'crest');
+  const pictured = resolveTeamtalkStoryMedia({id: 'kane', sourceUrl: 'https://www.teamtalk.com/kane', club: 'Bayern Munich'}, [{id: 'kane', kind: 'original', sourceUrl: 'https://www.teamtalk.com/kane'}], assets);
+  assert.equal(pictured.crest, 'images/kane.png');
+  assert.equal(pictured.crestSource, 'story-image');
+  assert.deepEqual(pictured.missing, []);
 });
 
 test('library matching does not invent a studio, presenter or voice', () => {

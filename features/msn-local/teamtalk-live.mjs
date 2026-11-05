@@ -19,12 +19,15 @@ export const TEAMTALK_RIGHT_SCREEN = {
   screenCorners: [[0.0059, 0.3355], [0.9966, 0.0003], [0.9983, 0.9982], [0.0006, 0.8462]],
 };
 
-/** Current crest files only. A historical variant is not a substitute, and a missing club stays missing. */
+/** Current crest files only. A historical variant is not a substitute. A missing crest is filled before a build. */
 export const TEAMTALK_CREST_FILES = [
   {club: 'Chelsea', file: 'chelsea-logo.png'},
   {club: 'Manchester United', file: 'manchester-united-logo.png'},
   {club: 'Liverpool', file: 'liverpool-fc-logo.png'},
+  {club: 'Bayern Munich', file: 'Bayern Munich - club logo - football-logos.cc.png'},
 ];
+
+const STORY_CLUB = {colwill: 'Chelsea', sesko: 'Manchester United', kane: 'Bayern Munich'};
 
 export const TEAMTALK_PRESENTERS = [
   {id: 'daniel-brooks', name: 'Daniel Brooks', position: 'left', style: 'Confident, experienced and slightly witty', voice: 'Planet F1 - Male - Sam', elevenlabsVoiceId: '2yqdQ7uuPQDBMgFA8dgu'},
@@ -98,8 +101,8 @@ export const TEAMTALK_LIVE_AUTOMATION = {
     'Import the article’s published image into the Library and use the original whose source URL matches the story.',
     'Place that image on the right green screen.',
     'Place the story club’s current Library crest on the left green screen.',
-    'Use only the current crest file, such as chelsea-logo.png or manchester-united-logo.png. Do not use a historical variant.',
-    'Leave the left screen empty when that crest is not in the Library. Do not invent a crest or cut one out of the article image.',
+    'Use only the current crest file, such as chelsea-logo.png, manchester-united-logo.png, or Bayern Munich - club logo - football-logos.cc.png. Do not use a historical variant.',
+    'When that crest is missing, fill the screen with the story picture or another current Library image for that story. Do not leave the green screen visible, invent a crest, or cut one out of a photograph.',
     'Maya Bennett uses Amelia - Enthusiastic and Expressive. Daniel Brooks uses Planet F1 - Male - Sam.',
     'Key the existing presenter clips onto the studio. The speaker uses Presenting and the other presenter uses Listening.',
   ],
@@ -222,24 +225,90 @@ const assetRoles = [
   {role: 'maya', pattern: /maya[-_\s]+bennett/i},
 ];
 
+function sceneClub(scene) {
+  return STORY_CLUB[String(scene?.id || '').split('-')[0]] || scene?.club || '';
+}
+
+function approvedCrest(club, assets) {
+  const rule = TEAMTALK_CREST_FILES.find(item => item.club.toLowerCase() === String(club || '').toLowerCase());
+  if (!rule) return null;
+  return (assets || []).find(item => String(item?.name || '').toLowerCase() === rule.file.toLowerCase()) || null;
+}
+
+function currentLibraryPicture(scene, assets) {
+  const words = String(sceneClub(scene)).toLowerCase().split(/[^a-z0-9]+/).filter(word => word.length > 4);
+  const token = String(scene?.id || '').split('-')[0];
+  if (token.length > 3 && !words.includes(token)) words.push(token);
+  const pictures = (assets || []).filter(item => {
+    const name = `${item?.name || ''} ${item?.asset || ''}`;
+    return item?.asset && /\.(png|jpe?g|webp)$/i.test(name) && !/shadow|reflection/i.test(name) && !/\b(19|20)\d{2}\b/.test(name);
+  });
+  for (const word of [...words].sort((a, b) => b.length - a.length)) {
+    const hit = pictures.find(item => String(item?.name || '').toLowerCase().includes(word));
+    if (hit) return hit;
+  }
+  return null;
+}
+
+function screenLayer(id, asset, box, fit) {
+  return {id, type: fit === 'cover' ? 'image' : 'logo', text: '', asset, ...box, fit};
+}
+
+/** A looped studio scene keeps both screens filled. A missing crest uses the current crest, then the story picture, then another current Library image. */
+export function coverTeamtalkScreens(scenes, assets = []) {
+  return (scenes || []).map(scene => {
+    if (!scene?.video?.loop) return scene;
+    const layers = (scene.layers || []).filter(layer => layer?.asset || !['club-crest', 'article-image'].includes(layer?.id));
+    const article = layers.find(layer => layer.id === 'article-image' && layer.asset);
+    const crest = layers.find(layer => layer.id === 'club-crest' && layer.asset);
+    const approved = approvedCrest(sceneClub(scene), assets);
+    const picture = currentLibraryPicture(scene, assets);
+    if (!crest) {
+      const asset = approved?.asset || article?.asset || picture?.asset || '';
+      if (asset) layers.unshift(screenLayer('club-crest', asset, TEAMTALK_LEFT_SCREEN, asset === article?.asset && asset !== approved?.asset ? 'cover' : 'contain'));
+    }
+    if (!article) {
+      const filled = layers.find(layer => layer.id === 'club-crest' && layer.asset);
+      const asset = picture?.asset || filled?.asset || '';
+      if (asset) layers.unshift(screenLayer('article-image', asset, TEAMTALK_RIGHT_SCREEN, 'cover'));
+    }
+    return {...scene, layers};
+  });
+}
+
+export function uncoveredTeamtalkScreens(scenes) {
+  const open = [];
+  for (const scene of scenes || []) {
+    if (!scene?.video?.loop) continue;
+    for (const id of ['club-crest', 'article-image']) {
+      if (!(scene.layers || []).some(layer => layer.id === id && layer.asset)) open.push(`${scene.id} ${id}`);
+    }
+  }
+  return open;
+}
+
 /**
  * Resolve one story's picture and crest.
  * The article image must already be a Library original for that source URL.
  * The crest must be the story club's current file. Another club mentioned in the story is not used.
+ * A missing crest is filled with the story picture or another current Library image so the green screen is not left bare.
  */
 export function resolveTeamtalkStoryMedia(story, images, assets) {
   const sourceUrl = typeof story?.sourceUrl === 'string' ? story.sourceUrl : '';
   const club = String(story?.club || '');
   const image = (images || []).find(item => item?.kind === 'original' && item.sourceUrl === sourceUrl && item.id);
-  const rule = TEAMTALK_CREST_FILES.find(item => item.club.toLowerCase() === club.toLowerCase());
-  const crest = rule ? (assets || []).find(item => String(item?.name || '').toLowerCase() === rule.file) : null;
+  const crest = approvedCrest(club, assets);
+  const picture = currentLibraryPicture({id: story?.id || '', club}, assets);
+  const articleImage = image ? `images/${image.id}.png` : (picture?.asset || '');
+  const crestAsset = crest?.asset || articleImage;
   const missing = [];
-  if (!image) missing.push('article-image');
-  if (!crest) missing.push('club-crest');
+  if (!articleImage) missing.push('article-image');
+  if (!crestAsset) missing.push('club-crest');
   return {
-    articleImage: image ? `images/${image.id}.png` : '',
-    crest: crest?.asset || '',
-    crestFile: rule?.file || '',
+    articleImage,
+    crest: crestAsset,
+    crestFile: crest ? (TEAMTALK_CREST_FILES.find(item => item.club.toLowerCase() === club.toLowerCase())?.file || '') : '',
+    crestSource: crest ? 'crest' : (crestAsset ? 'story-image' : ''),
     missing,
   };
 }
@@ -395,7 +464,8 @@ export function teamtalkNarrationPlan({script, danielAlignment, mayaAlignment, s
     const speechFrames = Math.max(1, Math.round((slice.end - slice.start) * fps));
     const timeline = frame / fps;
     const source = storySource(scenes, turn.story);
-    const graphics = (source.layers || []).filter(layer => layer.asset && layer.id !== 'daniel-left' && layer.id !== 'maya-right');
+    const graphics = coverTeamtalkScreens([{...source, id: turn.story, video: source.video?.loop ? source.video : {...(source.video || {}), loop: true}}])[0].layers
+      .filter(layer => layer.asset && layer.id !== 'daniel-left' && layer.id !== 'maya-right');
     built.push({
       id: `${turn.story}-${index + 1}`,
       duration: (speechFrames + gapFrames) / fps,
