@@ -193,7 +193,7 @@ export async function rasterTextLayer(layer,width,height){
  throw Error('Text does not fit its saved box. Enlarge the text layer or shorten the wording.');
 }
 
-export async function renderScenes(input, { signal, onProgress = () => {}, root: directory = ASSET_ROOT, assetBoundary = ASSET_ROOT, replaceDirectory } = {}) {
+export async function renderScenes(input, { signal, onProgress = () => {}, root: directory = ASSET_ROOT, assetBoundary = ASSET_ROOT, replaceDirectory, onlyIndex, outputFile, sceneFiles } = {}) {
   const model = validateSceneModel(input), total = model.scenes.reduce((n, s) => n + s.duration, 0);
   const boundary = await rootDirectory(assetBoundary);
   const root = await fs.realpath(directory);
@@ -225,6 +225,13 @@ export async function renderScenes(input, { signal, onProgress = () => {}, root:
     let sceneOffset = 0;
     for (const [i, scene] of model.scenes.entries()) {
       signal?.throwIfAborted();
+      if (Array.isArray(sceneFiles)) {
+        if (!sceneFiles[i]) throw Error('A rendered scene is missing');
+        await fs.copyFile(sceneFiles[i], path.join(work, `scene-${i}.mp4`));
+        sceneOffset += scene.duration;
+        continue;
+      }
+      if (Number.isInteger(onlyIndex) && i !== onlyIndex) { sceneOffset += scene.duration; continue; }
       onProgress({ stage: `Rendering scene ${i + 1} of ${model.scenes.length}`, progress: Math.round(i / model.scenes.length * 75) });
       const args = ['-hide_banner', '-y', '-filter_complex_threads', '1'];
       let base;
@@ -288,8 +295,14 @@ export async function renderScenes(input, { signal, onProgress = () => {}, root:
       }
       args.push('-filter_complex', filters.join(';'), '-map', `[${previous}]`, '-an', '-t', String(scene.duration), '-r', String(model.fps), ...encode, path.join(work, `scene-${i}.mp4`));
       await run(args, { signal });
+      if (Number.isInteger(onlyIndex)) {
+        if (!outputFile) throw Error('A scene output file is required');
+        await fs.copyFile(path.join(work, `scene-${i}.mp4`), outputFile);
+        return { file: outputFile, index: i, duration: scene.duration };
+      }
       sceneOffset += scene.duration;
     }
+    if (Number.isInteger(onlyIndex)) throw Error('Scene not found');
     await fs.writeFile(path.join(work, 'list.txt'), model.scenes.map((_, i) => `file 'scene-${i}.mp4'`).join('\n'));
     const joined = path.join(work, 'joined.mp4');
     await run(['-y', '-f', 'concat', '-safe', '1', '-protocol_whitelist', 'file', '-i', path.join(work, 'list.txt'), '-c', 'copy', joined], { signal });
