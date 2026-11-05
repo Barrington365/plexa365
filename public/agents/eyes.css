@@ -1,0 +1,8 @@
+.plexa-eye-art{position:relative;display:block;line-height:0}
+.plexa-eye-art>img,.plexa-eye-art>picture>img{display:block;width:100%;height:auto}
+.plexa-eye-art>.plexa-eyelids{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;opacity:1}
+.plexa-eye-art[data-awake="true"]>.plexa-eyelids{opacity:0;animation:plexa-blink 5.6s infinite}
+.plexa-eye-art[data-reacting="true"]>.plexa-eyelids{display:none}
+.plexa-eye-art[data-motion="false"]>.plexa-eyelids{animation:none}
+@keyframes plexa-blink{0%,94%,98%,100%{opacity:0}95%,97%{opacity:1}}
+@media(prefers-reduced-motion:reduce){.plexa-eye-art[data-awake="true"]>.plexa-eyelids{animation:none;opacity:0}}

@@ -9,6 +9,10 @@ const PUBLIC_PATHS = [
   "/forgot-password",
   "/reset-password",
   "/api/auth/login",
+  // Native bearer endpoints validate desktop credentials in their route handlers.
+  "/api/desktop/exchange",
+  "/api/desktop/companion",
+  "/api/desktop/logout",
   "/api/auth/setup",
   "/api/auth/verify-email",
   "/api/auth/forgot-password",

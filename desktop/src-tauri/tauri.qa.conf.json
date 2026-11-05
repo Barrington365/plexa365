@@ -1,0 +1,1 @@
+{"productName":"Plexa Companion QA","identifier":"studio.planetsport.companion.qa","app":{"windows":[{"label":"main","title":"Plexa Companion — Local QA (temporary session)","width":400,"height":680,"minWidth":300,"minHeight":360,"transparent":true,"decorations":false,"alwaysOnTop":true,"resizable":true}]},"plugins":{"deep-link":{"desktop":{"schemes":["plexa-dev"]}}}}
