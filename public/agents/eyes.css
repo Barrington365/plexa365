@@ -6,3 +6,16 @@
 .plexa-eye-art[data-motion="false"]>.plexa-eyelids{animation:none}
 @keyframes plexa-blink{0%,94%,98%,100%{opacity:0}95%,97%{opacity:1}}
 @media(prefers-reduced-motion:reduce){.plexa-eye-art[data-awake="true"]>.plexa-eyelids{animation:none;opacity:0}}
+/* Reusable laptop overlay: original agent artwork and face remain unchanged. */
+.plexa-laptop{position:absolute;left:16%;right:16%;bottom:1%;height:34%;pointer-events:none;line-height:normal;filter:drop-shadow(0 3px 2px #0004)}
+.plexa-laptop-screen{position:absolute;inset:0 5% 14%;border:3px solid #26374d;border-radius:5px;background:#142033;box-shadow:inset 0 0 0 2px #60738d}
+.plexa-laptop-screen:before{content:"";position:absolute;inset:22% 16%;background:repeating-linear-gradient(to bottom,#5ce5ca 0 2px,transparent 2px 7px);opacity:.85;clip-path:polygon(0 0,80% 0,80% 30%,100% 30%,100% 65%,55% 65%,55% 100%,0 100%)}
+.plexa-laptop-screen:after{content:"";position:absolute;right:12%;bottom:15%;width:7%;height:12%;background:#e3fff9;animation:plexa-cursor 1.2s steps(2,end) infinite}
+.plexa-laptop-keys{position:absolute;left:0;right:0;bottom:0;height:17%;border:2px solid #26374d;border-radius:2px 2px 7px 7px;background:linear-gradient(90deg,#879bb1 35%,#c3d6e8 35%,#c3d6e8 65%,#879bb1 65%)}
+.plexa-eye-art[data-working="true"][data-motion="true"]>.plexa-laptop{animation:plexa-typing .65s steps(2,end) infinite}
+.plexa-eye-art[data-motion="false"] .plexa-laptop,.plexa-eye-art[data-motion="false"] .plexa-laptop-screen:after{animation:none}
+@keyframes plexa-cursor{50%{opacity:.15}}
+@keyframes plexa-typing{50%{transform:translateY(-1px)}}
+@media(prefers-reduced-motion:reduce){.plexa-eye-art .plexa-laptop,.plexa-eye-art .plexa-laptop-screen:after{animation:none!important}}
+/* Engineering portraits contain more transparent padding than Bob and Fiddle. */
+.plexa-eye-art:is([data-agent="james"],[data-agent="hubble"],[data-agent="linnaeus"],[data-agent="banach"],[data-agent="halley"],[data-agent="huygens"])>.plexa-laptop{left:27%;right:27%;bottom:34%;height:21%}
