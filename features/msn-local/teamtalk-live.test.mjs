@@ -12,7 +12,10 @@ import {
   TEAMTALK_LIVE_TEMPLATE,
   appendTeamtalkLesson,
   resolveTeamtalkAssets,
+  resolveTeamtalkPresenterClips,
+  resolveTeamtalkStoryMedia,
   runTeamtalkAutomation,
+  teamtalkNarrationPlan,
   selectTeamtalkStories,
   teamtalkQualityReport,
 } from './teamtalk-live.mjs';
@@ -62,6 +65,26 @@ test('the 48 hour window is used only when the last day has fewer than three sto
   assert.deepEqual(picked.selected.map(item => item.articleId), ['one', 'two', 'three']);
 });
 
+test('story media uses the article original and the current crest, and leaves an unknown crest empty', () => {
+  const images = [{id: 'pic', kind: 'original', sourceUrl: 'https://www.teamtalk.com/chelsea'}];
+  const assets = [
+    {name: 'chelsea-logo-2006-2026.png', asset: 'uploads/old-chelsea.png'},
+    {name: 'chelsea-logo.png', asset: 'uploads/chelsea.png'},
+    {name: 'liverpool-fc-logo.png', asset: 'uploads/liverpool.png'},
+    {name: 'manchester-united-logo.png', asset: 'uploads/united.png'},
+  ];
+  const chelsea = resolveTeamtalkStoryMedia({sourceUrl: 'https://www.teamtalk.com/chelsea', club: 'Chelsea'}, images, assets);
+  assert.equal(chelsea.articleImage, 'images/pic.png');
+  assert.equal(chelsea.crest, 'uploads/chelsea.png');
+  assert.deepEqual(chelsea.missing, []);
+  const united = resolveTeamtalkStoryMedia({sourceUrl: 'https://www.teamtalk.com/chelsea', club: 'Manchester United'}, images, assets);
+  assert.equal(united.crest, 'uploads/united.png');
+  const bayern = resolveTeamtalkStoryMedia({sourceUrl: 'https://www.teamtalk.com/kane', club: 'Bayern Munich'}, images, assets);
+  assert.equal(bayern.articleImage, '');
+  assert.equal(bayern.crest, '');
+  assert.deepEqual(bayern.missing, ['article-image', 'club-crest']);
+});
+
 test('library matching does not invent a studio, presenter or voice', () => {
   const empty = resolveTeamtalkAssets([]);
   assert.deepEqual(empty.missing, ['studio', 'daniel', 'maya']);
@@ -73,7 +96,8 @@ test('library matching does not invent a studio, presenter or voice', () => {
   ]);
   assert.deepEqual(resolved.missing, []);
   assert.equal(resolved.found.daniel.voiceId, 'voice-daniel');
-  assert.equal(resolved.found.maya.voiceId, null);
+  assert.equal(resolved.found.maya.voiceId, 'ZF6FPAbjXT4488VcRRnw');
+  assert.equal(resolved.found.maya.voice, 'Amelia - Enthusiastic and Expressive');
   assert.equal(resolved.found.studio.asset, 'uploads/studio.mp4');
 });
 
@@ -112,12 +136,58 @@ test('the automation stays paused and a lesson does not change V1.0', async () =
     assert.equal(project.music.volume, 0.2);
     assert.equal(project.voice, '');
     assert.equal(project.elevenlabsVoiceId, '');
-    assert.equal(project.scenes[0].layers.find(layer => layer.id === 'daniel-left').x < project.scenes[0].layers.find(layer => layer.id === 'maya-right').x, true);
+    const daniel = project.scenes[0].layers.find(layer => layer.id === 'daniel-left');
+    const maya = project.scenes[0].layers.find(layer => layer.id === 'maya-right');
+    assert.equal(daniel.type, 'clip');
+    assert.equal(maya.type, 'clip');
+    assert.equal(daniel.x < maya.x, true);
+    assert.equal(daniel.chroma, '#00d600');
+    const crest = project.scenes[0].layers.find(layer => layer.id === 'club-crest');
+    const article = project.scenes[0].layers.find(layer => layer.id === 'article-image');
+    assert.equal(crest.x, 95);
+    assert.equal(article.x, 1389);
+    assert.equal(crest.asset, '');
+    assert.equal(article.asset, '');
+    assert.equal(listed.automations[0].screens.left, 'Story club crest');
+    assert.equal(listed.automations[0].status, 'Paused');
     const store = createProjectStore(root);
     assert.equal((await store.list()).length, 0);
   } finally {
     await fs.rm(root, {recursive: true, force: true});
   }
+});
+
+test('presenter clips match hyphenated Library names and each speaker keeps a voice', () => {
+  const resolved = resolveTeamtalkPresenterClips([
+    {name: 'Football365-Daniel-Brooks-V2-Presenting.mp4', asset: 'uploads/daniel-presenting.mp4'},
+    {name: 'Football365-Daniel-Brooks-Listening.mp4', asset: 'uploads/daniel-listening.mp4'},
+    {name: 'Football365-Maya-Bennett-Presenting.mp4', asset: 'uploads/maya-presenting.mp4'},
+    {name: 'Football365-Maya-Bennett-Listening.mp4', asset: 'uploads/maya-listening.mp4'},
+  ]);
+  assert.deepEqual(resolved.missing, []);
+  assert.equal(resolved.clips.danielPresenting, 'uploads/daniel-presenting.mp4');
+  assert.equal(resolved.clips.mayaListening, 'uploads/maya-listening.mp4');
+  const script = 'Notes\n\nDaniel: Welcome to TEAMtalk LIVE.\n\nDaniel: Chelsea keep Colwill.\n\nMaya: That is the TEAMtalk LIVE bulletin.';
+  const danielText = 'Welcome to TEAMtalk LIVE.\n\nChelsea keep Colwill.';
+  const mayaText = 'That is the TEAMtalk LIVE bulletin.';
+  const timed = text => ({characters: [...text], character_start_times_seconds: [...text].map((_, i) => i / 10), character_end_times_seconds: [...text].map((_, i) => (i + 1) / 10)});
+  const scenes = [
+    {id: 'intro', duration: 1, background: '#000000', layers: []},
+    {id: 'colwill', duration: 2, background: '#000000', video: {asset: 'uploads/studio.mp4', start: 0, loop: true}, layers: [{id: 'club-crest', type: 'logo', asset: 'uploads/chelsea.png', x: 95, y: 358, width: 349, height: 250}, {id: 'daniel-left', type: 'clip', asset: '', x: 1, y: 1, width: 2, height: 2}]},
+    {id: 'kane', duration: 2, background: '#000000', video: {asset: 'uploads/studio.mp4', start: 0, loop: true}, layers: [{id: 'club-crest', type: 'logo', asset: '', x: 95, y: 358, width: 349, height: 250}]},
+    {id: 'outro', duration: 1, background: '#000000', layers: []},
+  ];
+  const plan = teamtalkNarrationPlan({script, danielAlignment: timed(danielText), mayaAlignment: timed(mayaText), scenes, fps: 10, clips: resolved.clips, danielDuration: 20, mayaDuration: 20});
+  assert.equal(plan.danielText, danielText);
+  assert.equal(plan.scenes[1].id, 'colwill-1');
+  assert.equal(plan.scenes[1].layers.find(layer => layer.id === 'daniel-left').asset, 'uploads/daniel-presenting.mp4');
+  assert.equal(plan.scenes[1].layers.find(layer => layer.id === 'maya-right').asset, 'uploads/maya-listening.mp4');
+  assert.equal(plan.scenes[1].layers.some(layer => layer.id === 'club-crest'), true);
+  assert.equal(plan.scenes.at(-2).layers.some(layer => layer.id === 'club-crest'), false);
+  assert.equal(plan.scenes.at(-2).layers.find(layer => layer.id === 'maya-right').asset, 'uploads/maya-presenting.mp4');
+  assert.doesNotMatch(plan.srt, /Daniel:|Maya:/);
+  assert.equal(plan.placements[0].speaker, 'daniel');
+  assert.equal(plan.placements[0].timeline, 1);
 });
 
 test('a lesson record refuses an unknown owner', () => {

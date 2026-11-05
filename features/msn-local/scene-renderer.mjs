@@ -64,6 +64,8 @@ export const sceneModelSchema = z.object({
     id: z.string().optional(), duration: z.number().finite().min(.2).max(1200), background: colour.default('#000000'),
     video: z.object({ asset, start: seconds.default(0), loop:z.boolean().optional() }).strict().optional(),
     layers: z.array(z.discriminatedUnion('type', [picture('image'), picture('logo'),
+      z.object({ animation:animationSchema, id: z.string().optional(), type: z.literal('clip'), asset, ...position, ...size, loop: z.boolean().default(true), chroma: colour.optional(),
+        crop: z.object({ x: z.number().int().min(0).max(4096), y: z.number().int().min(0).max(4096), width: z.number().int().min(1).max(4096), height: z.number().int().min(1).max(4096) }).strict().optional() }).strict(),
       z.object({ animation:animationSchema, id: z.string().optional(), width: size.width.optional(), height: size.height.optional(), type: z.literal('text'), asset: z.string().max(4096).optional(), text: z.string().min(1).max(2000), ...position,
         fontSize: z.number().int().min(8).max(300), fontFamily: z.string().regex(/^[a-zA-Z][a-zA-Z0-9 -]{0,79}$/).default('sans-serif'), color: colour.default('#ffffff') }).strict(),
     ])).max(50).default([]),
@@ -239,6 +241,17 @@ export async function renderScenes(input, { signal, onProgress = () => {}, root:
       }
       const filters = [base]; let previous = 'base';
       for (const [j, layer] of scene.layers.entries()) {
+        if (layer.type === 'clip') {
+          const source = await copyAsset(layer.asset, 'video');
+          if (layer.loop !== false) args.push('-stream_loop', '-1');
+          args.push(...localInput(source, formats[path.extname(source)]));
+          const crop = layer.crop ? `crop=${layer.crop.width}:${layer.crop.height}:${layer.crop.x}:${layer.crop.y},` : '';
+          const key = layer.chroma ? `chromakey=${layer.chroma.replace('#', '0x')}:0.25:0.05,` : '';
+          filters.push(`[${j + 1}:v]${crop}${key}scale=${layer.width}:${layer.height}:force_original_aspect_ratio=decrease,pad=${layer.width}:${layer.height}:(ow-iw)/2:(oh-ih)/2:color=black@0,format=yuva420p,fps=${model.fps}[motion${j}]`);
+          filters.push(`[${previous}][motion${j}]overlay=x=${layer.x}:y=${layer.y}:eof_action=pass:shortest=1[v${j}]`);
+          previous = `v${j}`;
+          continue;
+        }
         const file = path.join(work, `layer-${i}-${j}.png`);
         if (layer.type === 'text') {
           const width = layer.width ?? model.width - layer.x;

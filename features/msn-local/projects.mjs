@@ -1,6 +1,6 @@
 /** Local draft persistence. No rendering, networking, or publication side effects. */
 import {FOOTBALL365_PROFILE,FOOTBALL365_BROADCAST_PROFILE,FOOTBALL365_TEMPLATE,football365Defaults,football365BroadcastDefaults} from './football365-profile.mjs';
-import {TEAMTALK_LIVE_PROFILE,TEAMTALK_LIVE_TEMPLATE,teamtalkLiveDefaults} from './teamtalk-live.mjs';
+import {TEAMTALK_LIVE_PROFILE,TEAMTALK_LIVE_TEMPLATE,TEAMTALK_LEFT_SCREEN,TEAMTALK_RIGHT_SCREEN,TEAMTALK_DANIEL_BOX,TEAMTALK_MAYA_BOX,teamtalkLiveDefaults} from './teamtalk-live.mjs';
 import {broadcastSchema} from './broadcast.mjs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -63,10 +63,10 @@ function layoutScenes(templateId) {
       label('summary', 'Add sourced transfer details', 1000, 810, 840, 140, 36),
     ],
     [TEAMTALK_LIVE_TEMPLATE]: [
-      image('daniel-left', 70, 560, 480, 480),
-      image('maya-right', 1370, 560, 480, 480),
-      {id: 'club-crest', type: 'logo', text: '', asset: '', x: 80, y: 180, width: 360, height: 280},
-      image('article-image', 1180, 160, 560, 360),
+      {id: 'daniel-left', type: 'clip', asset: '', loop: true, ...TEAMTALK_DANIEL_BOX},
+      {id: 'maya-right', type: 'clip', asset: '', loop: true, ...TEAMTALK_MAYA_BOX},
+      {id: 'club-crest', type: 'logo', text: '', asset: '', ...TEAMTALK_LEFT_SCREEN},
+      {id: 'article-image', type: 'image', text: '', asset: '', ...TEAMTALK_RIGHT_SCREEN},
       brand(),
     ],
   };
