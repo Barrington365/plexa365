@@ -46,7 +46,7 @@ export default async (request:Request)=>{
     await runWorkspaceNarration(workspace,body.jobId,await getServerSecretAsync('ELEVENLABS_API_KEY')||'');
   }else{
     const {getServerSecretAsync}=await import('../../app/lib/server-secrets');
-    await runWorkspaceRender(workspace,body.jobId,{key:['football365-news-studio-v1','football365-live-broadcast-v1'].includes(job.request?.project?.productionProfile)?await getServerSecretAsync('ELEVENLABS_API_KEY')||'':''});
+    await runWorkspaceRender(workspace,body.jobId,{key:['football365-news-studio-v1','football365-live-broadcast-v1'].includes(job.request?.project?.productionProfile)?await getServerSecretAsync('ELEVENLABS_API_KEY')||'':'',continueBuild:async(jobId:string)=>{const response=await fetch(new URL('/.netlify/functions/studio-workspace-build-background',request.url),{method:'POST',headers:{cookie:request.headers.get('cookie')||'','content-type':'application/json'},body:JSON.stringify({jobId})});if(response.status!==202&&response.status!==200)throw Error('Could not continue the build (HTTP '+response.status+')');}});
   }
   return new Response(null,{status:200});
 };
