@@ -1,0 +1,23 @@
+import {beforeEach,afterAll,describe,it,expect,vi} from 'vitest';
+import {mkdtemp,rm} from 'node:fs/promises';
+import os from 'node:os';import path from 'node:path';import {createHash} from 'node:crypto';
+const mocks=vi.hoisted(()=>({root:'',users:{} as Record<string,unknown>}));
+vi.mock('@/app/lib/paths',()=>({projectRoot:()=>mocks.root}));
+vi.mock('@/app/lib/netlify-blob-json',()=>({shouldUseNetlifyBlobStore:()=>false}));
+vi.mock('@/app/lib/auth/store',()=>({readAuthData:async()=>({users:mocks.users})}));
+import {issueDesktopCode,exchangeDesktopCode,desktopUser,revokeDesktop} from './sessions';
+const verifier='v'.repeat(43),challenge=createHash('sha256').update(verifier).digest('base64url');
+const dirs:string[]=[];
+beforeEach(async()=>{mocks.root=await mkdtemp(path.join(os.tmpdir(),'plexa-desktop-test-'));dirs.push(mocks.root);mocks.users={admin:{id:'admin',active:true,emailVerifiedAt:'yes',role:'admin',passwordSetAt:'first'}};});
+afterAll(async()=>{await Promise.all(dirs.map(d=>rm(d,{recursive:true,force:true})));});
+const request=(token:string)=>new Request('https://planetsport.studio/api/desktop/companion',{headers:{authorization:'Bearer '+token}});
+describe('scoped desktop sign-in',()=>{
+ it('requires verifier and consumes authorisation once',async()=>{const code=await issueDesktopCode('admin',challenge);await expect(exchangeDesktopCode(code,'x'.repeat(43))).rejects.toThrow();const result=await exchangeDesktopCode(code,verifier);expect((await desktopUser(request(result.token)))?.id).toBe('admin');await expect(exchangeDesktopCode(code,verifier)).rejects.toThrow();});
+ it('prevents concurrent exchanges',async()=>{const code=await issueDesktopCode('admin',challenge);const results=await Promise.allSettled([exchangeDesktopCode(code,verifier),exchangeDesktopCode(code,verifier)]);expect(results.filter(r=>r.status==='fulfilled')).toHaveLength(1);});
+ it('rejects viewer authorisation',async()=>{mocks.users.admin={...mocks.users.admin as object,role:'viewer'};await expect(issueDesktopCode('admin',challenge)).rejects.toThrow();});
+ it('revokes on logout',async()=>{const {token}=await exchangeDesktopCode(await issueDesktopCode('admin',challenge),verifier);await revokeDesktop(request(token));expect(await desktopUser(request(token))).toBeNull();});
+ it('rechecks user role and activation',async()=>{const {token}=await exchangeDesktopCode(await issueDesktopCode('admin',challenge),verifier);mocks.users.admin={...mocks.users.admin as object,active:false};expect(await desktopUser(request(token))).toBeNull();});
+ it('rejects password rotation and expired credentials',async()=>{const {token}=await exchangeDesktopCode(await issueDesktopCode('admin',challenge),verifier);mocks.users.admin={...mocks.users.admin as object,passwordSetAt:'second'};expect(await desktopUser(request(token))).toBeNull();});
+ it('expires short-lived codes',async()=>{const code=await issueDesktopCode('admin',challenge);const now=vi.spyOn(Date,'now').mockReturnValue(Date.now()+121000);await expect(exchangeDesktopCode(code,verifier)).rejects.toThrow();now.mockRestore();});
+ it('does not accept a browser cookie as desktop authorisation',async()=>{expect(await desktopUser(new Request('https://planetsport.studio',{headers:{cookie:'plexa_session=anything'}}))).toBeNull();});
+});
