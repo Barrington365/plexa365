@@ -7,11 +7,34 @@ export const TEAMTALK_LIVE_NAME = 'TEAMtalk LIVE — Dual Presenter News Studio 
 export const TEAMTALK_LIVE_VERSION = 'V1.0';
 export const TEAMTALK_LIVE_AUTOMATION_ID = 'teamtalk-live-three-story-bulletin';
 export const TEAMTALK_EMPTY_STUDIO = 'TEAMtalk-LIVE-Empty-Studio-1920x1080';
+export const TEAMTALK_SCREEN_BACKGROUND = '#07131f';
+
+/** Green screens measured on TEAMtalk-LIVE-Empty-Studio-1920x1080. Left is the club crest. Right is the article image. */
+export const TEAMTALK_LEFT_SCREEN = {
+  x: 95, y: 358, width: 349, height: 250, fit: 'contain', screenBackground: TEAMTALK_SCREEN_BACKGROUND,
+  screenCorners: [[0.0005, 0.0017], [0.9982, 0.2186], [0.9986, 0.9242], [0.0009, 0.9991]],
+};
+export const TEAMTALK_RIGHT_SCREEN = {
+  x: 1389, y: 203, width: 436, height: 509, fit: 'contain', screenBackground: TEAMTALK_SCREEN_BACKGROUND,
+  screenCorners: [[0.0059, 0.3355], [0.9966, 0.0003], [0.9983, 0.9982], [0.0006, 0.8462]],
+};
+
+/** Current crest files only. A historical variant is not a substitute, and a missing club stays missing. */
+export const TEAMTALK_CREST_FILES = [
+  {club: 'Chelsea', file: 'chelsea-logo.png'},
+  {club: 'Manchester United', file: 'manchester-united-logo.png'},
+  {club: 'Liverpool', file: 'liverpool-fc-logo.png'},
+];
 
 export const TEAMTALK_PRESENTERS = [
-  {id: 'daniel-brooks', name: 'Daniel Brooks', position: 'left', style: 'Confident, experienced and slightly witty'},
-  {id: 'maya-bennett', name: 'Maya Bennett', position: 'right', style: 'Upbeat, expressive, confident and engaging'},
+  {id: 'daniel-brooks', name: 'Daniel Brooks', position: 'left', style: 'Confident, experienced and slightly witty', voice: 'Daniel - Steady Broadcaster', elevenlabsVoiceId: 'onwK4e9ZLuTAKqWW03F9'},
+  {id: 'maya-bennett', name: 'Maya Bennett', position: 'right', style: 'Upbeat, expressive, confident and engaging', voice: 'Amelia - Enthusiastic and Expressive', elevenlabsVoiceId: 'ZF6FPAbjXT4488VcRRnw'},
 ];
+
+/** Person bounds measured on the existing green-screen presenter clips. Placed on the floor between the two screens. */
+const TEAMTALK_PRESENTER_CROP = {x: 760, y: 120, width: 400, height: 920};
+export const TEAMTALK_DANIEL_BOX = {x: 500, y: 300, width: 330, height: 760, chroma: '#00d600', crop: TEAMTALK_PRESENTER_CROP};
+export const TEAMTALK_MAYA_BOX = {x: 1040, y: 300, width: 330, height: 760, chroma: '#00d600', crop: TEAMTALK_PRESENTER_CROP};
 
 export function teamtalkLiveDefaults() {
   return {
@@ -59,6 +82,22 @@ export const TEAMTALK_LIVE_AUTOMATION = {
   runHistory: [],
   unattended: false,
   baseline: null,
+  screens: {
+    studio: TEAMTALK_EMPTY_STUDIO,
+    left: 'Story club crest',
+    right: 'Article image',
+    leftScreen: TEAMTALK_LEFT_SCREEN,
+    rightScreen: TEAMTALK_RIGHT_SCREEN,
+  },
+  media: [
+    'Import the article’s published image into the Library and use the original whose source URL matches the story.',
+    'Place that image on the right green screen.',
+    'Place the story club’s current Library crest on the left green screen.',
+    'Use only the current crest file, such as chelsea-logo.png or manchester-united-logo.png. Do not use a historical variant.',
+    'Leave the left screen empty when that crest is not in the Library. Do not invent a crest or cut one out of the article image.',
+    'Maya Bennett uses Amelia - Enthusiastic and Expressive. Daniel Brooks uses Daniel - Steady Broadcaster.',
+    'Key the existing presenter clips onto the studio. The speaker uses Presenting and the other presenter uses Listening.',
+  ],
 };
 
 export function runTeamtalkAutomation() {
@@ -174,9 +213,31 @@ export function selectTeamtalkStories(articles, history = [], now) {
 
 const assetRoles = [
   {role: 'studio', pattern: /teamtalk-live-empty-studio-1920x1080/i},
-  {role: 'daniel', pattern: /daniel brooks/i},
-  {role: 'maya', pattern: /maya bennett/i},
+  {role: 'daniel', pattern: /daniel[-_\s]+brooks/i},
+  {role: 'maya', pattern: /maya[-_\s]+bennett/i},
 ];
+
+/**
+ * Resolve one story's picture and crest.
+ * The article image must already be a Library original for that source URL.
+ * The crest must be the story club's current file. Another club mentioned in the story is not used.
+ */
+export function resolveTeamtalkStoryMedia(story, images, assets) {
+  const sourceUrl = typeof story?.sourceUrl === 'string' ? story.sourceUrl : '';
+  const club = String(story?.club || '');
+  const image = (images || []).find(item => item?.kind === 'original' && item.sourceUrl === sourceUrl && item.id);
+  const rule = TEAMTALK_CREST_FILES.find(item => item.club.toLowerCase() === club.toLowerCase());
+  const crest = rule ? (assets || []).find(item => String(item?.name || '').toLowerCase() === rule.file) : null;
+  const missing = [];
+  if (!image) missing.push('article-image');
+  if (!crest) missing.push('club-crest');
+  return {
+    articleImage: image ? `images/${image.id}.png` : '',
+    crest: crest?.asset || '',
+    crestFile: rule?.file || '',
+    missing,
+  };
+}
 
 /** Match saved Library names. Missing assets stay missing; no id or voice is invented. */
 export function resolveTeamtalkAssets(assets) {
@@ -188,10 +249,170 @@ export function resolveTeamtalkAssets(assets) {
       missing.push(role.role);
       continue;
     }
-    const voiceId = typeof hit.elevenlabsVoiceId === 'string' && hit.elevenlabsVoiceId ? hit.elevenlabsVoiceId : null;
-    found[role.role] = {asset: hit.asset, name: hit.name, voiceId};
+    const presenter = TEAMTALK_PRESENTERS.find(person => person.id.startsWith(role.role));
+    const voiceId = typeof hit.elevenlabsVoiceId === 'string' && hit.elevenlabsVoiceId ? hit.elevenlabsVoiceId : (presenter?.elevenlabsVoiceId || null);
+    found[role.role] = {asset: hit.asset, name: hit.name, voiceId: voiceId || null, voice: presenter?.voice || ''};
   }
   return {found, missing};
+}
+
+/** Presenting and listening clips are separate files. A hyphenated Library name still matches. */
+export function resolveTeamtalkPresenterClips(assets) {
+  const pick = (person, movement) => (assets || []).find(item => {
+    const name = String(item?.name || '').replace(/[-_]+/g, ' ');
+    return new RegExp(person, 'i').test(name) && movement.test(name) && item.asset;
+  })?.asset || '';
+  const clips = {
+    danielPresenting: pick('daniel brooks', /present/i),
+    danielListening: pick('daniel brooks', /listen|react/i),
+    mayaPresenting: pick('maya bennett', /present/i),
+    mayaListening: pick('maya bennett', /listen|react/i),
+  };
+  const missing = Object.entries(clips).filter(([, asset]) => !asset).map(([role]) => role);
+  return {clips, missing};
+}
+
+const STORY_ORDER = ['colwill', 'sesko', 'kane'];
+
+/** Spoken paragraphs are labelled Daniel: or Maya:. Headings and source lines are not speech. */
+export function parseTeamtalkTurns(script) {
+  const turns = [];
+  for (const part of String(script || '').trim().split(/\n\s*\n/)) {
+    const match = part.match(/^(Daniel|Maya):\s*([\s\S]+)$/i);
+    if (!match) continue;
+    const text = match[2].trim();
+    if (!text) continue;
+    turns.push({speaker: match[1].toLowerCase() === 'daniel' ? 'daniel' : 'maya', text});
+  }
+  if (turns.length < 2 || !turns.some(turn => turn.speaker === 'daniel') || !turns.some(turn => turn.speaker === 'maya')) {
+    throw Error('Mark each spoken paragraph Daniel: or Maya:. Both presenters need lines.');
+  }
+  return turns;
+}
+
+function storyFor(text) {
+  if (/bulletin/i.test(text)) return 'kane';
+  if (/colwill|acheampong|stamford|huddersfield/i.test(text)) return 'colwill';
+  if (/sesko|calvert|mateta|balogun|number nine/i.test(text)) return 'sesko';
+  if (/kane|bayern|ballon|kompany|al-hilal/i.test(text)) return 'kane';
+  return '';
+}
+
+export function speakerScript(turns, speaker) {
+  return turns.filter(turn => turn.speaker === speaker).map(turn => turn.text).join('\n\n');
+}
+
+function assignStories(turns) {
+  let current = turns.map(turn => storyFor(turn.text)).find(Boolean) || 'colwill';
+  return turns.map(turn => {
+    const story = storyFor(turn.text);
+    if (story) current = story;
+    return {...turn, story: story || current};
+  });
+}
+
+function storySource(scenes, story) {
+  const named = (scenes || []).find(scene => scene.id === story && scene.video?.asset);
+  if (named) return named;
+  const looped = (scenes || []).filter(scene => scene.video?.loop && scene.video.asset);
+  const found = looped[Math.max(0, STORY_ORDER.indexOf(story))] || looped[0];
+  if (!found) throw Error('The story scene needs the empty studio video.');
+  return found;
+}
+
+const stamp = t => {
+  const n = Math.max(0, Math.round(t * 1000));
+  return `${String(Math.floor(n / 3600000)).padStart(2, '0')}:${String(Math.floor(n / 60000) % 60).padStart(2, '0')}:${String(Math.floor(n / 1000) % 60).padStart(2, '0')},${String(n % 1000).padStart(3, '0')}`;
+};
+
+function sliceTurn(script, alignment, text, from) {
+  if (!alignment || !Array.isArray(alignment.characters) || alignment.characters.join('') !== script) throw Error('Provider timing does not match the script. Audio retained; review alignment before retrying.');
+  const starts = alignment.character_start_times_seconds, ends = alignment.character_end_times_seconds;
+  if (starts?.length !== alignment.characters.length || ends?.length !== starts.length) throw Error('Incomplete narration timestamps.');
+  const at = script.indexOf(text, from);
+  if (at < 0 || at + text.length > starts.length) throw Error('Provider timing does not match the script. Audio retained; review alignment before retrying.');
+  const start = starts[at], end = ends[at + text.length - 1];
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) throw Error('Invalid narration timestamps.');
+  return {at, start, end, next: at + text.length};
+}
+
+function cuesFor(text, slice, alignment, timeline) {
+  const starts = alignment.character_start_times_seconds, ends = alignment.character_end_times_seconds;
+  const words = [...text.matchAll(/\S+/g)].map(match => ({
+    text: match[0],
+    start: timeline + starts[slice.at + match.index] - slice.start,
+    end: timeline + ends[slice.at + match.index + match[0].length - 1] - slice.start,
+  }));
+  const cues = [];
+  let cue;
+  for (const word of words) {
+    if (cue && (cue.text.length + word.text.length > 72 || word.end - cue.start > 5)) { cues.push(cue); cue = null; }
+    if (!cue) cue = {...word};
+    else { cue.text += ` ${word.text}`; cue.end = word.end; }
+    if (/[.!?]$/.test(word.text)) { cues.push(cue); cue = null; }
+  }
+  if (cue) cues.push(cue);
+  return cues;
+}
+
+function clipLayer(id, asset, box) {
+  return {id, type: 'clip', asset, loop: true, ...box};
+}
+
+/**
+ * Two speaker tracks stay separate. Each turn keeps its own voice, then lands on the shared timeline after the intro.
+ * The speaker's Presenting clip is used; the other presenter uses Listening. Speaker labels are not captions.
+ */
+export function teamtalkNarrationPlan({script, danielAlignment, mayaAlignment, scenes, fps = 30, clips, danielDuration, mayaDuration}) {
+  const turns = assignStories(parseTeamtalkTurns(script));
+  const danielText = speakerScript(turns, 'daniel');
+  const mayaText = speakerScript(turns, 'maya');
+  const required = ['danielPresenting', 'danielListening', 'mayaPresenting', 'mayaListening'];
+  if (required.some(role => !clips?.[role])) throw Error('Presenter Presenting and Listening clips are missing.');
+  const intro = (scenes || []).find(scene => scene.id === 'intro') || scenes?.[0];
+  const outro = (scenes || []).find(scene => scene.id === 'outro') || scenes?.at(-1);
+  if (!intro || !outro || intro === outro) throw Error('The programme needs an intro and an outro.');
+  const gapFrames = Math.round(0.3 * fps);
+  let frame = Math.round(intro.duration * fps);
+  let danielFrom = 0, mayaFrom = 0;
+  const built = [], cues = [], placements = [];
+  turns.forEach((turn, index) => {
+    const alignment = turn.speaker === 'daniel' ? danielAlignment : mayaAlignment;
+    const spoken = turn.speaker === 'daniel' ? danielText : mayaText;
+    const slice = sliceTurn(spoken, alignment, turn.text, turn.speaker === 'daniel' ? danielFrom : mayaFrom);
+    const limit = turn.speaker === 'daniel' ? danielDuration : mayaDuration;
+    if (Number.isFinite(limit) && slice.end > limit + 0.1) throw Error('Generated audio is shorter than the timed line. Audio retained; review alignment before retrying.');
+    if (turn.speaker === 'daniel') danielFrom = slice.next; else mayaFrom = slice.next;
+    const speechFrames = Math.max(1, Math.round((slice.end - slice.start) * fps));
+    const timeline = frame / fps;
+    const source = storySource(scenes, turn.story);
+    const graphics = (source.layers || []).filter(layer => layer.asset && layer.id !== 'daniel-left' && layer.id !== 'maya-right');
+    built.push({
+      id: `${turn.story}-${index + 1}`,
+      duration: (speechFrames + gapFrames) / fps,
+      background: source.background || '#060d15',
+      video: source.video,
+      layers: [
+        ...graphics,
+        clipLayer('daniel-left', turn.speaker === 'daniel' ? clips.danielPresenting : clips.danielListening, TEAMTALK_DANIEL_BOX),
+        clipLayer('maya-right', turn.speaker === 'maya' ? clips.mayaPresenting : clips.mayaListening, TEAMTALK_MAYA_BOX),
+      ],
+    });
+    placements.push({speaker: turn.speaker, start: slice.start, end: slice.end, timeline});
+    cues.push(...cuesFor(turn.text, slice, alignment, timeline));
+    frame += speechFrames + gapFrames;
+  });
+  for (let i = 1; i < cues.length; i++) if (cues[i].start < cues[i - 1].end) cues[i - 1].end = cues[i].start;
+  const keep = scene => ({...scene, layers: (scene.layers || []).filter(layer => layer.asset)});
+  const duration = frame / fps + outro.duration;
+  return {
+    scenes: [keep(intro), ...built, keep(outro)],
+    srt: cues.map((cue, index) => `${index + 1}\n${stamp(cue.start)} --> ${stamp(cue.end)}\n${cue.text}`).join('\n\n'),
+    duration,
+    placements,
+    danielText,
+    mayaText,
+  };
 }
 
 export function appendTeamtalkLesson(state, input) {

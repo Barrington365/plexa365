@@ -52,6 +52,19 @@ test('renders actual image, logo, literal text, video, narration, music and SRT 
   const pixel = (x, y) => [...data.subarray((y * info.width + x) * info.channels, (y * info.width + x) * info.channels + 3)];
   assert.ok(pixel(20, 20)[1] > 180); assert.ok(pixel(2, 2)[0] > 180);
 }));
+test('a keyed presenter clip replaces green and keeps the person', () => fixture(async root => {
+  await run(['-y', '-f', 'lavfi', '-i', 'color=c=0x00D600:s=160x90:r=10', '-t', '1', '-vf', 'drawbox=x=60:y=30:w=40:h=30:color=blue:t=fill', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', path.join(root, 'keyed.mp4')]);
+  const p = project();
+  p.scenes[0].layers = [{type: 'clip', asset: 'keyed.mp4', x: 20, y: 20, width: 160, height: 90, loop: true, chroma: '#00d600'}];
+  const result = await renderStudio({request: {project: p}}, root);
+  const frame = path.join(root, 'keyed-frame.png');
+  await run(['-y', '-i', result.file, '-frames:v', '1', frame]);
+  const {data, info} = await sharp(frame).raw().toBuffer({resolveWithObject: true});
+  const pixel = (x, y) => [...data.subarray((y * info.width + x) * info.channels, (y * info.width + x) * info.channels + 3)];
+  assert.ok(pixel(25, 25)[0] > 180, 'green screen stays transparent');
+  assert.ok(pixel(100, 55)[2] > 180, 'the keyed subject stays');
+}));
+
 test('missing audio produces silent output and no voice claim; burn switch ignores SRT', () => fixture(async root => {
   const p = { ...project(), id: 'saved-id', templateId: 'news-article', updatedAt: '2026-01-01T00:00:00.000Z', audio: { asset: '', volume: 1 }, music: { asset: '', start: 0, end: 0, volume: 1, fadeIn: 0, fadeOut: 0 }, voice: 'Unverified voice', srt: 'not SRT', burnCaptions: false };
   const result = await renderStudio({ request: { project: p } }, root);
