@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { WorkspaceSidebar } from "./WorkspaceSidebar";
-import { Montserrat } from "next/font/google";
+import localFont from "next/font/local";
 import { BRAND_MARK, BRAND_SLOGAN } from "@/app/lib/brand";
 import { AuthControls } from "@/app/components/AuthControls";
 import { AppNavLink } from "@/app/components/AppNavLink";
@@ -10,9 +10,11 @@ import { PlexaAssistant } from "@/app/components/PlexaAssistant";
 import {AgentCompanion} from "./AgentCompanion";
 
 /** Geometric sans aligned with the logo wordmark style (see /brand/plexa-logo.png). */
-const plexaFont = Montserrat({
-  subsets: ["latin"],
-  weight: ["600", "800"],
+const plexaFont = localFont({
+  src: [
+    { path: "../fonts/Montserrat-SemiBold.woff2", weight: "600", style: "normal" },
+    { path: "../fonts/Montserrat-ExtraBold.woff2", weight: "800", style: "normal" },
+  ],
   display: "swap",
 });
 
