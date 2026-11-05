@@ -41,7 +41,7 @@ test('TEAMtalk narration speaks Daniel and Maya separately and does not charge e
  assert.equal(project.scenes[1].layers.find(layer=>layer.id==='daniel-left').asset,'uploads/daniel-presenting.mp4');
  assert.equal(project.scenes[2].layers.find(layer=>layer.id==='maya-right').asset,'uploads/maya-presenting.mp4');
  assert.equal(project.scenes[2].layers.find(layer=>layer.id==='article-image').asset,'images/sesko.png');
- assert.equal(project.scenes[3].layers.some(layer=>layer.id==='club-crest'),false);
+ assert.equal(project.scenes[3].layers.find(layer=>layer.id==='club-crest').asset,'images/kane.png');
  assert.equal(project.scenes[3].layers.find(layer=>layer.id==='article-image').asset,'images/kane.png');
  const retry=await queueWorkspaceNarration(w,{projectId:project.id,voiceId:'ZF6FPAbjXT4488VcRRnw',expectedUpdatedAt:project.updatedAt},'user');
  await runWorkspaceNarration(w,retry.id,'test-key',fetcher);
