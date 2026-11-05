@@ -27,14 +27,14 @@ export const TEAMTALK_CREST_FILES = [
 ];
 
 export const TEAMTALK_PRESENTERS = [
-  {id: 'daniel-brooks', name: 'Daniel Brooks', position: 'left', style: 'Confident, experienced and slightly witty', voice: 'Daniel - Steady Broadcaster', elevenlabsVoiceId: 'onwK4e9ZLuTAKqWW03F9'},
+  {id: 'daniel-brooks', name: 'Daniel Brooks', position: 'left', style: 'Confident, experienced and slightly witty', voice: 'Planet F1 - Male - Sam', elevenlabsVoiceId: '2yqdQ7uuPQDBMgFA8dgu'},
   {id: 'maya-bennett', name: 'Maya Bennett', position: 'right', style: 'Upbeat, expressive, confident and engaging', voice: 'Amelia - Enthusiastic and Expressive', elevenlabsVoiceId: 'ZF6FPAbjXT4488VcRRnw'},
 ];
 
 /** Person bounds measured on the existing green-screen presenter clips. Placed on the floor between the two screens. */
 const TEAMTALK_PRESENTER_CROP = {x: 760, y: 120, width: 400, height: 920};
-export const TEAMTALK_DANIEL_BOX = {x: 500, y: 300, width: 330, height: 760, chroma: '#00d600', crop: TEAMTALK_PRESENTER_CROP};
-export const TEAMTALK_MAYA_BOX = {x: 1040, y: 300, width: 330, height: 760, chroma: '#00d600', crop: TEAMTALK_PRESENTER_CROP};
+export const TEAMTALK_DANIEL_BOX = {x: 587, y: 465, width: 158, height: 362, chroma: '#00d600', crop: TEAMTALK_PRESENTER_CROP};
+export const TEAMTALK_MAYA_BOX = {x: 1127, y: 465, width: 158, height: 362, chroma: '#00d600', crop: TEAMTALK_PRESENTER_CROP};
 
 export function teamtalkLiveDefaults() {
   return {
@@ -95,7 +95,7 @@ export const TEAMTALK_LIVE_AUTOMATION = {
     'Place the story club’s current Library crest on the left green screen.',
     'Use only the current crest file, such as chelsea-logo.png or manchester-united-logo.png. Do not use a historical variant.',
     'Leave the left screen empty when that crest is not in the Library. Do not invent a crest or cut one out of the article image.',
-    'Maya Bennett uses Amelia - Enthusiastic and Expressive. Daniel Brooks uses Daniel - Steady Broadcaster.',
+    'Maya Bennett uses Amelia - Enthusiastic and Expressive. Daniel Brooks uses Planet F1 - Male - Sam.',
     'Key the existing presenter clips onto the studio. The speaker uses Presenting and the other presenter uses Listening.',
   ],
 };
@@ -256,15 +256,19 @@ export function resolveTeamtalkAssets(assets) {
   return {found, missing};
 }
 
-/** Presenting and listening clips are separate files. A hyphenated Library name still matches. */
+/** Presenting and listening clips are separate files. A hyphenated Library name still matches. Shadow and reflection files are not used. */
 export function resolveTeamtalkPresenterClips(assets) {
-  const pick = (person, movement) => (assets || []).find(item => {
-    const name = String(item?.name || '').replace(/[-_]+/g, ' ');
-    return new RegExp(person, 'i').test(name) && movement.test(name) && item.asset;
-  })?.asset || '';
+  const pick = (person, movement, prefer) => {
+    const matches = (assets || []).filter(item => {
+      const name = String(item?.name || '').replace(/[-_]+/g, ' ');
+      return item?.asset && !/shadow|reflection/i.test(name) && new RegExp(person, 'i').test(name) && movement.test(name);
+    });
+    const preferred = prefer ? matches.find(item => prefer.test(String(item?.name || '').replace(/[-_]+/g, ' '))) : null;
+    return (preferred || matches[0])?.asset || '';
+  };
   const clips = {
-    danielPresenting: pick('daniel brooks', /present/i),
-    danielListening: pick('daniel brooks', /listen|react/i),
+    danielPresenting: pick('daniel brooks', /present/i, /\bv2\b/i),
+    danielListening: pick('daniel brooks', /listen|react/i, /\bv2\b/i),
     mayaPresenting: pick('maya bennett', /present/i),
     mayaListening: pick('maya bennett', /listen|react/i),
   };
@@ -312,7 +316,7 @@ function assignStories(turns) {
 }
 
 function storySource(scenes, story) {
-  const named = (scenes || []).find(scene => scene.id === story && scene.video?.asset);
+  const named = (scenes || []).find(scene => (scene.id === story || String(scene.id || '').startsWith(`${story}-`)) && scene.video?.asset);
   if (named) return named;
   const looped = (scenes || []).filter(scene => scene.video?.loop && scene.video.asset);
   const found = looped[Math.max(0, STORY_ORDER.indexOf(story))] || looped[0];
