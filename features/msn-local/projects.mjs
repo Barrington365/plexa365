@@ -1,5 +1,6 @@
 /** Local draft persistence. No rendering, networking, or publication side effects. */
 import {FOOTBALL365_PROFILE,FOOTBALL365_BROADCAST_PROFILE,FOOTBALL365_TEMPLATE,football365Defaults,football365BroadcastDefaults} from './football365-profile.mjs';
+import {TEAMTALK_LIVE_PROFILE,TEAMTALK_LIVE_TEMPLATE,teamtalkLiveDefaults} from './teamtalk-live.mjs';
 import {broadcastSchema} from './broadcast.mjs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -13,6 +14,7 @@ const definitions = [
   ['football365-live-studio-broadcast', 'MSN Video → Football365 → LIVE Studio Broadcast'],
   ['player-club', 'Player & Club'],
   ['transfer', 'Transfer'],
+  [TEAMTALK_LIVE_TEMPLATE, 'TEAMtalk LIVE — Dual Presenter News Studio V1.0'],
 ];
 const articleDefaults = {
   version: 1, width: 1920, height: 1080, fps: 30,
@@ -60,16 +62,27 @@ function layoutScenes(templateId) {
       image('to-club-logo', 1520, 450, 280, 280),
       label('summary', 'Add sourced transfer details', 1000, 810, 840, 140, 36),
     ],
+    [TEAMTALK_LIVE_TEMPLATE]: [
+      image('daniel-left', 70, 560, 480, 480),
+      image('maya-right', 1370, 560, 480, 480),
+      {id: 'club-crest', type: 'logo', text: '', asset: '', x: 80, y: 180, width: 360, height: 280},
+      image('article-image', 1180, 160, 560, 360),
+      brand(),
+    ],
   };
   return [{ id: 'scene-1', duration: 8, background: '#060d15', layers: layouts[templateId]||layouts['news-article'] }];
 }
 
 /** Returns detached reusable defaults; templates never contain project identity. */
 export function listTemplates() {
-  return definitions.map(([id, name]) => ({ id, name, defaults: {
-    ...clone(articleDefaults), title: name, scenes: layoutScenes(id),
-    metadata: { description: '', tags: [], sourceUrl: '', language: '', seo: { title: '', description: '', tags: [] } },
-  } }));
+  return definitions.map(([id, name]) => {
+    const defaults = {
+      ...clone(articleDefaults), title: name, scenes: layoutScenes(id),
+      metadata: { description: '', tags: [], sourceUrl: '', language: '', seo: { title: '', description: '', tags: [] } },
+    };
+    if (id === TEAMTALK_LIVE_TEMPLATE) Object.assign(defaults, teamtalkLiveDefaults());
+    return { id, name, defaults };
+  });
 }
 
 function tags(value) {
@@ -180,7 +193,7 @@ function applyPatch(previous, patch) {
   for (const [key, value] of Object.entries(patch)) {
     if (!fields.has(key)) throw Error(`Unsupported project field: ${key}`);
     if (['version', 'width', 'height', 'fps', 'captionPreset', 'captionTextColor', 'captionHighlightColor', 'voice', 'title'].includes(key)) result[key] = sceneModelSchema.shape[key].parse(value);
-    else if (key === 'productionProfile') result.productionProfile=z.enum(['',FOOTBALL365_PROFILE,FOOTBALL365_BROADCAST_PROFILE]).parse(value);
+    else if (key === 'productionProfile') result.productionProfile=z.enum(['',FOOTBALL365_PROFILE,FOOTBALL365_BROADCAST_PROFILE,TEAMTALK_LIVE_PROFILE]).parse(value);
     else if (key === 'broadcast') result.broadcast=value===null?null:broadcastSchema.parse(value);
     else if (key === 'deliveryBrief') result.deliveryBrief=value===null?null:deliveryBriefSchema.parse(value);
     else if (key === 'metadata') result.metadata = metadata(value, result.metadata);

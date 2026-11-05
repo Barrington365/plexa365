@@ -1,4 +1,5 @@
 import {workspaceBroadcast} from './workspace-broadcast.mjs';
+import {TEAMTALK_LIVE_AUTOMATION, appendTeamtalkLesson, runTeamtalkAutomation} from './teamtalk-live.mjs';
 import {expireWorkspaceJobs} from './workspace-job-expiry.mjs';
 import {publication} from './publishing.mjs';
 import {socialDraft} from './social-draft.mjs';
@@ -31,6 +32,7 @@ export async function workspaceRead(workspace,route){
   case 'article-inbox':return {...(state.inbox||{articles:[],history:[],lastSuccessfulImportAt:null}),articles:(state.inbox?.articles||[]).map(a=>({...a,scriptPreparation:(()=>{const j=state.jobs.find(j=>j.id===a.scriptPreparation?.jobId);return j?.status==='failed'?{...a.scriptPreparation,status:'failed',error:j.stage,updatedAt:j.updatedAt}:a.scriptPreparation;})(),images:state.images.filter(i=>i.sourceUrl===a.sourceUrl).map(i=>({...i,url:mediaURL('images/'+i.id+'.png')}))}))};
   case 'studio-articles':return studioArticlesFrom(state.inbox?.articles);
   case 'brand-kits':return state.kits||JSON.parse(await fs.readFile(path.join(process.cwd(),'features/brand-kits/seeds.json'),'utf8'));
+  case 'automations':return {automations:[TEAMTALK_LIVE_AUTOMATION],lessons:state.teamtalkLessons||[],baseline:null};
   default:throw Error('Studio route not found');
  }
 }
@@ -78,6 +80,8 @@ export async function workspaceWrite(workspace,route,body){
   case 'studio-playlists/move':return workspace.update(s=>(moveStudioVideo(s,body.playlistId,body.jobId,body.direction,new Date().toISOString()),playlistCatalogue(s)));
   case 'studio-playlists/rename':return workspace.update(s=>(renameStudioPlaylist(s,{...body,playlistId:body.playlistId},new Date().toISOString()),playlistCatalogue(s)));
   case 'studio-playlists/delete':return workspace.update(s=>(deleteStudioPlaylist(s,body.playlistId),playlistCatalogue(s)));
+  case 'automations/run':return runTeamtalkAutomation();
+  case 'automations/lesson':return workspace.update(s=>appendTeamtalkLesson(s,body));
   case 'images/remove-background':{
    const {state}=await workspace.snapshot(),original=state.images.find(i=>i.id===body.id);if(!original)throw Error('Image not found');
    let bytes=(await workspace.getFile('images/'+original.id+'.png')).bytes;

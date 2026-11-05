@@ -18,7 +18,7 @@ async function fixture(t) {
 
 test('three reusable templates create independent drafts compatible with article fields', async t => {
   const { store, dir } = await fixture(t);
-  assert.deepEqual(listTemplates().map(t => t.name), ['News Article', 'MSN Video → Football365 → LIVE Studio Broadcast', 'Player & Club', 'Transfer']);
+  assert.deepEqual(listTemplates().map(t => t.name), ['News Article', 'MSN Video → Football365 → LIVE Studio Broadcast', 'Player & Club', 'Transfer', 'TEAMtalk LIVE — Dual Presenter News Studio V1.0']);
   const defaults = listTemplates(); defaults[0].defaults.metadata.tags.push('changed');
   assert.deepEqual(listTemplates()[0].defaults.metadata.tags, []);
   const a = await store.create('player-club', { title: 'First', metadata: { tags: ['football'] } });
@@ -163,7 +163,7 @@ test('custom templates persist reusable snapshots with independent nested instan
   assert.equal(template.defaults.updatedAt, undefined);
   assert.deepEqual(await store.get(p.id), p);
   const reopened = createProjectStore(dir);
-  assert.equal((await reopened.listTemplates()).length, 5);
+  assert.equal((await reopened.listTemplates()).length, 6);
   template.defaults.scenes[0].layers[0].text = 'External change';
   const a = await reopened.create(template.id, { title: 'A' });
   const b = await reopened.create(template.id, { title: 'B' });
@@ -195,7 +195,7 @@ test('invalid scenes, tracks and template write failures leave saved state intac
   const rename = t.mock.method(fs, 'rename', async () => { throw Error('Disk error'); });
   await assert.rejects(store.saveTemplate({ projectId: p.id, name: 'Failed template' }), /Disk error/);
   rename.mock.restore();
-  assert.equal((await store.listTemplates()).length, 4);
+  assert.equal((await store.listTemplates()).length, 5);
   assert.equal(await fs.readFile(path.join(dir, 'projects.json'), 'utf8'), before);
   assert.deepEqual(await fs.readdir(dir), ['projects.json']);
 });
@@ -222,6 +222,7 @@ test('built-in layouts have distinct editable scenes and match the server API', 
     'football365-live-studio-broadcast': ['article-image', 'headline', 'summary'],
     'player-club': ['player-cutout', 'club-logo', 'club-name'],
     transfer: ['player-cutout', 'from-club-logo', 'to-club-logo', 'direction'],
+    'teamtalk-live-dual-presenter-v1': ['daniel-left', 'maya-right', 'club-crest', 'article-image', 'brand-logo'],
   };
   for (const template of templates) {
     const p = await store.create(template.id, { title: `My ${template.name}` });
@@ -248,14 +249,14 @@ test('built-in layouts have distinct editable scenes and match the server API', 
     await store.save(p.id, { scenes: p.scenes });
     assert.equal((await store.create(template.id, { title: 'Independent' })).scenes[0].layers[0].asset, '');
   }
-  assert.equal((await store.list({ trash: false })).length, 8);
+  assert.equal((await store.list({ trash: false })).length, 10);
   assert.deepEqual(await store.list({ trash: true }), []);
 });
 
 test('music defaults to .12 and persists a validated timelineStart with legacy compatibility', async t => {
   const { store, dir } = await fixture(t);
   for (const template of await store.listTemplates()) {
-    assert.equal(template.defaults.music.volume, 0.12);
+    assert.equal(template.defaults.music.volume, template.id === 'teamtalk-live-dual-presenter-v1' ? 0.2 : 0.12);
     assert.equal(template.defaults.music.timelineStart, 0);
   }
   const p = await store.create('news-article');
