@@ -24,3 +24,28 @@ it('direct dialogue reads reject inactive, unverified and revoked users',()=>{
  expect(visibleDialogue(agent,{...user,...patch} as PlexaUser)).toEqual([]);
  }
 });
+
+it('projects mixed records without leaking admin requests, foreign tasks or inactive account data',()=>{
+ const d=fixture();
+ Object.assign(d.agents[0],{state:'Active',approved:true});
+ d.agents[0].dialogue=[{at:'now',from:'agent',text:'Own reply',userId:user.id,brand:'TEAMtalk',workspace:'pilot'}];
+ const t={id:'working',owner:'bob',brand:'TEAMtalk',workspace:'pilot',title:'Approved draft',source:'test',priority:'Normal',state:'Working' as const,createdAt:'now',updatedAt:'now',messages:[],runId:'run',leaseUntil:new Date(Date.now()+60000).toISOString()};
+ d.tasks=[t,{...t,id:'foreign',workspace:'other'}];
+ d.requests=[{id:'waiting',agentId:'bob',reason:'Admin only',state:'Waiting for Admin',createdAt:'now'},{id:'closed',agentId:'bob',reason:'Closed',state:'Completed',createdAt:'now'}];
+ const before=JSON.stringify(d);
+ const editor=companionData(d,user);
+ expect(editor.agents.map(a=>a.id)).toEqual(['bob','fiddle']);
+ expect(editor.agents[0].working?.title).toBe('Approved draft');
+ expect(editor.tasks.map(t=>t.id)).toEqual(['working']);
+ expect(editor.requests).toEqual([]);
+ expect(companionData(d,{...user,role:'admin'}).requests.map(r=>r.id)).toEqual(['waiting']);
+ for(const patch of [{active:false},{emailVerifiedAt:null}]){
+ const disabled={...user,role:'admin',...patch} as PlexaUser;
+ const result=companionData(d,disabled);
+ expect(result.agents).toEqual([]);
+ expect(result.tasks).toEqual([]);
+ expect(result.requests).toEqual([]);
+ expect(visibleDialogue(d.agents[0],disabled)).toEqual([]);
+ }
+ expect(JSON.stringify(d)).toBe(before);
+});

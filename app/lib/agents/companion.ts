@@ -2,13 +2,14 @@ import {z} from 'zod';
 import type {PlexaUser} from '@/app/lib/auth/types';
 import type {Agent, Data} from './model';
 import {canAccessAgent} from './access';
+import {workingTask} from './working-status';
 export const preferencesSchema=z.object({enabled:z.boolean(),defaultAgent:z.string().max(30),size:z.enum(['small','medium','large']),bubble:z.boolean(),command:z.boolean(),animation:z.boolean(),reducedMotion:z.boolean(),rememberPosition:z.boolean(),startMinimised:z.boolean(),notifications:z.boolean(),x:z.number().min(0).max(10000),y:z.number().min(0).max(10000)});
 export type CompanionPreferences=z.infer<typeof preferencesSchema>;
 export const defaultPreferences:CompanionPreferences={enabled:true,defaultAgent:'bob',size:'medium',bubble:true,command:true,animation:true,reducedMotion:false,rememberPosition:true,startMinimised:false,notifications:true,x:0,y:0};
 export function visibleDialogue(agent:Agent,user:PlexaUser){if(!canAccessAgent(user,agent))return [];return agent.dialogue.filter(line=>user.role==='admin'||(line.userId===user.id&&line.brand===agent.brand&&line.workspace===agent.workspace)).slice(-50);}
 export function companionData(data:Data,user:PlexaUser){
  const agents=data.agents.filter(a=>canAccessAgent(user,a));
- return {version:data.version,userId:user.id,role:user.role,preferences:user.agentCompanion??defaultPreferences,agents:agents.map(a=>({id:a.id,name:a.name,responsibility:a.responsibility,state:a.state,brand:a.brand,workspace:a.workspace,dialogue:visibleDialogue(a,user),lessons:approvedLessons(data,a)})),tasks:data.tasks.filter(t=>agents.some(a=>a.id===t.owner&&a.brand===t.brand&&a.workspace===t.workspace)).slice(-20).map(t=>({id:t.id,owner:t.owner,title:t.title,state:t.state,output:t.output,updatedAt:t.updatedAt})),requests:user.role==='admin'?data.requests.filter(r=>r.state==='Waiting for Admin'):[],learningStatus:'Only saved, approved lessons within this agent scope are shown. Empty means no eligible records.'};
+ return {version:data.version,userId:user.id,role:user.role,preferences:user.agentCompanion??defaultPreferences,agents:agents.map(a=>{const work=workingTask(a,data.tasks);return ({id:a.id,name:a.name,responsibility:a.responsibility,state:a.state,brand:a.brand,workspace:a.workspace,working:work?{title:work.title,leaseUntil:work.leaseUntil}:null,dialogue:visibleDialogue(a,user),lessons:approvedLessons(data,a)});}),tasks:data.tasks.filter(t=>agents.some(a=>a.id===t.owner&&a.brand===t.brand&&a.workspace===t.workspace)).slice(-20).map(t=>({id:t.id,owner:t.owner,title:t.title,state:t.state,output:t.output,updatedAt:t.updatedAt})),requests:user.role==='admin'&&agents.length>0?data.requests.filter(r=>r.state==='Waiting for Admin'):[],learningStatus:'Only saved, approved lessons within this agent scope are shown. Empty means no eligible records.'};
 }
 /** Project IDs from the browser are hints. Scope must come from saved metadata. */
 export function verifiedProject(project:Record<string,unknown>|null,user:PlexaUser,agent:Agent){
