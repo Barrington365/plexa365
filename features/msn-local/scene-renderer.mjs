@@ -54,7 +54,7 @@ const position = { x: z.number().int().min(0).max(4096), y: z.number().int().min
 const size = { width: z.number().int().min(1).max(4096), height: z.number().int().min(1).max(4096) };
 const animationSchema=z.object(Object.fromEntries(Object.entries(motionChoices).map(([phase,effects])=>[phase,z.object({effect:z.enum(effects),duration:z.number().finite().min(.1).max(120),delay:seconds,intensity:z.number().finite().min(0).max(100),loop:z.boolean()}).strict().optional()]))).strict().optional();
 const screen=z.array(z.tuple([z.number().min(0).max(1),z.number().min(0).max(1)])).length(4).refine(p=>{try{screenMatrix(p);return true;}catch{return false;}},'Invalid screen corners');
-const picture = type => z.object({ screenCorners:screen.optional(),screenBackground:colour.optional(), animation:animationSchema, id: z.string().optional(), type: z.literal(type), asset, text: z.string().max(2000).optional(), fontSize: z.number().finite().optional(), color: colour.optional(), ...position, ...size, fit: z.enum(['contain', 'cover', 'fill']).default('contain') }).strict();
+const picture = type => z.object({ screenCorners:screen.optional(),screenBackground:colour.optional(), screenInset:z.number().min(0).max(0.4).optional(), animation:animationSchema, id: z.string().optional(), type: z.literal(type), asset, text: z.string().max(2000).optional(), fontSize: z.number().finite().optional(), color: colour.optional(), ...position, ...size, fit: z.enum(['contain', 'cover', 'fill']).default('contain') }).strict();
 export const sceneModelSchema = z.object({
   version: z.literal(1).default(1), title: z.string().max(200).default('Scene render'),
   width: z.number().int().min(64).max(3840).multipleOf(2).default(1920),
@@ -265,7 +265,15 @@ export async function renderScenes(input, { signal, onProgress = () => {}, root:
         } else {
           const source = await copyAsset(layer.asset, 'image');
           // Decode to raster first; untrusted media never becomes a filter expression.
-          const raster=sharp(source, { limitInputPixels: 40000000 }).resize(layer.width, layer.height, { fit: layer.fit, background: layer.screenBackground||'#00000000' });
+          const inset = layer.screenInset || 0;
+          const plate = layer.screenBackground || (inset ? '#07131f' : '#00000000');
+          let raster;
+          if (inset > 0) {
+            const innerW = Math.max(1, Math.round(layer.width * (1 - inset * 2)));
+            const innerH = Math.max(1, Math.round(layer.height * (1 - inset * 2)));
+            const inner = await sharp(source, { limitInputPixels: 40000000 }).resize(innerW, innerH, { fit: layer.fit, background: plate }).png().toBuffer();
+            raster = sharp({ create: { width: layer.width, height: layer.height, channels: 4, background: plate } }).composite([{ input: inner, left: Math.round((layer.width - innerW) / 2), top: Math.round((layer.height - innerH) / 2) }]);
+          } else raster = sharp(source, { limitInputPixels: 40000000 }).resize(layer.width, layer.height, { fit: layer.fit, background: layer.screenBackground || '#00000000' });
           if(layer.screenCorners){const {data}=await raster.flatten({background:layer.screenBackground||'#07131f'}).ensureAlpha().raw().toBuffer({resolveWithObject:true});await sharp(warpRgba(data,layer.width,layer.height,layer.screenCorners),{raw:{width:layer.width,height:layer.height,channels:4}}).png().toFile(file);}else await raster.png().toFile(file);
         }
         args.push('-loop', '1', '-framerate', String(model.fps), ...localInput(file, 'image2'));

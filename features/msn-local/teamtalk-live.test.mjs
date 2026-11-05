@@ -155,6 +155,11 @@ test('the automation stays paused and a lesson does not change V1.0', async () =
     assert.equal(article.x, 1389);
     assert.equal(crest.asset, '');
     assert.equal(article.asset, '');
+    assert.equal(crest.screenBackground, '#2AF5C0');
+    assert.equal(crest.screenInset, 0.2);
+    assert.equal(article.screenBackground, '#0C1B28');
+    assert.equal(article.fit, 'contain');
+    assert.equal(article.screenInset, 0.08);
     assert.equal(listed.automations[0].screens.left, 'Story club crest');
     assert.equal(listed.automations[0].status, 'Paused');
     const store = createProjectStore(root);
