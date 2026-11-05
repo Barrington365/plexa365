@@ -7,15 +7,20 @@ export const TEAMTALK_LIVE_NAME = 'TEAMtalk LIVE — Dual Presenter News Studio 
 export const TEAMTALK_LIVE_VERSION = 'V1.0';
 export const TEAMTALK_LIVE_AUTOMATION_ID = 'teamtalk-live-three-story-bulletin';
 export const TEAMTALK_EMPTY_STUDIO = 'TEAMtalk-LIVE-Empty-Studio-1920x1080';
-export const TEAMTALK_SCREEN_BACKGROUND = '#07131f';
+/** TEAMtalk brand kit: mint behind a crest, navy behind a photograph. */
+export const TEAMTALK_LOGO_BACKGROUND = '#2AF5C0';
+export const TEAMTALK_PHOTO_BACKGROUND = '#0C1B28';
+export const TEAMTALK_LOGO_INSET = 0.2;
+export const TEAMTALK_PHOTO_INSET = 0.08;
+export const TEAMTALK_SCREEN_BACKGROUND = TEAMTALK_PHOTO_BACKGROUND;
 
 /** Green screens measured on TEAMtalk-LIVE-Empty-Studio-1920x1080. Left is the club crest. Right is the article image. */
 export const TEAMTALK_LEFT_SCREEN = {
-  x: 95, y: 358, width: 349, height: 250, fit: 'contain', screenBackground: TEAMTALK_SCREEN_BACKGROUND,
+  x: 95, y: 358, width: 349, height: 250, fit: 'contain', screenBackground: TEAMTALK_LOGO_BACKGROUND, screenInset: TEAMTALK_LOGO_INSET,
   screenCorners: [[0.0005, 0.0017], [0.9982, 0.2186], [0.9986, 0.9242], [0.0009, 0.9991]],
 };
 export const TEAMTALK_RIGHT_SCREEN = {
-  x: 1389, y: 203, width: 436, height: 509, fit: 'contain', screenBackground: TEAMTALK_SCREEN_BACKGROUND,
+  x: 1389, y: 203, width: 436, height: 509, fit: 'contain', screenBackground: TEAMTALK_PHOTO_BACKGROUND, screenInset: TEAMTALK_PHOTO_INSET,
   screenCorners: [[0.0059, 0.3355], [0.9966, 0.0003], [0.9983, 0.9982], [0.0006, 0.8462]],
 };
 
@@ -99,8 +104,8 @@ export const TEAMTALK_LIVE_AUTOMATION = {
   },
   media: [
     'Import the article’s published image into the Library and use the original whose source URL matches the story.',
-    'Place that image on the right green screen.',
-    'Place the story club’s current Library crest on the left green screen.',
+    'Place that image on the right green screen, contained on the TEAMtalk navy panel so the full picture stays visible.',
+    'Place the story club’s current Library crest on the left green screen, inset on the TEAMtalk mint panel.',
     'Use only the current crest file, such as chelsea-logo.png, manchester-united-logo.png, or Bayern Munich - club logo - football-logos.cc.png. Do not use a historical variant.',
     'When that crest is missing, fill the screen with the story picture or another current Library image for that story. Do not leave the green screen visible, invent a crest, or cut one out of a photograph.',
     'Maya Bennett uses Amelia - Enthusiastic and Expressive. Daniel Brooks uses Planet F1 - Male - Sam.',
@@ -251,7 +256,7 @@ function currentLibraryPicture(scene, assets) {
 }
 
 function screenLayer(id, asset, box, fit) {
-  return {id, type: fit === 'cover' ? 'image' : 'logo', text: '', asset, ...box, fit};
+  return {id, type: id === 'article-image' ? 'image' : 'logo', text: '', asset, ...box, fit};
 }
 
 /** A looped studio scene keeps both screens filled. A missing crest uses the current crest, then the story picture, then another current Library image. */
@@ -265,12 +270,16 @@ export function coverTeamtalkScreens(scenes, assets = []) {
     const picture = currentLibraryPicture(scene, assets);
     if (!crest) {
       const asset = approved?.asset || article?.asset || picture?.asset || '';
-      if (asset) layers.unshift(screenLayer('club-crest', asset, TEAMTALK_LEFT_SCREEN, asset === article?.asset && asset !== approved?.asset ? 'cover' : 'contain'));
+      if (asset) {
+        const photo = asset !== approved?.asset;
+        const box = photo ? {...TEAMTALK_LEFT_SCREEN, screenBackground: TEAMTALK_PHOTO_BACKGROUND, screenInset: TEAMTALK_PHOTO_INSET} : TEAMTALK_LEFT_SCREEN;
+        layers.unshift(screenLayer('club-crest', asset, box, 'contain'));
+      }
     }
     if (!article) {
       const filled = layers.find(layer => layer.id === 'club-crest' && layer.asset);
       const asset = picture?.asset || filled?.asset || '';
-      if (asset) layers.unshift(screenLayer('article-image', asset, TEAMTALK_RIGHT_SCREEN, 'cover'));
+      if (asset) layers.unshift(screenLayer('article-image', asset, TEAMTALK_RIGHT_SCREEN, 'contain'));
     }
     return {...scene, layers};
   });
