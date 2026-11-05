@@ -81,12 +81,12 @@ async function runTeamtalkNarration(workspace,job,key,fetcher){
  const voices=await accountVoices(key,fetcher);
  const presenterVoice=person=>voices.find(voice=>voice.id===person.elevenlabsVoiceId);
  const danielVoice=presenterVoice(TEAMTALK_PRESENTERS[0]),mayaVoice=presenterVoice(TEAMTALK_PRESENTERS[1]);
- if(!danielVoice||!mayaVoice)throw Error('Daniel - Steady Broadcaster or Amelia - Enthusiastic and Expressive is unavailable to the connected account. No narration generated.');
+ if(!danielVoice||!mayaVoice)throw Error('Planet F1 - Male - Sam or Amelia - Enthusiastic and Expressive is unavailable to the connected account. No narration generated.');
  const {clips,missing}=resolveTeamtalkPresenterClips(Object.values((await workspace.snapshot()).state.assets||{}));
  if(missing.length)throw Error('Presenter Presenting and Listening clips are missing. No narration generated.');
  const turns=parseTeamtalkTurns(p.script);
  const danielText=speakerScript(turns,'daniel'),mayaText=speakerScript(turns,'maya');
- await patchWorkspaceJob(workspace,job.id,{stage:'Generating Daniel - Steady Broadcaster',progress:20});
+ await patchWorkspaceJob(workspace,job.id,{stage:'Generating Planet F1 - Male - Sam',progress:20});
  const daniel=await storedNarration(workspace,{projectId:p.id,title:p.title,script:danielText,voice:danielVoice,key,fetcher,jobId:job.id});
  if((await workspace.snapshot()).state.jobs.find(item=>item.id===job.id)?.cancelRequestedAt)throw Error('Narration cancelled. Any generated audio is retained in the Library.');
  await patchWorkspaceJob(workspace,job.id,{stage:'Generating Amelia - Enthusiastic and Expressive',progress:55});

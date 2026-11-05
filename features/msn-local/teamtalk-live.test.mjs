@@ -159,6 +159,8 @@ test('the automation stays paused and a lesson does not change V1.0', async () =
 
 test('presenter clips match hyphenated Library names and each speaker keeps a voice', () => {
   const resolved = resolveTeamtalkPresenterClips([
+    {name: 'Football365-Daniel-Brooks-Presenting-Shadow.mp4', asset: 'uploads/daniel-shadow.mp4'},
+    {name: 'Football365-Daniel-Brooks-Presenting.mp4', asset: 'uploads/daniel-v1.mp4'},
     {name: 'Football365-Daniel-Brooks-V2-Presenting.mp4', asset: 'uploads/daniel-presenting.mp4'},
     {name: 'Football365-Daniel-Brooks-Listening.mp4', asset: 'uploads/daniel-listening.mp4'},
     {name: 'Football365-Maya-Bennett-Presenting.mp4', asset: 'uploads/maya-presenting.mp4'},
