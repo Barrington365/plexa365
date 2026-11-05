@@ -16,3 +16,5 @@ Artwork checks on the final release candidate: 421 tests passed, one skipped. Th
 VoiceOver test procedure: in Safari, focus the character button. Confirm the announced name is “Expand conversation with Bob”; the decorative eyelid SVG must not be an additional stop. Activate with Return and verify the history panel becomes available. The macOS accessibility tree exposed the named button and excluded the decorative overlay; keyboard Return opened the history. VoiceOver was started for an audible check, but the Mac locked before spoken output could be verified. Do not record audio as passed.
 
 If eye animation assets are unavailable or invalid, the character stays visible without the eyelid effect. You can still use the character controls.
+
+Accessibility limitation (5 November 2026): audible VoiceOver output for the decorative eyelid overlays remains untested. No accessibility compliance is claimed for this feature. The overlays are optional decoration and may not appear if metadata or styles fail to load. Keyboard focus and activation were verified; these checks do not establish spoken output. VoiceOver was switched off in System Settings after the test.

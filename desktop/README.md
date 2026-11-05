@@ -68,3 +68,5 @@ PLEXA_DESKTOP_DEV_ORIGIN=http://localhost:8123 npm run build --prefix desktop --
 ```
 
 If eye animation assets are unavailable or invalid, the character stays visible without the eyelid effect. You can still use the character controls.
+
+Accessibility limitation (5 November 2026): audible VoiceOver output for the decorative eyelid overlays remains untested. No accessibility compliance is claimed for this feature. The overlays are optional decoration and may not appear if metadata or styles fail to load. Keyboard focus and activation were verified; these checks do not establish spoken output. VoiceOver was switched off in System Settings after the test.
