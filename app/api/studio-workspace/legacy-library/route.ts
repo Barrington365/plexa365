@@ -49,7 +49,9 @@ async function inventory() {
 }
 
 function guard(request: Request) {
-  if (!isWorkspaceSameOrigin(request)) return Response.json({error: 'Same-origin request required'}, {status: 403});
+  const site = request.headers.get('sec-fetch-site');
+  const browserSameSite = site === 'same-origin';
+  if (!browserSameSite && !isWorkspaceSameOrigin(request)) return Response.json({error: 'Same-origin request required'}, {status: 403});
   if (!shouldUseNetlifyBlobStore()) return Response.json({error: 'Library inventory is available on the hosted Studio.'}, {status: 503});
   return null;
 }
@@ -82,6 +84,21 @@ export async function POST(request: Request) {
   if (denied) return denied;
   const body = await request.json().catch(() => null);
   const action = body?.action;
+  if (action === 'list') {
+    const listed = await inventory();
+    const state = (await hostedWorkspace().snapshot()).state;
+    const keys = Object.keys(state.assets || {});
+    return Response.json({
+      inventoriedAt: new Date().toISOString(),
+      files: listed.files,
+      unavailable: listed.unavailable,
+      workspace: {
+        total: keys.length,
+        legacy: keys.filter(key => key.startsWith('legacy-library/')).length,
+        other: keys.filter(key => !key.startsWith('legacy-library/')).length,
+      },
+    }, {headers: {'Cache-Control': 'no-store'}});
+  }
   const rel = normaliseLegacyRel(body?.rel);
   if ((action !== 'inspect' && action !== 'copy') || !rel) return Response.json({error: 'Choose one inventoried library file'}, {status: 400});
   const listed = await inventory();
