@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {showNextPreview} from './preview.mjs';
+import {showNextPreview,nextPlaylistIndex} from './preview.mjs';
 const base={hasNext:true,started:true,duration:120,currentTime:110,inAd:false};
 test('preview appears at ten seconds remaining, not before',()=>{
  assert.equal(showNextPreview({...base,currentTime:109.9}),false);
@@ -12,4 +12,11 @@ test('preview hides on seeking backwards, completion and unknown duration',()=>{
 });
 test('preview requires started content and a next video, never an advertisement',()=>{
  for(const patch of [{hasNext:false},{started:false},{inAd:true}])assert.equal(showNextPreview({...base,...patch}),false);
+});
+
+test("playlist wraps from last to first and handles single and empty queues",()=>{
+ assert.equal(nextPlaylistIndex(3,0),1);
+ assert.equal(nextPlaylistIndex(3,2),0);
+ assert.equal(nextPlaylistIndex(1,0),0);
+ assert.equal(nextPlaylistIndex(0,0),-1);
 });
