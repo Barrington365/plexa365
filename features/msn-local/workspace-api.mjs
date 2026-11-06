@@ -13,6 +13,7 @@ import path from 'node:path';import fs from 'node:fs/promises';import {randomUUI
 import {removeBackground} from './background-removal.mjs';
 import {addStudioVideo,analyticsForVideos,applyPlayerPoster,approveThumbnail,assignThumbnail,createStudioPlaylist,deleteStudioPlaylist,libraryDetails,moveStudioVideo,removeStudioVideo,renameStudioPlaylist,resolveLibraryTarget,restoreThumbnail,videoLibraryView} from './video-library.mjs';
 import {captureVideoFrame,storeUploadedThumbnail,suggestVideoFrame} from './video-thumbnail.mjs';
+import {labelLibraryAsset,presenterCatalogue,savePresenterProfile} from './library-sections.mjs';
 const mediaURL=asset=>'/api/studio-workspace/media?asset='+encodeURIComponent(asset);
 function playlistCatalogue(state){const view=videoLibraryView(state);const thumb=video=>video.thumbnail?.url||'';return {playlists:view.playlists,videos:view.videos.map(video=>({...video,thumbnail:thumb(view.finished.find(item=>item.jobId===video.jobId)||{})})),studioPlaylists:view.studioPlaylists,finished:view.finished.map(video=>({jobId:video.jobId,title:video.title,thumbnail:thumb(video)}))};}
 function storeThumbnailDraft(state,captured){state.thumbnailDrafts??={};state.thumbnailDrafts[captured.key]=captured.draft;for(const entry of captured.entries)state.assets[entry.asset]=entry;return {key:captured.key,draft:captured.draft,url:mediaURL(captured.draft.listAsset),originalUrl:mediaURL(captured.draft.asset)};}
@@ -24,7 +25,7 @@ export async function workspaceRead(workspace,route){
  const {state}=await workspace.snapshot();
  switch(route){
   case 'images':return state.images;
-  case 'studio-assets':return {assets:Object.values(state.assets).filter(f=>mime(f.asset)).map(f=>{const category=['presenter','studio','intro','outro','transition','background','graphics'].includes(f.category)?f.category:undefined;return {asset:f.asset,name:f.name||path.basename(f.asset),type:mime(f.asset).split('/')[0],url:mediaURL(f.asset),updatedAt:f.updatedAt||state.images.find(i=>'images/'+i.id+'.png'===f.asset)?.updatedAt||null,...(category?{category}:{})};})};
+  case 'studio-assets':return {assets:Object.values(state.assets).filter(f=>mime(f.asset)).map(f=>{const category=['presenter','studio','intro','outro','transition','background','graphics'].includes(f.category)?f.category:undefined;return {asset:f.asset,name:f.name||path.basename(f.asset),type:mime(f.asset).split('/')[0],url:mediaURL(f.asset),updatedAt:f.updatedAt||state.images.find(i=>'images/'+i.id+'.png'===f.asset)?.updatedAt||null,...(f.librarySection?{librarySection:f.librarySection}:{}),...(category?{category}:{})};})};
   case 'state':return {jobs:state.jobs,active:state.jobs.find(j=>['queued','running','saving'].includes(j.status))?.id,assets:workspaceClips(state).map(c=>({...c,url:mediaURL(c.asset)}))};
   case 'library-trash':return state.trash;
   case 'playlists':return playlistCatalogue(state);
@@ -33,6 +34,7 @@ export async function workspaceRead(workspace,route){
   case 'studio-articles':return studioArticlesFrom(state.inbox?.articles);
   case 'brand-kits':return state.kits||JSON.parse(await fs.readFile(path.join(process.cwd(),'features/brand-kits/seeds.json'),'utf8'));
   case 'automations':return {automations:[TEAMTALK_LIVE_AUTOMATION],lessons:state.teamtalkLessons||[],baseline:null};
+  case 'presenters':return {presenters:presenterCatalogue(state)};
   default:throw Error('Studio route not found');
  }
 }
@@ -64,6 +66,8 @@ export async function workspaceWrite(workspace,route,body){
   case 'projects/restore':return projects.restore(body.id);
   case 'templates/save':return projects.saveTemplate(body);
   case 'library-trash':{if(typeof body.key!=='string'||body.key.length>2048||typeof body.trashed!=='boolean'||['__proto__','constructor','prototype'].includes(body.key))throw Error('Invalid trash request');return workspace.update(s=>{s.trash[body.key]={trashed:body.trashed,updatedAt:new Date().toISOString()};return s.trash;});}
+  case 'library/label':return workspace.update(s=>labelLibraryAsset(s,body));
+  case 'presenters/save':return workspace.update(s=>savePresenterProfile(s,body));
   case 'playlists/add':return workspace.update(s=>{const playlist=playlistById(s,body.playlistId);const video=(s.websiteVideos||[]).find(v=>v.jobId===body.jobId&&v.destinationId===playlist.destinationId&&v.status==='published');if(!video)throw Error('Publish this video to the player before adding it to a playlist');if(!playlist.videoIds.includes(video.id))playlist.videoIds.push(video.id);return playlistCatalogue(s);});
   case 'playlists/remove':return workspace.update(s=>{const playlist=playlistById(s,body.playlistId);if(typeof body.videoId!=='string')throw Error('Choose a video');playlist.videoIds=playlist.videoIds.filter(id=>id!==body.videoId);return playlistCatalogue(s);});
   case 'playlists/move':return workspace.update(s=>{const playlist=playlistById(s,body.playlistId);if(typeof body.videoId!=='string'||!['up','down'].includes(body.direction))throw Error('Choose a video');const index=playlist.videoIds.indexOf(body.videoId),next=index+(body.direction==='up'?-1:1);if(index<0||next<0||next>=playlist.videoIds.length)throw Error('That video cannot move further');const [item]=playlist.videoIds.splice(index,1);playlist.videoIds.splice(next,0,item);return playlistCatalogue(s);});
