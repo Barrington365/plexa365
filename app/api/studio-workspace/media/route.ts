@@ -1,7 +1,7 @@
 import {requireUser} from '@/app/lib/auth/guards';
 import {hostedWorkspace} from '@/app/lib/studio-workspace/store';
 export const runtime='nodejs';export const dynamic='force-dynamic';
-const types:Record<string,string>={png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',webp:'image/webp',gif:'image/gif',mp4:'video/mp4',webm:'video/webm',mov:'video/quicktime',mp3:'audio/mpeg',m4a:'audio/mp4',wav:'audio/wav',ogg:'audio/ogg',flac:'audio/flac'};
+const types:Record<string,string>={png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',webp:'image/webp',gif:'image/gif',mp4:'video/mp4',webm:'video/webm',mov:'video/quicktime',mp3:'audio/mpeg',m4a:'audio/mp4',wav:'audio/wav',ogg:'audio/ogg',flac:'audio/flac',srt:'text/plain',ass:'text/plain',json:'application/json'};
 export async function GET(request:Request){
  const auth=await requireUser(request);if('response' in auth)return auth.response;
  if(!['admin','editor','viewer'].includes(auth.user.role))return Response.json({error:'Studio access required'},{status:403});

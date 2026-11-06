@@ -15,4 +15,11 @@ it('webm, mov and gif copies can play from the workspace library',async()=>{
     expect(response.headers.get('content-type')).toBe(type);
   }
 });
+it('subtitle and engine sidecars stay downloadable with the copied media',async()=>{
+  for (const [asset,type] of [['legacy-library/subtitles/story.srt','text/plain'],['legacy-library/video/story-engine.json','application/json']]) {
+    const response=await GET(new Request('https://planetsport.studio/api/studio-workspace/media?asset='+encodeURIComponent(asset),{headers:{range:'bytes=0-1'}}));
+    expect(response.status).toBe(206);
+    expect(response.headers.get('content-type')).toBe(type);
+  }
+});
 it('storage failures remain visible and do not claim an empty successful file',async()=>{mocked.openFile.mockRejectedValue(Error('storage unavailable'));const response=await GET(request());expect(response.status).toBe(503);expect(await response.json()).toHaveProperty('error');});
