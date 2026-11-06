@@ -9,7 +9,7 @@ export function PlexaVideoPlayer(element,config){
  document.documentElement.style.setProperty('--player-accent',config.accent||'#48ded0');
  const player=videojs(element,{controls:true,autoplay:false,playsinline:true,preload:'metadata',fluid:true,aspectRatio:'16:9',responsive:true,playbackRates:[.5,1,1.25,1.5,2]});
  const playbackId=crypto.randomUUID(),seen=new Set(),queue=Array.isArray(config.queue)?config.queue:[];let contentStarted=false,adsReady=false,adTimer,disposed=false,queueIndex=0;
- const inAd=()=>!!player.ads?.isInAdMode();
+ const inAd=()=>typeof player.ads?.isInAdMode==='function'&&player.ads.isInAdMode();
  const emit=(event,code)=>{if(!measurement?.checked||seen.has(event))return;seen.add(event);fetch('/api/player/events',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({videoId:config.id,destinationId:config.destinationId,event,playbackId,consent:true,device:innerWidth<600?'mobile':innerWidth<1024?'tablet':'desktop',articleId:config.articleId||undefined,code}),keepalive:true}).catch(()=>{});};
  measurement?.addEventListener('change',()=>{if(measurement.checked){emit('load');if(contentStarted)emit('start');}});
  player.on('playing',()=>{if(inAd())return;contentStarted=true;status.textContent='';if(advertising)advertising.disabled=true;emit('start');});
