@@ -14,6 +14,7 @@ import {removeBackground} from './background-removal.mjs';
 import {addStudioVideo,analyticsForVideos,applyPlayerPoster,approveThumbnail,assignThumbnail,createStudioPlaylist,deleteStudioPlaylist,libraryDetails,moveStudioVideo,removeStudioVideo,renameStudioPlaylist,resolveLibraryTarget,restoreThumbnail,videoLibraryView} from './video-library.mjs';
 import {captureVideoFrame,storeUploadedThumbnail,suggestVideoFrame} from './video-thumbnail.mjs';
 import {labelLibraryAsset,presenterCatalogue,savePresenterProfile} from './library-sections.mjs';
+import {brandPlayerLinks} from './video-mrss.mjs';
 const mediaURL=asset=>'/api/studio-workspace/media?asset='+encodeURIComponent(asset);
 function playlistCatalogue(state){const view=videoLibraryView(state);const thumb=video=>video.thumbnail?.url||'';return {playlists:view.playlists,videos:view.videos.map(video=>({...video,thumbnail:thumb(view.finished.find(item=>item.jobId===video.jobId)||{})})),studioPlaylists:view.studioPlaylists,finished:view.finished.map(video=>({jobId:video.jobId,title:video.title,thumbnail:thumb(video)}))};}
 function storeThumbnailDraft(state,captured){state.thumbnailDrafts??={};state.thumbnailDrafts[captured.key]=captured.draft;for(const entry of captured.entries)state.assets[entry.asset]=entry;return {key:captured.key,draft:captured.draft,url:mediaURL(captured.draft.listAsset),originalUrl:mediaURL(captured.draft.asset)};}
@@ -29,7 +30,7 @@ export async function workspaceRead(workspace,route){
   case 'state':return {jobs:state.jobs,active:state.jobs.find(j=>['queued','running','saving'].includes(j.status))?.id,assets:workspaceClips(state).map(c=>({...c,url:mediaURL(c.asset)}))};
   case 'library-trash':return state.trash;
   case 'playlists':return playlistCatalogue(state);
-  case 'video-library':return videoLibraryView(state);
+  case 'video-library':{const view=videoLibraryView(state);return {...view,playerMenu:brandPlayerLinks(view)};}
   case 'article-inbox':return {...(state.inbox||{articles:[],history:[],lastSuccessfulImportAt:null}),articles:(state.inbox?.articles||[]).map(a=>({...a,scriptPreparation:(()=>{const j=state.jobs.find(j=>j.id===a.scriptPreparation?.jobId);return j?.status==='failed'?{...a.scriptPreparation,status:'failed',error:j.stage,updatedAt:j.updatedAt}:a.scriptPreparation;})(),images:state.images.filter(i=>i.sourceUrl===a.sourceUrl).map(i=>({...i,url:mediaURL('images/'+i.id+'.png')}))}))};
   case 'studio-articles':return studioArticlesFrom(state.inbox?.articles);
   case 'brand-kits':return state.kits||JSON.parse(await fs.readFile(path.join(process.cwd(),'features/brand-kits/seeds.json'),'utf8'));
