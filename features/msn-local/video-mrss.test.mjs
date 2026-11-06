@@ -35,3 +35,17 @@ test('each brand gets one player link, starting at its playlist', () => {
     {href: '/embed/video/bulletin?destination=teamtalk', label: 'TEAMtalk player'},
   ]);
 });
+
+test('an empty brand playlist still appears in the player menu', () => {
+  const links = brandPlayerLinks({
+    playlists: [
+      {id: 'football365', destinationId: 'football365', brand: 'Football365', videoIds: ['rice']},
+      {id: 'hollywoodbets', destinationId: 'hollywoodbets', brand: 'Hollywood Bets', videoIds: []},
+    ],
+    videos: [{id: 'rice', destinationId: 'football365'}],
+  });
+  assert.deepEqual(links, [
+    {href: '/embed/video/rice?destination=football365&playlist=football365', label: 'Football365 player'},
+    {href: '/playlist#playlist-hollywoodbets', label: 'Hollywood Bets player'},
+  ]);
+});

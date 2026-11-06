@@ -14,14 +14,19 @@ export function brandPlayerLinks(view = {}) {
     || (view.finished || []).flatMap(video => video.player || []).find(player => player.destinationId === destinationId && player.brand)?.brand
     || destinationId;
   const add = (destinationId, videoId, playlistId) => {
-    if (!destinationId || !videoId || seen.has(destinationId)) return;
+    if (!destinationId || seen.has(destinationId)) return;
     seen.add(destinationId);
-    const query = '?destination=' + encodeURIComponent(destinationId) + (playlistId ? '&playlist=' + encodeURIComponent(playlistId) : '');
-    links.push({href: '/embed/video/' + encodeURIComponent(videoId) + query, label: brandOf(destinationId) + ' player'});
+    const label = brandOf(destinationId) + ' player';
+    if (videoId) {
+      const query = '?destination=' + encodeURIComponent(destinationId) + (playlistId ? '&playlist=' + encodeURIComponent(playlistId) : '');
+      links.push({href: '/embed/video/' + encodeURIComponent(videoId) + query, label});
+      return;
+    }
+    if (playlistId) links.push({href: '/playlist#playlist-' + encodeURIComponent(playlistId), label});
   };
   for (const playlist of playlists) {
     const video = videos.find(item => item.id === playlist.videoIds?.[0]) || videos.find(item => item.destinationId === playlist.destinationId);
-    if (video) add(playlist.destinationId, video.id, playlist.id);
+    add(playlist.destinationId, video?.id || '', playlist.id);
   }
   for (const video of videos) add(video.destinationId, video.id, '');
   return links.sort((a, b) => a.label.localeCompare(b.label));
