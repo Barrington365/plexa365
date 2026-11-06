@@ -116,6 +116,17 @@ export function savePresenterProfile(state, body) {
 export function presenterCatalogue(state) {
   return [...PRESENTERS, ...(state?.presenterProfiles || [])];
 }
+export function presenterMenuLinks(presenters = []) {
+  const links = [['/presenters#daniel-brooks', 'Daniel Brooks'], ['/presenters#maya-bennett', 'Maya Bennett']];
+  for (const person of presenters) {
+    const id = String(person?.id || '');
+    const name = String(person?.name || '').trim();
+    if (!/^[a-z0-9-]{1,80}$/.test(id) || !name || links.some(([, label]) => label === name)) continue;
+    links.push(['/presenters#' + id, name]);
+  }
+  links.push(['/presenters#add', 'Add Presenter']);
+  return links;
+}
 export function projectAssetPaths(project) {
   const paths = new Set();
   const visit = value => {
