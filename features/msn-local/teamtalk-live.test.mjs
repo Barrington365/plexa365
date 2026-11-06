@@ -202,6 +202,34 @@ test('presenter clips match hyphenated Library names and each speaker keeps a vo
   assert.doesNotMatch(plan.srt, /Daniel:|Maya:/);
   assert.equal(plan.placements[0].speaker, 'daniel');
   assert.equal(plan.placements[0].timeline, 1);
+  assert.equal(plan.scenes[1].video.start, 1);
+});
+
+test('a named story keeps its own screens when the line mentions another bulletin', () => {
+  const resolved = resolveTeamtalkPresenterClips([
+    {name: 'Football365-Daniel-Brooks-V2-Presenting.mp4', asset: 'uploads/daniel-presenting.mp4'},
+    {name: 'Football365-Daniel-Brooks-V2-Listening.mp4', asset: 'uploads/daniel-listening.mp4'},
+    {name: 'Football365-Maya-Bennett-Presenting.mp4', asset: 'uploads/maya-presenting.mp4'},
+    {name: 'Football365-Maya-Bennett-Listening.mp4', asset: 'uploads/maya-listening.mp4'},
+  ]);
+  const script = 'Story: suzuki\n\nDaniel: Real Madrid are watching Zion Suzuki.\n\nStory: gittens\n\nMaya: Chelsea will loan Jamie Gittens. That is the bulletin.';
+  const danielText = 'Real Madrid are watching Zion Suzuki.';
+  const mayaText = 'Chelsea will loan Jamie Gittens. That is the bulletin.';
+  const timed = text => ({characters: [...text], character_start_times_seconds: [...text].map((_, i) => i / 10), character_end_times_seconds: [...text].map((_, i) => (i + 1) / 10)});
+  const scenes = [
+    {id: 'intro', duration: 1, background: '#000000', layers: []},
+    {id: 'suzuki', duration: 2, background: '#000000', video: {asset: 'uploads/studio.mp4', start: 0, loop: true}, layers: [{id: 'club-crest', type: 'logo', asset: 'uploads/villa.png', x: 95, y: 358, width: 349, height: 250}]},
+    {id: 'gittens', duration: 2, background: '#000000', video: {asset: 'uploads/studio.mp4', start: 0, loop: true}, layers: [{id: 'club-crest', type: 'logo', asset: 'uploads/chelsea.png', x: 95, y: 358, width: 349, height: 250}]},
+    {id: 'kane', duration: 2, background: '#000000', video: {asset: 'uploads/studio.mp4', start: 0, loop: true}, layers: [{id: 'club-crest', type: 'logo', asset: 'uploads/bayern.png', x: 95, y: 358, width: 349, height: 250}]},
+    {id: 'outro', duration: 1, background: '#000000', layers: []},
+  ];
+  const plan = teamtalkNarrationPlan({script, danielAlignment: timed(danielText), mayaAlignment: timed(mayaText), scenes, fps: 10, clips: resolved.clips, danielDuration: 20, mayaDuration: 20});
+  assert.equal(plan.scenes[1].id, 'suzuki-1');
+  assert.equal(plan.scenes[1].layers.find(layer => layer.id === 'club-crest').asset, 'uploads/villa.png');
+  assert.equal(plan.scenes[2].id, 'gittens-2');
+  assert.equal(plan.scenes[2].layers.find(layer => layer.id === 'club-crest').asset, 'uploads/chelsea.png');
+  assert.doesNotMatch(plan.srt, /Story:/);
+  assert.throws(() => teamtalkNarrationPlan({script: 'Daniel: First.\n\nStory: suzuki\n\nMaya: Second.', danielAlignment: timed('First.'), mayaAlignment: timed('Second.'), scenes, fps: 10, clips: resolved.clips, danielDuration: 20, mayaDuration: 20}), /Name the story/);
 });
 
 test('a lesson record refuses an unknown owner', () => {
