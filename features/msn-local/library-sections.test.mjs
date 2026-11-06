@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {TEAMTALK_DELIVERY, TEAMTALK_MAYA_DELIVERY, TEAMTALK_PRESENTERS} from './teamtalk-live.mjs';
-import {duplicateGroups, labelLibraryAsset, librarySection, movementFromName, presenterFromName, PRESENTERS, projectAssetPaths} from './library-sections.mjs';
+import {clipMatchesPresenter, duplicateGroups, labelLibraryAsset, librarySection, movementFromName, presenterFromName, PRESENTERS, projectAssetPaths, savePresenterProfile} from './library-sections.mjs';
 
 test('known TEAMtalk files keep their paths and land in the Build Library', () => {
   const samples = [
@@ -44,4 +44,21 @@ test('presenter profiles use the saved voices and a project reference stays inta
   assert.equal(labelLibraryAsset(state, {asset: 'uploads/clip.mp4', section: 'presenter-clips'}).asset, 'uploads/clip.mp4');
   assert.equal(state.assets['uploads/clip.mp4'].asset, 'uploads/clip.mp4');
   assert.throws(() => labelLibraryAsset(state, {asset: 'uploads/clip.mp4', section: 'archive'}), /Build Library/);
+});
+
+test('a named presenter keeps the selected ElevenLabs voice and matches their own clips', () => {
+  const state = {presenterProfiles: []};
+  const saved = savePresenterProfile(state, {name: 'Naomi Carter', voice: 'Charlotte - Warm South African', voiceId: 'IgGJCWnIbnBRMGhMU9Z6'});
+  assert.equal(saved.id, 'presenter-naomi-carter');
+  assert.equal(saved.voice, 'Charlotte - Warm South African');
+  assert.equal(saved.voiceId, 'IgGJCWnIbnBRMGhMU9Z6');
+  assert.throws(() => savePresenterProfile(state, {name: 'Naomi Carter'}), /already exists/);
+  const updated = savePresenterProfile(state, {name: 'Naomi Carter', voice: 'Charlotte - Warm South African', voiceId: 'IgGJCWnIbnBRMGhMU9Z6'});
+  assert.equal(state.presenterProfiles.length, 1);
+  assert.equal(updated.savedAt, state.presenterProfiles[0].savedAt);
+  assert.equal(clipMatchesPresenter({name: 'Naomi-Navy-Seated-Presenting-Green.mp4', asset: 'uploads/a.mp4'}, saved), true);
+  assert.equal(clipMatchesPresenter({name: 'Naomi-Navy-Standing-Welcome-Studio.mp4', asset: 'uploads/b.mp4'}, saved), true);
+  assert.equal(clipMatchesPresenter({name: 'Football365-Daniel-Brooks-V2-Listening.mp4', asset: 'uploads/c.mp4'}, saved), false);
+  assert.equal(movementFromName('Naomi-Navy-Standing-Welcome-Green.mp4'), 'Welcome');
+  assert.throws(() => savePresenterProfile({presenterProfiles: []}, {name: 'Naomi Carter', voice: 'Charlotte', voiceId: 'not-a-voice'}), /ElevenLabs/);
 });

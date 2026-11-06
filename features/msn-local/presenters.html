@@ -9,7 +9,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font:15px system-ui}main{max
 <section class="panel" id="add"><h2>Add Presenter</h2><p>This records a profile only. It does not copy or replace Daniel’s or Maya’s files.</p><form id="create"><label>Name<input name="name" required maxlength="80"></label><label>Role<input name="role" maxlength="80" placeholder="Presenter"></label><label>Brand<input name="brand" maxlength="80"></label><label>Biography<textarea name="biography" maxlength="500"></textarea></label><button type="submit">Save profile</button></form><p id="notice" role="status"></p></section>
 </main>
 <script type="module">
-import {movementFromName,presenterFromName,isShadowClip,PRESENTERS} from '/library-sections.mjs';
+import {movementFromName,clipMatchesPresenter,isShadowClip,PRESENTERS} from '/library-sections.mjs';
 const $=id=>document.getElementById(id),el=(tag,text)=>{const node=document.createElement(tag);if(text!==undefined)node.textContent=text;return node;};
 function delivery(person){const d=person.delivery;return d?`Speed ${d.speed}, stability ${d.stability}, style ${d.style}, similarity ${d.similarity}, speaker boost ${d.speakerBoost?'on':'off'}`:'No saved delivery settings.';}
 function card(person,clips,projects){const section=document.createElement('article');section.className='profile';section.id=person.id;section.append(el('h2',person.name),el('p',`${person.role||'Presenter'} · ${person.brand||'Unassigned brand'}`),el('p',person.biography||'No biography saved.'));
@@ -17,15 +17,16 @@ function card(person,clips,projects){const section=document.createElement('artic
  const usable=clips.filter(clip=>!isShadowClip(clip.name));const shadow=clips.filter(clip=>isShadowClip(clip.name));
  section.append(el('h3','Saved movement clips'));
  const list=document.createElement('div');list.className='clips';
- for(const clip of usable){const item=document.createElement('div');item.className='clip';const video=document.createElement('video');video.src=clip.url;video.muted=true;video.playsInline=true;video.preload='metadata';video.controls=true;const copy=el('p',`${movementFromName(clip.name)||'Clip'} · green screen`);item.append(video,copy);list.append(item);} 
+ for(const clip of usable){const item=document.createElement('div');item.className='clip';const video=document.createElement('video');video.src=clip.url;video.muted=true;video.playsInline=true;video.preload='metadata';video.controls=true;const setup=/green/i.test(clip.name)?'green screen':/studio/i.test(clip.name)?'studio':'clip';const copy=el('p',`${movementFromName(clip.name)||'Clip'} · ${setup}`);item.append(video,copy);list.append(item);} 
  section.append(list);section.append(el('p',usable.length?`${usable.length} saved clips. A scene uses one clip: the speaker uses Presenting and the other uses Listening.`:'No movement clips matched this name.'));
- section.append(el('p','Facial expressions: none are saved. Seated, smile and nod clips are not in the Library.'));
+ const seated=usable.filter(clip=>/(?:^|[\s_./-])seated(?:[\s_./-]|$)/i.test(clip.name));
+ section.append(el('p',seated.length?`${seated.length} seated clips are saved with the standing clips.`:'Facial expressions: none are saved. Seated, smile and nod clips are not in the Library.'));
  section.append(el('p',shadow.length?`${shadow.length} shadow or reflection files are kept and are not used at the desk.`:'No shadow copies matched this name.'));
  const used=projects.filter(project=>clips.some(clip=>JSON.stringify(project.scenes||[]).includes(clip.asset)));
  section.append(el('p',used.length?`Used in ${used.map(project=>project.title).slice(0,4).join(', ')}.`:'No loaded project references these clips yet.'));
  if(person.id==='daniel-brooks'||person.id==='maya-bennett'){const link=document.createElement('a');link.href='/studio?project=d13994ab-f014-4bce-93ab-b4ddd2fcf216';link.textContent='Open TEAMtalk LIVE';section.append(link);} 
  return section;}
-async function load(){const [people,assets,projects]=await Promise.all([fetch('/api/presenters').then(r=>r.json()),fetch('/api/studio-assets').then(r=>r.json()),fetch('/api/projects').then(r=>r.json())]);const clips=assets.assets||[],rows=people.presenters||PRESENTERS,list=projects.projects||[];const host=$('profiles');host.replaceChildren();for(const person of rows){const mine=clips.filter(asset=>asset.type==='video'&&presenterFromName(asset.name+' '+asset.asset)===person.id);host.append(card(person,mine,list));}if(location.hash)document.getElementById(location.hash.slice(1))?.scrollIntoView();}
+async function load(){const [people,assets,projects]=await Promise.all([fetch('/api/presenters').then(r=>r.json()),fetch('/api/studio-assets').then(r=>r.json()),fetch('/api/projects').then(r=>r.json())]);const clips=assets.assets||[],rows=people.presenters||PRESENTERS,list=projects.projects||[];const host=$('profiles');host.replaceChildren();for(const person of rows){const mine=clips.filter(asset=>asset.type==='video'&&clipMatchesPresenter(asset,person));host.append(card(person,mine,list));}if(location.hash)document.getElementById(location.hash.slice(1))?.scrollIntoView();}
 $('create').onsubmit=async event=>{event.preventDefault();const body=Object.fromEntries(new FormData(event.target));const response=await fetch('/api/presenters/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const data=await response.json();$('notice').textContent=response.ok?data.name+' saved. No files were copied.':(data.error||'Could not save the profile');if(response.ok){event.target.reset();await load();}};
 load().catch(error=>{$('notice').textContent=error.message;});
 </script><script src="/studio-navigation.js"></script></body></html>

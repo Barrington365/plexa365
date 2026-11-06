@@ -34,8 +34,19 @@ export function movementFromName(value) {
   const name = String(value || '').toLowerCase();
   if (has(name, 'point-left') || has(name, 'point left')) return 'Point Left';
   if (has(name, 'point-right') || has(name, 'point right')) return 'Point Right';
-  for (const word of ['presenting', 'listening', 'walking', 'idle']) if (has(name, word)) return word[0].toUpperCase() + word.slice(1);
+  for (const word of ['presenting', 'listening', 'walking', 'idle', 'welcome']) if (has(name, word)) return word[0].toUpperCase() + word.slice(1);
   return '';
+}
+export function clipMatchesPresenter(asset, person) {
+  const hay = `${asset?.name || ''} ${asset?.asset || ''}`;
+  const known = presenterFromName(hay);
+  if (known) return known === person?.id;
+  const full = String(person?.name || '').toLowerCase().trim();
+  if (!full) return false;
+  const text = hay.toLowerCase();
+  if (text.includes(full) || text.includes(full.replace(/\s+/g, '-'))) return true;
+  const first = full.split(/\s+/)[0].replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return first.length >= 4 && new RegExp('(?:^|[\\s_./-])' + first + '(?:[\\s_./-]|$)').test(text);
 }
 export function isShadowClip(value) { return /shadow|reflection/i.test(String(value || '')); }
 export function librarySection(asset) {
@@ -86,8 +97,19 @@ export function savePresenterProfile(state, body) {
   if (PRESENTERS.some(person => person.name.toLowerCase() === name.toLowerCase())) throw Error('Daniel Brooks and Maya Bennett already have profiles');
   state.presenterProfiles ??= [];
   const id = 'presenter-' + name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-  if (!id || state.presenterProfiles.some(person => person.id === id)) throw Error('A presenter with that name already exists');
-  const profile = {id, name, role: String(body.role || 'Presenter').slice(0, 80), brand: String(body.brand || '').slice(0, 80), biography: String(body.biography || '').slice(0, 500), voice: '', voiceId: '', savedAt: new Date().toISOString()};
+  if (!id || id === 'presenter-') throw Error('Enter a presenter name');
+  const voice = String(body?.voice || '').trim().slice(0, 120);
+  const voiceId = String(body?.voiceId || '').trim();
+  if (voiceId && (!voice || !/^[A-Za-z0-9]{20}$/.test(voiceId))) throw Error('Choose an ElevenLabs voice');
+  const existing = state.presenterProfiles.find(person => person.id === id);
+  if (existing) {
+    if (!voiceId) throw Error('A presenter with that name already exists');
+    existing.voice = voice;
+    existing.voiceId = voiceId;
+    existing.savedAt = new Date().toISOString();
+    return existing;
+  }
+  const profile = {id, name, role: String(body.role || 'Presenter').slice(0, 80), brand: String(body.brand || '').slice(0, 80), biography: String(body.biography || '').slice(0, 500), voice, voiceId, savedAt: new Date().toISOString()};
   state.presenterProfiles.push(profile);
   return profile;
 }
