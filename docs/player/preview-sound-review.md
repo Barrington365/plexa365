@@ -17,3 +17,9 @@ The next card can select the next published item. Manual skipping does not emit 
 ## Release
 
 Not deployed. Hosted release QA and approval remain required by docs/plexa-engineering-workflow.md. No credentials or agent configuration changed. Rollback: revert this UI commit and rebuild player assets.
+
+## Follow-up: autoplay and ten-second preview
+
+Native autoplay/muted/playsinline attributes are set before Video.js initialisation, with one readiness retry. Versioned player asset URLs prevent browsers reusing the old bundle. Muted autoplay was confirmed without clicking Play in the local browser: playback advancing, muted=true, paused=false.
+
+Up next appears only when started content has more than zero and at most ten seconds remaining. Browser checks confirmed visible at 8.588 seconds remaining and hidden again after seeking back to 13.588 seconds. Three boundary tests cover unknown duration, ads, missing next items, seeking and completion (11 player tests pass total). Production build and TypeScript passed. Still local, not deployed.
