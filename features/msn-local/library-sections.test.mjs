@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {TEAMTALK_DELIVERY, TEAMTALK_MAYA_DELIVERY, TEAMTALK_PRESENTERS} from './teamtalk-live.mjs';
-import {clipMatchesPresenter, duplicateGroups, labelLibraryAsset, librarySection, movementFromName, presenterFromName, PRESENTERS, projectAssetPaths, savePresenterProfile} from './library-sections.mjs';
+import {clipMatchesPresenter, duplicateGroups, labelLibraryAsset, librarySection, movementFromName, presenterFromName, presenterMenuLinks, PRESENTERS, projectAssetPaths, savePresenterProfile} from './library-sections.mjs';
 
 test('known TEAMtalk files keep their paths and land in the Build Library', () => {
   const samples = [
@@ -61,4 +61,10 @@ test('a named presenter keeps the selected ElevenLabs voice and matches their ow
   assert.equal(clipMatchesPresenter({name: 'Football365-Daniel-Brooks-V2-Listening.mp4', asset: 'uploads/c.mp4'}, saved), false);
   assert.equal(movementFromName('Naomi-Navy-Standing-Welcome-Green.mp4'), 'Welcome');
   assert.throws(() => savePresenterProfile({presenterProfiles: []}, {name: 'Naomi Carter', voice: 'Charlotte', voiceId: 'not-a-voice'}), /ElevenLabs/);
+  assert.deepEqual(presenterMenuLinks([{id: 'daniel-brooks', name: 'Daniel Brooks'}, {id: 'maya-bennett', name: 'Maya Bennett'}, {id: 'presenter-naomi-carter', name: 'Naomi Carter'}]), [
+    ['/presenters#daniel-brooks', 'Daniel Brooks'],
+    ['/presenters#maya-bennett', 'Maya Bennett'],
+    ['/presenters#presenter-naomi-carter', 'Naomi Carter'],
+    ['/presenters#add', 'Add Presenter'],
+  ]);
 });
