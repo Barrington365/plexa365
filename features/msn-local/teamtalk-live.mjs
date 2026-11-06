@@ -108,8 +108,12 @@ export const TEAMTALK_LIVE_AUTOMATION = {
     'Place the story club’s current Library crest on the left green screen, inset on the TEAMtalk mint panel.',
     'Use only the current crest file, such as chelsea-logo.png, manchester-united-logo.png, or Bayern Munich - club logo - football-logos.cc.png. Do not use a historical variant.',
     'When that crest is missing, fill the screen with the story picture or another current Library image for that story. Do not leave the green screen visible, invent a crest, or cut one out of a photograph.',
-    'Maya Bennett uses Amelia - Enthusiastic and Expressive. Daniel Brooks uses Planet F1 - Male - Sam.',
-    'Key the existing presenter clips onto the studio. The speaker uses Presenting and the other presenter uses Listening.',
+    'Maya Bennett uses Amelia - Enthusiastic and Expressive, id ZF6FPAbjXT4488VcRRnw. Daniel Brooks uses Planet F1 - Male - Sam, id 2yqdQ7uuPQDBMgFA8dgu. Do not rename Amelia and do not regenerate either voice unless the script or these settings change.',
+    'Daniel delivery is speed 1.06, stability 0.38, style 0.35, similarity 0.75, speaker boost off. Maya delivery is speed 1.14, stability 0.32, style 0.48, with the same similarity and speaker boost.',
+    'Key the existing presenter clips onto the studio. The speaker uses Presenting and the other presenter uses Listening. Do not use seated, smile, nod, walking at the desk, or shadow clips.',
+    'Give the narration an explicit start and end. The end is the programme duration. Test 001 uses the saved voice from 0 to 241.5 seconds.',
+    'Render on the saved project. Finished scenes are kept and a worker time limit continues that project. Do not render those scenes again unless the user asks to render all scenes again.',
+    'Save the finished draft to the TEAMtalk LIVE Studio playlist. Do not add it to the Football365 player playlist and do not publish.',
   ],
 };
 
