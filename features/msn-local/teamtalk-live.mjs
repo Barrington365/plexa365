@@ -393,13 +393,38 @@ export function speakerScript(turns, speaker) {
   return turns.filter(turn => turn.speaker === speaker).map(turn => turn.text).join('\n\n');
 }
 
-function assignStories(turns) {
-  let current = turns.map(turn => storyFor(turn.text)).find(Boolean) || 'colwill';
-  return turns.map(turn => {
-    const story = storyFor(turn.text);
-    if (story) current = story;
-    return {...turn, story: story || current};
-  });
+function storyMarker(part) {
+  return String(part || '').trim().match(/^Story:\s*([a-z0-9-]{1,40})\s*$/i);
+}
+
+/** A Story: line names the screens for the lines that follow. Scripts without one keep the original keyword routing. */
+function assignStories(script) {
+  const parts = String(script || '').trim().split(/\n\s*\n/);
+  if (!parts.some(part => storyMarker(part))) {
+    const turns = parseTeamtalkTurns(script);
+    let current = turns.map(turn => storyFor(turn.text)).find(Boolean) || 'colwill';
+    return turns.map(turn => {
+      const story = storyFor(turn.text);
+      if (story) current = story;
+      return {...turn, story: story || current};
+    });
+  }
+  const turns = [];
+  let current = '';
+  for (const part of parts) {
+    const marked = storyMarker(part);
+    if (marked) { current = marked[1].toLowerCase(); continue; }
+    const match = part.match(/^(Daniel|Maya):\s*([\s\S]+)$/i);
+    if (!match) continue;
+    const text = match[2].trim();
+    if (!text) continue;
+    if (!current) throw Error('Name the story before the presenters speak.');
+    turns.push({speaker: match[1].toLowerCase() === 'daniel' ? 'daniel' : 'maya', text, story: current});
+  }
+  if (turns.length < 2 || !turns.some(turn => turn.speaker === 'daniel') || !turns.some(turn => turn.speaker === 'maya')) {
+    throw Error('Mark each spoken paragraph Daniel: or Maya:. Both presenters need lines.');
+  }
+  return turns;
 }
 
 function storySource(scenes, story) {
@@ -455,7 +480,7 @@ function clipLayer(id, asset, box) {
  * The speaker's Presenting clip is used; the other presenter uses Listening. Speaker labels are not captions.
  */
 export function teamtalkNarrationPlan({script, danielAlignment, mayaAlignment, scenes, fps = 30, clips, danielDuration, mayaDuration}) {
-  const turns = assignStories(parseTeamtalkTurns(script));
+  const turns = assignStories(script);
   const danielText = speakerScript(turns, 'daniel');
   const mayaText = speakerScript(turns, 'maya');
   const required = ['danielPresenting', 'danielListening', 'mayaPresenting', 'mayaListening'];
@@ -483,7 +508,7 @@ export function teamtalkNarrationPlan({script, danielAlignment, mayaAlignment, s
       id: `${turn.story}-${index + 1}`,
       duration: (speechFrames + gapFrames) / fps,
       background: source.background || '#060d15',
-      video: source.video,
+      video: source.video?.loop ? {...source.video, start: timeline} : source.video,
       layers: [
         ...graphics,
         clipLayer('daniel-left', turn.speaker === 'daniel' ? clips.danielPresenting : clips.danielListening, TEAMTALK_DANIEL_BOX),

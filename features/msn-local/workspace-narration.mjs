@@ -97,7 +97,9 @@ async function runTeamtalkNarration(workspace,job,key,fetcher){
  const plan=teamtalkNarrationPlan({script:p.script,danielAlignment:daniel.alignment,mayaAlignment:maya.alignment,scenes:p.scenes,fps:p.fps,clips,danielDuration:daniel.duration,mayaDuration:maya.duration});
  await patchWorkspaceJob(workspace,job.id,{stage:'Mixing both presenter voices',progress:80});
  const mixed=await mixSpeech(workspace,daniel,maya,plan);
- const saved=await workspace.projects.save(p.id,{script:p.script.trim(),voice:`${daniel.voiceName} and ${maya.voiceName}`,elevenlabsVoiceId:'',audioLabel:`${daniel.voiceName} and ${maya.voiceName} · ElevenLabs · ${mixed.generatedAt}`,audio:{asset:mixed.asset,volume:1},srt:plan.srt,scenes:plan.scenes},p.updatedAt);
+ const patch={script:p.script.trim(),voice:`${daniel.voiceName} and ${maya.voiceName}`,elevenlabsVoiceId:'',audioLabel:`${daniel.voiceName} and ${maya.voiceName} · ElevenLabs · ${mixed.generatedAt}`,audio:{asset:mixed.asset,volume:1,start:0,end:plan.duration},srt:plan.srt,scenes:plan.scenes};
+ if(p.music?.asset)patch.music={...p.music,start:0,end:plan.duration,timelineStart:p.music.timelineStart||0};
+ const saved=await workspace.projects.save(p.id,patch,p.updatedAt);
  await patchWorkspaceJob(workspace,job.id,{status:'complete',stage:'Both presenter voices saved',progress:100,result:{project:saved,narration:{voiceName:`${daniel.voiceName} and ${maya.voiceName}`,voices:[{voiceId:daniel.voiceId,voiceName:daniel.voiceName},{voiceId:maya.voiceId,voiceName:maya.voiceName}],duration:plan.duration,generatedAt:mixed.generatedAt},rebuildRequired:true}});
 }
 
