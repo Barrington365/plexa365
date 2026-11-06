@@ -7,14 +7,30 @@ import './player.css';
 export function PlexaVideoPlayer(element,config){
  const status=document.getElementById('status'),measurement=document.getElementById('measurement'),advertising=document.getElementById('advertising');
  document.documentElement.style.setProperty('--player-accent',config.accent||'#48ded0');
- const player=videojs(element,{controls:true,autoplay:false,playsinline:true,preload:'metadata',fluid:true,aspectRatio:'16:9',responsive:true,playbackRates:[.5,1,1.25,1.5,2]});
+ const player=videojs(element,{controls:true,autoplay:'muted',muted:true,playsinline:true,preload:'metadata',fluid:true,aspectRatio:'16:9',responsive:true,playbackRates:[.5,1,1.25,1.5,2]});
  const playbackId=crypto.randomUUID(),seen=new Set(),queue=Array.isArray(config.queue)?config.queue:[];let contentStarted=false,adsReady=false,adTimer,disposed=false,queueIndex=0;
  const inAd=()=>typeof player.ads?.isInAdMode==='function'&&player.ads.isInAdMode();
  const emit=(event,code)=>{if(!measurement?.checked||seen.has(event))return;seen.add(event);fetch('/api/player/events',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({videoId:config.id,destinationId:config.destinationId,event,playbackId,consent:true,device:innerWidth<600?'mobile':innerWidth<1024?'tablet':'desktop',articleId:config.articleId||undefined,code}),keepalive:true}).catch(()=>{});};
  measurement?.addEventListener('change',()=>{if(measurement.checked){emit('load');if(contentStarted)emit('start');}});
  player.on('playing',()=>{if(inAd())return;contentStarted=true;status.textContent='';if(advertising)advertising.disabled=true;emit('start');});
  player.on('timeupdate',()=>{if(inAd()||!contentStarted)return;const duration=player.duration();if(!duration||!Number.isFinite(duration))return;const progress=player.currentTime()/duration;for(const n of [25,50,75])if(progress>=n/100)emit('progress'+n);});
- player.on('ended',()=>{if(inAd())return;if(contentStarted)emit('complete');const next=queue[queueIndex+1];if(!next)return;queueIndex+=1;config.id=next.id;seen.clear();contentStarted=false;status.textContent='Next: '+next.title;for(let i=player.remoteTextTracks().length-1;i>=0;i--)player.removeRemoteTextTrack(player.remoteTextTracks()[i]);for(const cue of next.captions||[])player.addRemoteTextTrack({kind:'captions',src:cue.src,srclang:cue.language,label:cue.label},false);player.poster(next.thumbnail);player.src({src:next.contentUrl,type:'video/mp4'});const download=document.getElementById('download');if(download)download.href=next.contentUrl;document.title=next.title+' · Plexa Video';player.play()?.catch(()=>{status.textContent='Press play for '+next.title;});});
+ // Overlays live inside Video.js so they also remain available in fullscreen.
+ const sound=document.createElement('button');sound.type='button';sound.className='plexa-sound';
+ const updateSound=()=>{const muted=player.muted()||player.volume()===0;sound.textContent=muted?'Tap for sound':'Mute sound';sound.setAttribute('aria-label',muted?'Turn sound on':'Mute sound');sound.setAttribute('aria-pressed',String(!muted));};
+ sound.addEventListener('click',()=>{const silent=player.muted()||player.volume()===0;if(silent&&player.volume()===0)player.volume(1);player.muted(!silent);updateSound();});
+ player.on('volumechange',updateSound);updateSound();player.el().append(sound);
+ const nextButton=document.createElement('button');nextButton.type='button';nextButton.className='plexa-next';
+ const nextImage=document.createElement('img');nextImage.alt='';nextImage.loading='lazy';nextImage.addEventListener('error',()=>{nextImage.hidden=true;});
+ const nextCopy=document.createElement('span'),nextLabel=document.createElement('span'),nextTitle=document.createElement('strong');nextLabel.textContent='Up next';nextCopy.append(nextLabel,nextTitle);nextButton.append(nextImage,nextCopy);player.el().append(nextButton);
+ const updateNext=()=>{const next=queue[queueIndex+1];nextButton.hidden=!next||inAd();if(!next)return;nextTitle.textContent=next.title;nextButton.setAttribute('aria-label','Play next: '+next.title);nextImage.hidden=!next.thumbnail;if(next.thumbnail)nextImage.src=next.thumbnail;};
+ const advance=()=>{const next=queue[queueIndex+1];if(!next)return;queueIndex+=1;config.id=next.id;seen.clear();contentStarted=false;status.textContent='Next: '+next.title;for(let i=player.remoteTextTracks().length-1;i>=0;i--)player.removeRemoteTextTrack(player.remoteTextTracks()[i]);for(const cue of next.captions||[])player.addRemoteTextTrack({kind:'captions',src:cue.src,srclang:cue.language,label:cue.label},false);player.autoplay(false);player.poster(next.thumbnail);player.src({src:next.contentUrl,type:'video/mp4'});const download=document.getElementById('download');if(download)download.href=next.contentUrl;document.title=next.title+' · Plexa Video';player.el().setAttribute('aria-label',next.title);player.el().querySelector('video')?.setAttribute('aria-label',next.title);updateNext();player.play()?.catch(()=>{status.textContent='Press play for '+next.title;});};
+ nextButton.addEventListener('click',()=>{if(!inAd())advance();});updateNext();
+ const brands=['football365','teamtalk','planetf1','planetfootball','planetrugby','loverugbyleague','cricket365','golf365','gpfans','grassrootgoals','racing365','sport365','tennis365'];
+ const brandKey=String(config.brand||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+ if(brands.includes(brandKey)){const logo=document.createElement('img');logo.className='plexa-brand';logo.alt=config.brand;logo.src='/brand-kit/assets/'+brandKey+'-icon.png';logo.addEventListener('error',()=>logo.remove());player.el().append(logo);}
+ player.on('ended',()=>{if(inAd())return;if(contentStarted)emit('complete');advance();});
+ player.on('ads-ad-started',()=>{nextButton.hidden=true;sound.hidden=true;});
+ player.on('contentresumed',()=>{updateNext();sound.hidden=false;});
  player.on('error',()=>{status.textContent='This video could not be played. Try opening it directly below.';emit('error',String(player.error()?.code||'unknown'));});
  const resume=()=>{clearTimeout(adTimer);if(disposed)return;status.textContent='';try{player.ima?.getAdsManager()?.destroy();if(inAd())player.ads.endLinearAdMode();}catch{}player.play()?.catch(()=>{status.textContent='Press play to continue.';});};
  player.on('adserror',()=>{emit('ad-error','ima');resume();});player.on('adtimeout',()=>{emit('ad-error','timeout');resume();});
