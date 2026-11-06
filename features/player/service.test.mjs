@@ -10,3 +10,16 @@ test('destination origins exclude wildcard, paths and insecure hosts; ads defaul
 
 test('playback queue rotates the full authorised playlist and excludes unpublished entries',async()=>{const {state,clients,workspace}=fixture();const first=await publishVideo(workspace,clients,input,'admin');state.jobs.push({id:'job-b',status:'complete',output:{asset:'videos/b.mp4',duration:9}});state.assets['videos/b.mp4']={asset:'videos/b.mp4',sha256:'b'};const second=await publishVideo(workspace,clients,{...input,jobId:'job-b',title:'Second record'},'admin');state.playerPlaylists=[{id:'football365',destinationId:'f1',title:'Football365',videoIds:[second.id,'missing',first.id]}];assert.deepEqual(playbackQueue(state,clients,'f1',second.id,'','https://player.test').map(v=>v.id),[second.id,first.id]);assert.deepEqual(playbackQueue(state,clients,'f1',first.id,'football365','https://player.test').map(v=>v.id),[first.id,second.id]);first.status='unpublished';assert.deepEqual(playbackQueue(state,clients,'f1',second.id,'football365','https://player.test').map(v=>v.id),[second.id]);});
 test('source credits and reviewed summaries are required for each broadcast story',async()=>{const {workspace,clients}=fixture();await assert.rejects(publishVideo(workspace,clients,{...input,textReviewed:false},'admin'));await assert.rejects(publishVideo(workspace,clients,{...input,articles:[]},'admin'));await assert.rejects(publishVideo(workspace,clients,{...input,articles:[...input.articles,...input.articles]},'admin'));const v=await publishVideo(workspace,clients,input,'admin');assert.equal(v.articles[0].publisher,'Test publisher');assert.equal(v.indexEligible,false);});
+
+test('empty and unauthorised playlists produce no playback queue',async()=>{
+ const {state,clients,workspace}=fixture();
+ const video=await publishVideo(workspace,clients,input,'admin');
+ assert.deepEqual(playbackQueue(state,clients,'f1',video.id,'','https://player.test'),[]);
+ state.playerPlaylists=[{id:'list',destinationId:'f1',videoIds:[]}];
+ assert.deepEqual(playbackQueue(state,clients,'f1',video.id,'list','https://player.test'),[]);
+ state.playerPlaylists[0].videoIds=[video.id];
+ clients.client.active=false;
+ assert.deepEqual(playbackQueue(state,clients,'f1',video.id,'list','https://player.test'),[]);
+ clients.client.active=true;video.status='unpublished';
+ assert.deepEqual(playbackQueue(state,clients,'f1',video.id,'list','https://player.test'),[]);
+});
