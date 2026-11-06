@@ -15,11 +15,14 @@ export const PRODUCTION_SECTIONS = [
   ['published', 'Published Videos'],
   ['archive', 'Archive'],
 ];
+export const IMPORTED_SECTIONS = [
+  ['imported', 'Previous library'],
+];
 export const PRESENTERS = [
   {id: 'daniel-brooks', name: 'Daniel Brooks', role: 'Lead Presenter', brand: 'TEAMtalk', position: 'left', biography: 'Confident, experienced and slightly witty.', voice: 'Planet F1 - Male - Sam', voiceId: '2yqdQ7uuPQDBMgFA8dgu', delivery: {speed: 1.06, stability: 0.38, style: 0.35, similarity: 0.75, speakerBoost: false}},
   {id: 'maya-bennett', name: 'Maya Bennett', role: 'Co-Presenter', brand: 'TEAMtalk', position: 'right', biography: 'Upbeat, expressive, confident and engaging.', voice: 'Amelia - Enthusiastic and Expressive', voiceId: 'ZF6FPAbjXT4488VcRRnw', delivery: {speed: 1.14, stability: 0.32, style: 0.48, similarity: 0.75, speakerBoost: false}},
 ];
-const SECTION_IDS = new Set([...BUILD_SECTIONS, ...PRODUCTION_SECTIONS].map(([id]) => id));
+const SECTION_IDS = new Set([...BUILD_SECTIONS, ...PRODUCTION_SECTIONS, ...IMPORTED_SECTIONS].map(([id]) => id));
 const edge = '(?:^|[\\s_./-])';
 const end = '(?:[\\s_./-]|$)';
 function textOf(asset) { return `${asset?.name || ''} ${asset?.asset || ''}`.toLowerCase(); }

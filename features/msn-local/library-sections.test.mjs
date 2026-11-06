@@ -21,6 +21,8 @@ test('known TEAMtalk files keep their paths and land in the Build Library', () =
   assert.equal(presenterFromName('Football365-Maya-Bennett-Walking-Shadow-Reflection.mp4'), 'maya-bennett');
   assert.equal(movementFromName('Football365-Daniel-Brooks-V2-Point-Right.mp4'), 'Point Right');
   assert.equal(librarySection({asset: 'uploads/x.mp4', name: 'Idle.mp4', type: 'video', librarySection: 'presenter-clips'}), 'presenter-clips');
+  assert.equal(librarySection({asset: 'legacy-library/video/news-1.mp4', name: 'Saved headline', type: 'video', librarySection: 'imported'}), 'imported');
+  assert.equal(librarySection({asset: 'videos/a04e8c72-8da9-4ff1-a575-e2e79e369a4a.mp4', name: 'TEAMtalk LIVE — Dual Presenter Test 001', type: 'video'}), 'completed');
 });
 
 test('duplicate names are reported and files are not treated as one', () => {

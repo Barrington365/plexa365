@@ -8,4 +8,11 @@ const request=(suffix='',range='bytes=2-4')=>new Request('https://planetsport.st
 it('private MP4s cannot be downloaded without sign-in',async()=>{mocked.authorized=false;expect((await GET(request())).status).toBe(401);expect(mocked.openFile).not.toHaveBeenCalled();});
 it('range responses carry exact playable bytes and support attachment downloads',async()=>{const response=await GET(request('&download=1'));expect(response.status).toBe(206);expect(response.headers.get('content-range')).toBe('bytes 2-4/6');expect(response.headers.get('content-length')).toBe('3');expect(response.headers.get('content-type')).toBe('video/mp4');expect(response.headers.get('content-disposition')).toContain('attachment');expect([...new Uint8Array(await response.arrayBuffer())]).toEqual([2,3,4]);});
 it('invalid ranges return 416, not an HTML page or a fake video',async()=>{mocked.openFile.mockRejectedValue(Error('Invalid byte range'));mocked.snapshot.mockResolvedValue({state:{assets:{'videos/test.mp4':{bytes:6}}}});const response=await GET(request('','bytes=99-'));expect(response.status).toBe(416);expect(response.headers.get('content-range')).toBe('bytes */6');});
+it('webm, mov and gif copies can play from the workspace library',async()=>{
+  for (const [asset,type] of [['legacy-library/audio/take.webm','video/webm'],['legacy-library/uploads/clip.mov','video/quicktime'],['legacy-library/images/library/card.gif','image/gif']]) {
+    const response=await GET(new Request('https://planetsport.studio/api/studio-workspace/media?asset='+encodeURIComponent(asset),{headers:{range:'bytes=2-4'}}));
+    expect(response.status).toBe(206);
+    expect(response.headers.get('content-type')).toBe(type);
+  }
+});
 it('storage failures remain visible and do not claim an empty successful file',async()=>{mocked.openFile.mockRejectedValue(Error('storage unavailable'));const response=await GET(request());expect(response.status).toBe(503);expect(await response.json()).toHaveProperty('error');});
