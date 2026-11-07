@@ -22,6 +22,8 @@ export type AdminStoredSettings = {
   /** Optional alternative live provider. */
   livepeerApiKey?: string;
   apifyApiToken?: string;
+  /** YouTube Data API v3 key. Server only. Maps YOUTUBE_API_KEY. */
+  youtubeApiKey?: string;
   apifyYoutubeTranscriptActorId?: string;
   apifyYoutubeTranscriptLanguage?: string;
   apifyYoutubeTranscriptTimeoutSeconds?: string;
@@ -170,6 +172,7 @@ function secretFileKey(envName: string): keyof AdminStoredSettings | undefined {
     DEEPL_API_KEY: "deeplApiKey",
     DEEPL_API_URL: "deeplApiUrl",
     APIFY_API_TOKEN: "apifyApiToken",
+    YOUTUBE_API_KEY: "youtubeApiKey",
     SUPABASE_URL: "supabaseUrl",
     SUPABASE_SERVICE_ROLE_KEY: "supabaseServiceRoleKey",
     OPENAI_IMAGE_MODEL: "openaiImageModel",

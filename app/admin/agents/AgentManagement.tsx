@@ -3,6 +3,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { roles, states, type Data } from "@/app/lib/agents/model";
 import { AgentConversation } from "./AgentConversation";
 import { AgentCharacter } from "./AgentCharacter";
+import { VideoSearchBuildStatus } from "@/app/components/VideoSearchBuildStatus";
 type Payload = Data & { codexReachable?: boolean };
 const box = "rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface)] p-5";
 const input = "mt-1 w-full rounded-lg border border-[color:var(--border)] bg-[color:var(--surface)] p-2 text-[color:var(--text-primary)]";
@@ -37,6 +38,7 @@ export function AgentManagement() {
   async function save(command:Record<string,unknown>, savedNotice = "Saved to task history. Agents remain paused."){if(!data)return false;setBusy(true);setError("");setNotice("");try{const r=await fetch("/api/admin/agents",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({version:data.version,command})});const d:Payload=await r.json();if(!r.ok)throw new Error(d && "error" in d ? String((d as {error?:string}).error) : "Save failed.");setData(d);setNotice(savedNotice);return true;}catch(e){setError(e instanceof Error?e.message:"Save failed.");return false;}finally{setBusy(false);}}
   return <div className="space-y-6 text-[color:var(--text-primary)]">
     <header className={box}><p className="text-xs font-bold uppercase tracking-widest text-[color:var(--accent)]">Plexa · Admin</p><h1 className="mt-2 text-3xl font-black">Agent Management</h1><p className="mt-3 text-[color:var(--text-secondary)]">The Agent Manager coordinates work. Production agents operate Plexa. Engineering agents develop Plexa. Admin controls all of them.</p><div className="mt-4 rounded-xl bg-[color:var(--surface-muted)] p-4"><strong>All 8 agents paused · Execution disabled</strong><p className="mt-1 text-sm">Configure responsibilities and prepare tasks here. Choose Activate to show a character and Deactivate to hide it. Chat uses OpenAI. Companion chat does not dispatch Codex messages, grant tools or start tasks. {data ? (data.codexReachable ? "This server can reach the signed-in Codex CLI." : "This server cannot reach Codex. A session can still be saved. Messages send from the machine where ChatGPT Codex is signed in.") : ""}</p></div></header>
+    <VideoSearchBuildStatus />
     {error&&<div role="alert" className={box}>{error} <button onClick={load} className="underline">Refresh</button></div>}{notice&&<p role="status">{notice}</p>}
     {!data ? <p>{error ? "Sign in with a verified Admin account to manage agents." : "Loading agent records…"}</p> : <>
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">{[["Agents",data.agents.length],["Open tasks",data.tasks.filter(t=>!["Completed","Cancelled","Failed"].includes(t.state)).length],["Waiting for Admin",data.requests.filter(r=>r.state==="Waiting for Admin").length],["Paused automations",data.automations.length]].map(([label,n])=><div className={box} key={label}><p className="text-2xl font-black">{n}</p><p className="text-sm">{label}</p></div>)}</div>

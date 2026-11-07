@@ -20,6 +20,7 @@ type Body = {
   dailyApiKey?: string;
   livepeerApiKey?: string;
   apifyApiToken?: string;
+  youtubeApiKey?: string;
   apifyYoutubeTranscriptActorId?: string;
   apifyYoutubeTranscriptLanguage?: string;
   apifyYoutubeTranscriptTimeoutSeconds?: string;
@@ -44,6 +45,7 @@ type Body = {
   clearDailyApiKey?: boolean;
   clearLivepeerKey?: boolean;
   clearApifyApiToken?: boolean;
+  clearYoutubeKey?: boolean;
   clearSupabase?: boolean;
   clearHiggsfieldKeys?: boolean;
   clearHiggsfieldImageEndpoint?: boolean;
@@ -107,6 +109,10 @@ export async function GET() {
     daily: { configured: mask(s.dailyApiKey) },
     livepeer: { configured: mask(s.livepeerApiKey) },
     apify: { configured: mask(s.apifyApiToken) },
+    youtube: {
+      configured: Boolean(s.youtubeApiKey?.trim() || process.env.YOUTUBE_API_KEY?.trim()),
+      source: s.youtubeApiKey?.trim() ? "admin" : process.env.YOUTUBE_API_KEY?.trim() ? "environment" : "none",
+    },
     supabase: { configured: supabaseOk },
     higgsfield: { configured: higgsfieldOk },
     supabaseUrlHost,
@@ -122,6 +128,11 @@ export async function GET() {
     dailyApiKeyMasked: maskPreview(s.dailyApiKey),
     livepeerApiKeyMasked: maskPreview(s.livepeerApiKey),
     apifyApiTokenMasked: maskPreview(s.apifyApiToken),
+    youtubeApiKeyMasked: s.youtubeApiKey?.trim()
+      ? maskPreview(s.youtubeApiKey)
+      : process.env.YOUTUBE_API_KEY?.trim()
+        ? `${"•".repeat(14)} (environment)`
+        : "",
     supabaseServiceRoleKeyMasked: maskPreview(s.supabaseServiceRoleKey),
     apifyYoutubeTranscriptActorId:
       s.apifyYoutubeTranscriptActorId?.trim() || "apilabs/youtube-caption-transcription-scraper",
@@ -169,6 +180,7 @@ export async function POST(request: Request) {
   if (body.clearDailyApiKey) clearKeys.push("dailyApiKey");
   if (body.clearLivepeerKey) clearKeys.push("livepeerApiKey");
   if (body.clearApifyApiToken) clearKeys.push("apifyApiToken");
+  if (body.clearYoutubeKey) clearKeys.push("youtubeApiKey");
   if (body.clearSupabase) clearKeys.push("supabaseUrl", "supabaseServiceRoleKey");
   if (body.clearHiggsfieldKeys) clearKeys.push("higgsfieldApiKey", "higgsfieldApiSecret");
   if (body.clearHiggsfieldImageEndpoint) clearKeys.push("higgsfieldImageEditEndpoint");
@@ -192,6 +204,7 @@ export async function POST(request: Request) {
   if (body.dailyApiKey?.trim()) partial.dailyApiKey = body.dailyApiKey.trim();
   if (body.livepeerApiKey?.trim()) partial.livepeerApiKey = body.livepeerApiKey.trim();
   if (body.apifyApiToken?.trim()) partial.apifyApiToken = body.apifyApiToken.trim();
+  if (body.youtubeApiKey?.trim()) partial.youtubeApiKey = body.youtubeApiKey.trim();
   if (body.supabaseUrl?.trim()) partial.supabaseUrl = body.supabaseUrl.trim();
   if (body.supabaseServiceRoleKey?.trim()) partial.supabaseServiceRoleKey = body.supabaseServiceRoleKey.trim();
   if (body.apifyYoutubeTranscriptActorId?.trim()) partial.apifyYoutubeTranscriptActorId = body.apifyYoutubeTranscriptActorId.trim();
