@@ -51,7 +51,17 @@ function raceFromPreview(preview: RacecardTemplatePreview, idFallback: string): 
   };
 }
 
-/** Build three tips: API selections / top picks first, then fill from runner list. */
+/** Shorter fractional prices rank first. Unpriced horses stay in card order. */
+function priceRank(odds: string): number {
+  const text = odds.trim().toLowerCase();
+  if (text === "evs" || text === "evens") return 1;
+  const match = text.match(/^(\d+)\s*\/\s*(\d+)$/);
+  if (!match) return Number.POSITIVE_INFINITY;
+  const denominator = Number(match[2]);
+  return denominator > 0 ? Number(match[1]) / denominator : Number.POSITIVE_INFINITY;
+}
+
+/** Build three tips: API selections first. A card with no selections uses the shortest prices. */
 export function buildNextOffBundleDraftFromPlanetSport(
   api: PlanetSportRacePayload,
   sourceUrl: string,
@@ -60,9 +70,19 @@ export function buildNextOffBundleDraftFromPlanetSport(
   validateRacecardTemplateForImport(preview);
   const race = raceFromPreview(preview, "import");
   const names: string[] = [];
-  for (const n of preview.topPicks) {
-    const t = n.trim();
-    if (t && !names.includes(t)) names.push(t);
+  const selections = typeof api.Selections === "string" ? api.Selections.trim() : "";
+  if (selections) {
+    for (const n of preview.topPicks) {
+      const t = n.trim();
+      if (t && !names.includes(t)) names.push(t);
+    }
+  } else {
+    const ranked = [...preview.runners].sort((a, b) => priceRank(a.odds) - priceRank(b.odds) || preview.runners.indexOf(a) - preview.runners.indexOf(b));
+    for (const runner of ranked) {
+      if (names.length >= 3) break;
+      const horse = runner.horseName.trim();
+      if (horse && !names.includes(horse)) names.push(horse);
+    }
   }
   for (const r of preview.runners) {
     if (names.length >= 3) break;

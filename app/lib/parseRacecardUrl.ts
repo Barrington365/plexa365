@@ -80,6 +80,16 @@ export function extractPlanetSportRaceIdFromUrl(url: URL): number | null {
     const n = Number(String(q).replace(/\D/g, ""));
     if (Number.isFinite(n) && n > 0) return n;
   }
+  const resultPath = url.pathname.match(/\/results\/[^/]+\/\d{3,4}\/(\d+)\/?$/i);
+  if (resultPath) {
+    const n = Number(resultPath[1]);
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+  const slugRace = url.pathname.match(/-race-\d+-(\d+)\/?$/i);
+  if (slugRace) {
+    const n = Number(slugRace[1]);
+    if (Number.isFinite(n) && n > 0) return n;
+  }
   const m = url.pathname.match(/(?:race|Race)[_-]?(\d{5,})/i);
   if (m) {
     const n = Number(m[1]);
@@ -406,17 +416,153 @@ export async function fetchPlanetSportRacePayloadFlexible(raceId: number): Promi
 }
 
 export function extractPlanetSportRaceIdFromHtml(html: string): number | null {
-  const m = html.match(/"RaceID"\s*:\s*(\d{4,})/);
-  if (m) {
-    const n = Number(m[1]);
-    if (Number.isFinite(n) && n > 0) return n;
-  }
-  const m2 = html.match(/raceId[=:](\d{4,})/i);
-  if (m2) {
-    const n = Number(m2[1]);
+  const patterns = [
+    /"RaceID"\s*:\s*(\d{4,})/,
+    /raceId\\?"?\s*[:=]\s*\\?"?(\d{4,})/i,
+    /"identifier"\s*:\s*"(\d{4,})"/,
+  ];
+  for (const pattern of patterns) {
+    const match = html.match(pattern);
+    if (!match) continue;
+    const n = Number(match[1]);
     if (Number.isFinite(n) && n > 0) return n;
   }
   return null;
+}
+
+function jsonObjectAfterMarker(html: string, marker: string): unknown | null {
+  const idx = html.indexOf(marker);
+  if (idx < 0) return null;
+  const slice = html.slice(idx, idx + 300_000);
+  const brace = slice.indexOf("{");
+  if (brace < 0) return null;
+  let fragment = slice.slice(brace);
+  if (fragment.includes('\\"')) fragment = fragment.replace(/\\"/g, '"').replace(/\\\\/g, "\\");
+  let depth = 0;
+  let end = -1;
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < fragment.length; i++) {
+    const ch = fragment[i]!;
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') {
+      inString = true;
+      continue;
+    }
+    if (ch === "{") depth += 1;
+    else if (ch === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        end = i + 1;
+        break;
+      }
+    }
+  }
+  if (end < 0) return null;
+  try {
+    return JSON.parse(fragment.slice(0, end)) as unknown;
+  } catch {
+    return null;
+  }
+}
+
+function publishedRacing365Text(value: unknown): string {
+  const text = str(value);
+  return text && text !== "$undefined" && text !== "$null" ? text : "";
+}
+
+function payloadFromRacing365Result(root: Record<string, unknown>): PlanetSportRacePayload | null {
+  const raceId = positiveInt(root.raceId);
+  const rows = root.rows;
+  if (!raceId || !Array.isArray(rows) || rows.length === 0) return null;
+  const mapped = rows.flatMap((row) => {
+    if (!row || typeof row !== "object") return [];
+    const runner = row as Record<string, unknown>;
+    const horse = str(runner.horse);
+    const number = positiveInt(runner.cardNumber) ?? positiveInt(runner.posSort);
+    if (!horse || !number) return [];
+    const place = positiveInt(runner.posSort) ?? positiveInt(runner.pos);
+    const odds = publishedRacing365Text(runner.sp);
+    return [{
+      HorseName: horse,
+      RunnerTab: number,
+      FinishingPosition: place ?? undefined,
+      SP: odds,
+      Silk: str(runner.silksUrl),
+      JockeyName: str(runner.jockey),
+      TrainerName: str(runner.trainer),
+      Scratched: "N",
+    }];
+  });
+  if (!mapped.length) return null;
+  return {
+    RaceID: raceId,
+    Course: str(root.courseName),
+    Time: str(root.displayTime),
+    RaceName: str(root.raceName),
+    DisplayDistance: str(root.distance),
+    RaceSOT: str(root.going),
+    Date: str(root.utcDate),
+    Selections: "",
+    Runners: mapped,
+  };
+}
+
+/** Racing365 pages embed the card or result when the legacy feed has no row yet. */
+export function planetSportPayloadFromRacing365Html(html: string): PlanetSportRacePayload | null {
+  const result = jsonObjectAfterMarker(html, "liveResult");
+  if (result && typeof result === "object") {
+    const mapped = payloadFromRacing365Result(result as Record<string, unknown>);
+    if (mapped) return mapped;
+  }
+  const card = jsonObjectAfterMarker(html, "liveRaceCard");
+  if (!card || typeof card !== "object") return null;
+  const root = card as Record<string, unknown>;
+  const race = root.race;
+  if (!race || typeof race !== "object") return null;
+  const raceRow = race as Record<string, unknown>;
+  const raceId = positiveInt(root.raceId);
+  const runners = raceRow.raceRunners;
+  if (!raceId || !Array.isArray(runners) || runners.length === 0) return null;
+  const mapped = runners.flatMap((row) => {
+    if (!row || typeof row !== "object") return [];
+    const runner = row as Record<string, unknown>;
+    const horse = str(runner.name);
+    const number = positiveInt(runner.number);
+    if (!horse || !number) return [];
+    const published = (value: unknown) => {
+      const text = str(value);
+      return text && text !== "$undefined" && text !== "$null" ? text : "";
+    };
+    const odds = published(runner.bestOdds) || published(runner.openingOdds) || published(runner.startingPrice);
+    const silk = str(runner.silksUrl);
+    return [{
+      HorseName: horse,
+      RunnerTab: number,
+      WinOdds: odds,
+      Silk: silk,
+      JockeyName: str(runner.jockey),
+      TrainerName: str(runner.trainer),
+      Scratched: "N",
+    }];
+  });
+  if (!mapped.length) return null;
+  return {
+    RaceID: raceId,
+    Course: str(root.meetingName) || str(raceRow.meeting),
+    Time: str(raceRow.time),
+    RaceName: str(raceRow.raceName),
+    DisplayDistance: str(raceRow.distance),
+    RaceSOT: str(raceRow.going),
+    Date: str(raceRow.raceDateIso) || str(root.utcDate),
+    Selections: "",
+    Runners: mapped,
+  };
 }
 
 /** First-stage HTML inspection: embedded ids / JSON hints (no full DOM parse). */
@@ -1016,9 +1162,13 @@ export async function fetchPlanetSportRacePayloadFromUrl(
       }
     }
   }
+  let pageHtml = "";
   if (!raceId) {
     try {
       const { html } = await fetchRacecardSource(u.toString());
+      pageHtml = html;
+      const embedded = planetSportPayloadFromRacing365Html(html);
+      if (embedded) return { api: embedded, sourceUrl: u.toString() };
       raceId = extractPlanetSportRaceIdFromHtml(html);
     } catch (e) {
       if (e instanceof RacecardUrlImportError) throw e;
@@ -1028,8 +1178,19 @@ export async function fetchPlanetSportRacePayloadFromUrl(
   if (!raceId) {
     throw new RacecardUrlImportError("We found the page but could not parse a racecard", "unsupported");
   }
-  const api = await fetchPlanetSportRacePayloadFlexible(raceId);
-  return { api, sourceUrl: u.toString() };
+  try {
+    const api = await fetchPlanetSportRacePayloadFlexible(raceId);
+    return { api, sourceUrl: u.toString() };
+  } catch (e) {
+    if (!(e instanceof RacecardUrlImportError) || (e.code !== "fetch_failed" && e.code !== "blocked")) throw e;
+    if (!pageHtml) {
+      const { html } = await fetchRacecardSource(u.toString());
+      pageHtml = html;
+    }
+    const embedded = planetSportPayloadFromRacing365Html(pageHtml);
+    if (!embedded) throw e;
+    return { api: embedded, sourceUrl: u.toString() };
+  }
 }
 
 /**
