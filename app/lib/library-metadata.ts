@@ -3,11 +3,24 @@ import path from "path";
 import { readJsonBlob, shouldUseNetlifyBlobStore, writeJsonBlob } from "@/app/lib/netlify-blob-json";
 import { libraryMetadataPath } from "@/app/lib/paths";
 
+export type LibraryRightsStatus = "approved" | "pending" | "rejected";
+
 export type LibraryAssetMetadata = {
   title?: string;
   sourceUrl?: string;
   keywords: string[];
   updatedAt: string;
+  creator?: string;
+  rightsStatus?: LibraryRightsStatus;
+  rightsEvidence?: string;
+  rightsScope?: string;
+  rightsExpiresAt?: string;
+  rightsApprovedBy?: string;
+  brand?: string;
+  article?: string;
+  projectId?: string;
+  subjects?: string[];
+  importedAt?: string;
 };
 
 export type LibraryMetadataIndex = Record<string, LibraryAssetMetadata>;
@@ -51,23 +64,56 @@ export async function readLibraryMetadataIndex(): Promise<LibraryMetadataIndex> 
   }
 }
 
+export async function findLibraryMetadataBySourceUrl(sourceUrl: string): Promise<{ contentId: string; metadata: LibraryAssetMetadata } | null> {
+  const needle = sourceUrl.trim();
+  if (!needle) return null;
+  const index = await readLibraryMetadataIndex();
+  for (const [contentId, metadata] of Object.entries(index)) {
+    if (metadata.sourceUrl?.trim() === needle) return { contentId, metadata };
+  }
+  return null;
+}
+
 export async function upsertLibraryMetadata(
   contentId: string,
   partial: {
     title?: string;
     sourceUrl?: string;
     keywords?: string[];
+    creator?: string;
+    rightsStatus?: LibraryRightsStatus;
+    rightsEvidence?: string;
+    rightsScope?: string;
+    rightsExpiresAt?: string;
+    rightsApprovedBy?: string;
+    brand?: string;
+    article?: string;
+    projectId?: string;
+    subjects?: string[];
+    importedAt?: string;
   },
 ): Promise<LibraryAssetMetadata | null> {
   const key = safeContentId(contentId);
   if (!key) return null;
   const index = await readLibraryMetadataIndex();
   const existing = index[key];
+  const text = (value: string | undefined, previous: string | undefined) => value?.trim() || previous;
   const merged: LibraryAssetMetadata = {
-    title: partial.title?.trim() || existing?.title,
-    sourceUrl: partial.sourceUrl?.trim() || existing?.sourceUrl,
-    keywords: uniqueKeywords([...(existing?.keywords ?? []), ...(partial.keywords ?? []), key]),
+    title: text(partial.title, existing?.title),
+    sourceUrl: text(partial.sourceUrl, existing?.sourceUrl),
+    keywords: uniqueKeywords([...(existing?.keywords ?? []), ...(partial.keywords ?? []), ...(partial.subjects ?? []), key]),
     updatedAt: new Date().toISOString(),
+    creator: text(partial.creator, existing?.creator),
+    rightsStatus: partial.rightsStatus ?? existing?.rightsStatus,
+    rightsEvidence: text(partial.rightsEvidence, existing?.rightsEvidence),
+    rightsScope: text(partial.rightsScope, existing?.rightsScope),
+    rightsExpiresAt: text(partial.rightsExpiresAt, existing?.rightsExpiresAt),
+    rightsApprovedBy: text(partial.rightsApprovedBy, existing?.rightsApprovedBy),
+    brand: text(partial.brand, existing?.brand),
+    article: text(partial.article, existing?.article),
+    projectId: text(partial.projectId, existing?.projectId),
+    subjects: uniqueKeywords([...(existing?.subjects ?? []), ...(partial.subjects ?? [])]),
+    importedAt: text(partial.importedAt, existing?.importedAt),
   };
   index[key] = merged;
   if (shouldUseNetlifyBlobStore()) {

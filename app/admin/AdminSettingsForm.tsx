@@ -23,6 +23,8 @@ type Status = {
   daily?: { configured: boolean };
   livepeer: { configured: boolean };
   apify: { configured: boolean };
+  youtube?: { configured: boolean; source?: "admin" | "environment" | "none" };
+  youtubeApiKeyMasked?: string;
   supabase: { configured: boolean };
   supabaseUrlHost: string;
   supabaseServiceRoleKeyMasked?: string;
@@ -92,6 +94,7 @@ export function AdminSettingsForm() {
   const [dailyApiKey, setDailyApiKey] = useState("");
   const [livepeerApiKey, setLivepeerApiKey] = useState("");
   const [apifyApiToken, setApifyApiToken] = useState("");
+  const [youtubeApiKey, setYoutubeApiKey] = useState("");
   const [supabaseUrl, setSupabaseUrl] = useState("");
   const [supabaseServiceRoleKey, setSupabaseServiceRoleKey] = useState("");
   const [apifyYoutubeTranscriptActorId, setApifyYoutubeTranscriptActorId] = useState("apilabs/youtube-caption-transcription-scraper");
@@ -109,6 +112,7 @@ export function AdminSettingsForm() {
   const [dailyKeyDirty, setDailyKeyDirty] = useState(false);
   const [livepeerKeyDirty, setLivepeerKeyDirty] = useState(false);
   const [apifyTokenDirty, setApifyTokenDirty] = useState(false);
+  const [youtubeKeyDirty, setYoutubeKeyDirty] = useState(false);
   const [supabaseUrlDirty, setSupabaseUrlDirty] = useState(false);
   const [supabaseKeyDirty, setSupabaseKeyDirty] = useState(false);
   const [ffmpegPath, setFfmpegPath] = useState("");
@@ -127,6 +131,7 @@ export function AdminSettingsForm() {
   const [clearDailyApiKey, setClearDailyApiKey] = useState(false);
   const [clearLivepeerKey, setClearLivepeerKey] = useState(false);
   const [clearApifyApiToken, setClearApifyApiToken] = useState(false);
+  const [clearYoutubeKey, setClearYoutubeKey] = useState(false);
   const [clearSupabase, setClearSupabase] = useState(false);
   const [clearFfmpegPath, setClearFfmpegPath] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -236,6 +241,7 @@ export function AdminSettingsForm() {
       const nextDailyApiKey = dailyApiKey.trim();
       const nextLivepeer = livepeerApiKey.trim();
       const nextApifyToken = apifyApiToken.trim();
+      const nextYoutubeKey = youtubeApiKey.trim();
       const nextSupabaseUrl = supabaseUrl.trim();
       const nextSupabaseServiceRoleKey = supabaseServiceRoleKey.trim();
       const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -262,6 +268,7 @@ export function AdminSettingsForm() {
           dailyApiKey: dailyKeyDirty ? nextDailyApiKey || undefined : undefined,
           livepeerApiKey: livepeerKeyDirty ? nextLivepeer || undefined : undefined,
           apifyApiToken: apifyTokenDirty ? nextApifyToken || undefined : undefined,
+          youtubeApiKey: youtubeKeyDirty ? nextYoutubeKey || undefined : undefined,
           supabaseUrl: supabaseUrlDirty ? nextSupabaseUrl || undefined : undefined,
           supabaseServiceRoleKey: supabaseKeyDirty ? nextSupabaseServiceRoleKey || undefined : undefined,
           apifyYoutubeTranscriptActorId: apifyYoutubeTranscriptActorId.trim() || undefined,
@@ -286,6 +293,7 @@ export function AdminSettingsForm() {
           clearDailyApiKey,
           clearLivepeerKey,
           clearApifyApiToken,
+          clearYoutubeKey,
           clearSupabase,
           clearFfmpegPath,
           clearHiggsfieldKeys,
@@ -324,6 +332,9 @@ export function AdminSettingsForm() {
       if (!clearApifyApiToken && nextApifyToken && !refreshed.apify.configured) {
         throw new Error("Apify token save could not be verified.");
       }
+      if (!clearYoutubeKey && nextYoutubeKey && !refreshed.youtube?.configured) {
+        throw new Error("YouTube API key save could not be verified.");
+      }
       if (
         !clearSupabase &&
         (supabaseUrlDirty || supabaseKeyDirty) &&
@@ -347,6 +358,7 @@ export function AdminSettingsForm() {
       setDailyApiKey("");
       setLivepeerApiKey("");
       setApifyApiToken("");
+      setYoutubeApiKey("");
       setSupabaseUrl("");
       setSupabaseServiceRoleKey("");
       setElevenlabsKeyDirty(false);
@@ -363,6 +375,7 @@ export function AdminSettingsForm() {
       setDailyKeyDirty(false);
       setLivepeerKeyDirty(false);
       setApifyTokenDirty(false);
+      setYoutubeKeyDirty(false);
       setSupabaseUrlDirty(false);
       setSupabaseKeyDirty(false);
       setClearElevenlabsKey(false);
@@ -375,6 +388,7 @@ export function AdminSettingsForm() {
       setClearDailyApiKey(false);
       setClearLivepeerKey(false);
       setClearApifyApiToken(false);
+      setClearYoutubeKey(false);
       setClearSupabase(false);
       setClearFfmpegPath(false);
       setClearHiggsfieldKeys(false);
@@ -1412,6 +1426,36 @@ export function AdminSettingsForm() {
             </div>
           </div>
         </div>
+      </Panel>
+
+      <Panel title="YouTube Data API">
+        <p className="text-sm text-slate-400">
+          Used by Video Search &amp; Import for keyword search. Save the key here or set the server variable YOUTUBE_API_KEY.
+          The stored value stays on the server. This form shows only whether it is configured.
+        </p>
+        <label className="mt-3 block text-xs font-semibold text-slate-300">
+          YouTube Data API key
+          <input
+            className={inputClass}
+            type="password"
+            autoComplete="off"
+            value={youtubeKeyDirty ? youtubeApiKey : (status?.youtubeApiKeyMasked ?? "")}
+            placeholder={status?.youtube?.configured ? "Configured" : "Not configured"}
+            onChange={(e) => {
+              setYoutubeKeyDirty(true);
+              setYoutubeApiKey(e.target.value);
+            }}
+          />
+        </label>
+        <label className="mt-2 flex items-center gap-2 text-xs text-slate-400">
+          <input type="checkbox" checked={clearYoutubeKey} onChange={(e) => setClearYoutubeKey(e.target.checked)} />
+          Remove stored YouTube key
+        </label>
+        <p className="mt-2 text-xs text-slate-500">
+          {status?.youtube?.configured
+            ? `Configured from ${status.youtube.source === "environment" ? "the server environment" : "admin settings"}.`
+            : "Not configured. Keyword search stays closed until a key is saved."}
+        </p>
       </Panel>
 
       <Panel title="YouTube transcript import (Apify)">

@@ -62,10 +62,10 @@ const studioTools: ToolCard[] = [
     status: "Live",
   },
   {
-    name: "YouTube Video Download",
-    description: "Download permitted YouTube source videos for owned or licensed workflows.",
-    href: "/tools",
-    status: "Coming soon",
+    name: "Video Search & Import",
+    description: "Search and preview YouTube footage, record rights, and select a clip. Import stays closed until a licence and an authorised library file exist.",
+    href: "/tools/video-search-import",
+    status: "Live",
   },
   {
     name: "Podcast Script Builder",
