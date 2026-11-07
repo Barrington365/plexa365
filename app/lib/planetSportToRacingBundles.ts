@@ -52,8 +52,8 @@ function raceFromPreview(preview: RacecardTemplatePreview, idFallback: string): 
 }
 
 /** Shorter fractional prices rank first. Unpriced horses stay in card order. */
-function priceRank(odds: string): number {
-  const text = odds.trim().toLowerCase();
+function priceRank(odds: string | undefined): number {
+  const text = (odds ?? "").trim().toLowerCase();
   if (text === "evs" || text === "evens") return 1;
   const match = text.match(/^(\d+)\s*\/\s*(\d+)$/);
   if (!match) return Number.POSITIVE_INFINITY;
