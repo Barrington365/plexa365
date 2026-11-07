@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { landscapeStatus } from "@/app/lib/video-search/candidates";
 import { authorisedClipFfmpegArgs, parseClipSelection } from "@/app/lib/video-search/clip";
 import { importAuthorisedClip, type FootageRightsRecord } from "@/app/lib/video-search/rights";
-import { selectStoryCandidates } from "@/app/lib/video-search/stories";
+import { decideLandscape, landscapeFromOriginalFrame } from "@/app/lib/video-search/landscape";
+import { candidateRank, selectStoryCandidates } from "@/app/lib/video-search/stories";
 import type { VideoCandidate } from "@/app/lib/video-search/candidates";
 
 const approved: FootageRightsRecord = {
@@ -49,6 +50,10 @@ describe("video search rights", () => {
     expect(importAuthorisedClip({ record: approved, authorisedFileRel: "video/owned.mp4", now: "2026-11-07T00:00:00.000Z" }).allowed).toBe(true);
   });
 
+  it("rejects substituting another library file for the approved one", () => {
+    expect(importAuthorisedClip({ record: approved, authorisedFileRel: "video/other.mp4" }).allowed).toBe(false);
+  });
+
   it("rejects an expired licence and a rejected record", () => {
     expect(importAuthorisedClip({ record: { ...approved, expiresAt: "2026-01-01" }, authorisedFileRel: "video/owned.mp4", now: "2026-11-07T00:00:00.000Z" }).allowed).toBe(false);
     expect(importAuthorisedClip({ record: { ...approved, status: "rejected" }, authorisedFileRel: "video/owned.mp4" }).allowed).toBe(false);
@@ -75,6 +80,38 @@ describe("story candidates", () => {
       row("Luke Shaw interview", "ccccccccccc"),
     ], ["romano", "shaw", "striker"], 5);
     expect(picked.map((item) => item.videoId)).toEqual(["bbbbbbbbbbb", "ccccccccccc"]);
+  });
+
+  it("ranks an official interview ahead of a fan clip and drops a confirmed short", () => {
+    const fan = { ...row("Luke Shaw goals", "fan111111111"), creator: "Fan Edits" };
+    const official = { ...row("Luke Shaw interview", "off111111111"), creator: "Sky Sports Premier League" };
+    const shortClip = { ...row("Luke Shaw press conference", "short1111111"), landscape: "vertical" as const, landscapeLabel: "Vertical" };
+    const picked = selectStoryCandidates([fan, shortClip, official], ["shaw"], 5);
+    expect(picked.map((item) => item.videoId)).toEqual(["off111111111", "fan111111111"]);
+    expect(candidateRank(official, ["shaw"])).toBeGreaterThan(candidateRank(fan, ["shaw"]));
+  });
+});
+
+describe("landscape frame", () => {
+  it("verifies a wider original frame and rejects a taller one", () => {
+    expect(landscapeFromOriginalFrame(1280, 720)).toBe("verified");
+    expect(landscapeFromOriginalFrame(1080, 1920)).toBe("vertical");
+    expect(landscapeFromOriginalFrame(720, 720)).toBeNull();
+  });
+
+  it("treats a confirmed short as vertical", () => {
+    expect(decideLandscape({
+      url: "https://www.youtube.com/watch?v=abcdefghijk",
+      title: "Interview",
+      confirmedShort: true,
+      frame: { width: 1280, height: 720 },
+    })).toBe("vertical");
+    expect(decideLandscape({
+      url: "https://www.youtube.com/watch?v=abcdefghijk",
+      title: "Interview",
+      confirmedShort: false,
+      frame: null,
+    })).toBe("unverified");
   });
 });
 

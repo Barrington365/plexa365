@@ -4,6 +4,8 @@ import { toLoopTopicContentUrl } from "@/app/lib/data-studio/loop-feed";
 import { fetchYouTubeMetadata } from "@/app/lib/youtube-script/metadata";
 import { canonicalYouTubeUrl, extractYouTubeVideoId } from "@/app/lib/youtube-script/utils";
 import { formatDuration, landscapeLabel, landscapeStatus, type VideoCandidate } from "@/app/lib/video-search/candidates";
+import { annotateLandscape } from "@/app/lib/video-search/landscape";
+import { candidateRank } from "@/app/lib/video-search/stories";
 import { readFootageRights } from "@/app/lib/video-search/store";
 import loopFeedTeamsCatalog from "@/data/loop-feed-teams.catalog.json";
 
@@ -45,7 +47,7 @@ async function youtubeKeywordSearch(query: string, apiKey: string): Promise<{ ro
   endpoint.searchParams.set("part", "snippet");
   endpoint.searchParams.set("type", "video");
   endpoint.searchParams.set("q", query.slice(0, 120));
-  endpoint.searchParams.set("maxResults", "10");
+  endpoint.searchParams.set("maxResults", "15");
   endpoint.searchParams.set("videoEmbeddable", "true");
   endpoint.searchParams.set("safeSearch", "moderate");
   endpoint.searchParams.set("key", apiKey);
@@ -160,8 +162,8 @@ export async function searchVideos(input: { query?: string; url?: string }): Pro
     const videoId = extractYouTubeVideoId(pasted);
     if (!videoId) return { results: [], notice: "That text is not a YouTube URL." };
     const meta = await fetchYouTubeMetadata(videoId);
-    const landscape = landscapeStatus({ url: meta.url, title: meta.title });
-    const [result] = await withRights([candidateFrom({
+    const landscape = landscapeStatus({ url: pasted, title: meta.title });
+    const [measured] = await annotateLandscape([candidateFrom({
       videoId,
       url: meta.url,
       title: meta.title,
@@ -171,23 +173,28 @@ export async function searchVideos(input: { query?: string; url?: string }): Pro
       landscape,
       discovery: "url",
     })]);
+    const [result] = await withRights(measured ? [measured] : []);
     return { results: result ? [result] : [], notice: "Metadata comes from the YouTube Script Importer. The video is not downloaded.", searchedAt: new Date().toISOString() };
   }
 
   const apiKey = await getServerSecretAsync("YOUTUBE_API_KEY");
   const loop = await loopFeedSearch(query);
   const youtube = apiKey ? await youtubeKeywordSearch(query, apiKey) : { rows: [], unavailable: false };
-  const results = await withRights(dedupe([...loop, ...youtube.rows]).slice(0, 12));
+  const measured = await annotateLandscape(dedupe([...loop, ...youtube.rows]));
+  const ranked = measured
+    .filter((row) => row.landscape !== "vertical")
+    .sort((a, b) => candidateRank(b, tokens(query)) - candidateRank(a, tokens(query)) || a.title.localeCompare(b.title));
+  const results = await withRights(ranked.slice(0, 12));
   if (!results.length) {
     const notice = apiKey
       ? youtube.unavailable
         ? "The YouTube Data API did not return results. Loop Feed had no matching YouTube item. Nothing was downloaded."
-        : "No matching videos were returned. Nothing was downloaded."
+        : "No matching videos were returned. Confirmed Shorts and portrait videos are left out. Nothing was downloaded."
       : "YouTube keyword search needs YOUTUBE_API_KEY, or the same key saved in Admin provider settings. Loop Feed had no matching YouTube item. A pasted URL still works.";
     return { results: [], notice };
   }
   const notice = apiKey
-    ? "Loop Feed matches come first when a catalog team is named. Further rows come from the YouTube Data API. Nothing is downloaded."
+    ? "Official channels, broadcasters, interviews and direct coverage rank first. Confirmed Shorts and portrait videos are left out. Landscape is verified only from video rendition dimensions. Nothing is downloaded."
     : "YouTube keyword search needs YOUTUBE_API_KEY, or the same key saved in Admin provider settings. These rows are Loop Feed matches. A pasted URL still works.";
   return { results, notice, searchedAt: new Date().toISOString() };
 }

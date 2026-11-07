@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/app/lib/auth/guards";
 import { NextResponse } from "next/server";
 import { saveFootageRights } from "@/app/lib/video-search/store";
 import type { FootageRightsStatus } from "@/app/lib/video-search/rights";
@@ -5,6 +6,8 @@ import type { FootageRightsStatus } from "@/app/lib/video-search/rights";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
+  const auth = await requireAdmin(request);
+  if ("response" in auth) return auth.response;
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   if (!body) return NextResponse.json({ error: "A rights record is required." }, { status: 400 });
   const status = body.status;
@@ -22,7 +25,7 @@ export async function POST(request: Request) {
     distributionRights: body.distributionRights === true,
     sourceFileRef: typeof body.sourceFileRef === "string" ? body.sourceFileRef : "",
     expiresAt: typeof body.expiresAt === "string" ? body.expiresAt : "",
-    approvedBy: typeof body.approvedBy === "string" ? body.approvedBy : "",
+    approvedBy: auth.user.id,
     brand: typeof body.brand === "string" ? body.brand : "",
     article: typeof body.article === "string" ? body.article : "",
     projectId: typeof body.projectId === "string" ? body.projectId : "",

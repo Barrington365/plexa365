@@ -82,7 +82,7 @@ export function importAuthorisedClip(input: {
   const rights = rightsAllowImport(input.record, input.now);
   if (!rights.ok) return { allowed: false, reason: rights.reason };
   const rel = input.authorisedFileRel?.trim() || input.record?.sourceFileRef?.trim() || "";
-  if (!/^video\/[A-Za-z0-9._/-]+\.mp4$/.test(rel) || rel.includes("..")) {
+  if (rel !== input.record?.sourceFileRef || !/^video\/[A-Za-z0-9._/-]+\.mp4$/.test(rel) || rel.includes("..")) {
     return { allowed: false, reason: "No authorised source file is stored. A YouTube page is not downloaded." };
   }
   return { allowed: true };

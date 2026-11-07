@@ -232,7 +232,7 @@ export function VideoSearchImport() {
         </Panel>
       ) : null}
       <Panel title="Hollywoodbets LIVE footage sheet">
-        <p className="text-sm text-[color:var(--text-secondary)]">Candidates for Naomi Carter's three stories. This does not change her narration or the video project, and it does not add clips to the timeline.</p>
+        <p className="text-sm text-[color:var(--text-secondary)]">Candidates for the three Naomi Carter stories. This does not change her narration or the video project, and it does not add clips to the timeline.</p>
         <div className="mt-3"><R365Button onClick={() => void loadSheet()} disabled={busy === "sheet"}>{busy === "sheet" ? "Building sheet" : "Build footage sheet"}</R365Button></div>
         {sheet.map((story) => (
           <section key={story.article} className="mt-4">
@@ -243,7 +243,17 @@ export function VideoSearchImport() {
               {story.candidates.map((row) => (
                 <li key={row.videoId} className="grid grid-cols-[72px_1fr] gap-2 text-sm">
                   {row.thumbnailUrl ? <img src={row.thumbnailUrl} alt="" className="h-12 w-16 rounded object-cover" /> : <span />}
-                  <span><strong>{row.title}</strong><br />{row.creator} · {row.durationLabel} · {row.landscapeLabel} · Rights {row.rightsStatus}<br /><a className="break-all underline" href={row.url}>{row.url}</a></span>
+                  <span><strong>{row.title}</strong><br />{row.creator} · {row.durationLabel} · {row.landscapeLabel} · Rights {row.rightsStatus}<br /><a className="break-all underline" href={row.url}>{row.url}</a>
+                    <R365Button variant="ghost" onClick={() => {
+                      setResults(story.candidates);
+                      setSelectedId(row.videoId);
+                      setStart("0");
+                      setEnd("10");
+                      setBrand(story.brand);
+                      setArticle(story.article);
+                      requestAnimationFrame(() => document.querySelector("iframe[title]")?.scrollIntoView({ block: "center" }));
+                    }}>Preview</R365Button>
+                  </span>
                 </li>
               ))}
             </ul>
